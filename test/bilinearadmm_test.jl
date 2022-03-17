@@ -25,4 +25,5 @@ solver = BilinearADMM(A,B,C,d, Q,q,R,r)
 x0 = randn(n)
 z0 = randn(m)
 
-solve(solver, x0, z0, max_iters=1000)
+setpenalty!(solver, 0.1)
+x,z = solve(solver, x0, z0, max_iters=1000)

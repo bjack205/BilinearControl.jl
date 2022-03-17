@@ -1,5 +1,12 @@
 using Printf
 
+Base.@kwdef mutable struct ADMMOptions
+    ϵ_abs_primal::Float64 = 1e-3
+    ϵ_rel_primal::Float64 = 1e-3
+    ϵ_abs_dual::Float64 = 1e-3
+    ϵ_rel_dual::Float64 = 1e-3
+end
+
 struct BilinearADMM
     # Objective
     Q::Diagonal{Float64, Vector{Float64}}
@@ -24,6 +31,8 @@ struct BilinearADMM
     x_prev::Vector{Float64}
     z_prev::Vector{Float64}
     w_prev::Vector{Float64}
+
+    opts::ADMMOptions
 end
 
 function BilinearADMM(A,B,C,d, Q,q,R,r; ρ = 10.0)
@@ -37,7 +46,8 @@ function BilinearADMM(A,B,C,d, Q,q,R,r; ρ = 10.0)
     z_prev = zero(z)
     w_prev = zero(w)
     ρref = Ref(ρ)
-    BilinearADMM(Q, q, R, r, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev)
+    opts = ADMMOptions() 
+    BilinearADMM(Q, q, R, r, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev, opts)
 end
 
 setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
@@ -48,7 +58,7 @@ eval_g(solver::BilinearADMM, z) = 0.5 * dot(z, solver.R, z) + dot(solver.r, z)
 
 function eval_c(solver::BilinearADMM, x, z)
     A, B, C = solver.A, solver.B, solver.C
-    A*x + B*z + sum(z[i] * C[i]*x for i in eachindex(z))
+    A*x + B*z + sum(z[i] * C[i]*x for i in eachindex(z)) + solver.d
 end
 
 function getAhat(solver::BilinearADMM, z)
@@ -108,6 +118,27 @@ function updatew(solver::BilinearADMM, x, z, w)
     return w + eval_c(solver, x, z)
 end
 
+function check_convergence(solver::BilinearADMM, r, s)
+end
+
+function get_primal_tolerance(solver::BilinearADMM, x, z, w)
+    ϵ_abs = solver.opts.ϵ_abs_primal
+    ϵ_rel = solver.opts.ϵ_rel_primal
+    p = length(w)
+    Ahat = getAhat(solver, z)
+    Bhat = getBhat(solver, x)
+    √p*ϵ_abs + ϵ_rel * max(norm(Ahat * x), norm(Bhat * z), norm(solver.d))
+end
+
+function get_dual_tolerance(solver::BilinearADMM, x, z, w)
+    ρ = getpenalty(solver)
+    ϵ_abs = solver.opts.ϵ_abs_dual
+    ϵ_rel = solver.opts.ϵ_rel_dual
+    Ahat = getAhat(solver, z)
+    n = length(x) 
+    √n*ϵ_abs + ϵ_rel * norm(ρ*Ahat'w)
+end
+
 function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
         max_iters=100,
         e_primal=1e-3,
@@ -117,13 +148,14 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     x .= x0
     z .= z0
     w .= w0
-    @printf("%8s %10s %10s %10s\n", "iter", "cost", "||r||", "||s||")
+    @printf("%8s %10s %10s %10s, %10s\n", "iter", "cost", "||r||", "||s||", "dz")
     solver.z_prev .= NaN
     for iter = 1:max_iters
         r = primal_residual(solver, x, z)
         s = dual_residual(solver, x, z)
         J = eval_f(solver, x) + eval_g(solver, z)
-        @printf("%8d %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s))
+        dz = norm(z - solver.z_prev)
+        @printf("%8d %10.2g %10.2g %10.2g, %10.2g\n", iter, J, norm(r), norm(s), norm(dz))
         if norm(r) < e_primal && norm(s) < e_dual
             break
         end
