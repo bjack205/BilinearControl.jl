@@ -1,10 +1,3 @@
-using BilinearControl
-using Random
-include("gen_controllable.jl")
-using Main.RandomLinearModels
-using Test
-using ForwardDiff
-using FiniteDiff
 
 @testset "Bilinear Dynamics" begin
 Random.seed!(1)

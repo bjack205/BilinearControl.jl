@@ -2,8 +2,6 @@ import Pkg; Pkg.activate(@__DIR__)
 using BilinearControl
 using LinearAlgebra
 using Random
-include("gen_controllable.jl")
-using Main.RandomLinearModels
 using Test
 using FiniteDiff
 
