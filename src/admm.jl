@@ -5,6 +5,10 @@ Base.@kwdef mutable struct ADMMOptions
     ϵ_rel_primal::Float64 = 1e-3
     ϵ_abs_dual::Float64 = 1e-3
     ϵ_rel_dual::Float64 = 1e-3
+    relaxation_paramter::Float64 = 1.0  # no relaxation
+    τ_incr::Float64 = 2.0
+    τ_decr::Float64 = 2.0
+    penalty_threshold::Float64 = 10.0
 end
 
 struct BilinearADMM
@@ -118,6 +122,23 @@ function updatew(solver::BilinearADMM, x, z, w)
     return w + eval_c(solver, x, z)
 end
 
+function penaltyupdate!(solver::BilinearADMM, r, s)
+    τ_incr = solver.opts.τ_incr
+    τ_decr = solver.opts.τ_decr
+    μ = solver.opts.penalty_threshold
+    ρ = getpenalty(solver) 
+    nr = norm(r)
+    ns = norm(s)
+    if nr > μ * ns  # primal residual too large
+        ρ_new = ρ * τ_incr
+    elseif ns > μ * nr  # dual residual too large
+        ρ_new = ρ / τ_decr
+    else
+        ρ_new = ρ
+    end
+    setpenalty!(solver, ρ_new)
+end
+
 function get_primal_tolerance(solver::BilinearADMM, x, z, w)
     ϵ_abs = solver.opts.ϵ_abs_primal
     ϵ_rel = solver.opts.ϵ_rel_primal
@@ -143,7 +164,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     x .= x0
     z .= z0
     w .= w0
-    @printf("%8s %10s %10s %10s, %10s\n", "iter", "cost", "||r||", "||s||", "dz")
+    @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= NaN
     for iter = 1:max_iters
         r = primal_residual(solver, x, z)
@@ -152,7 +173,11 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         dz = norm(z - solver.z_prev)
         ϵ_primal = get_primal_tolerance(solver, x, z, w)
         ϵ_dual = get_primal_tolerance(solver, x, z, w)
-        @printf("%8d %10.2g %10.2g %10.2g, %10.2g\n", iter, J, norm(r), norm(s), norm(dz))
+        if iter > 1
+            penaltyupdate!(solver, r, s)
+        end
+        ρ = getpenalty(solver)
+        @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
         if norm(r) < ϵ_primal && norm(s) < ϵ_dual
             break
         end
