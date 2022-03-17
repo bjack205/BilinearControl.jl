@@ -2,3 +2,6 @@ name = "BilinearControl"
 uuid = "6c574e7f-3a92-4ac2-914e-58f10933cbed"
 authors = ["Brian Jackson <bjack205@gmail.com>"]
 version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
