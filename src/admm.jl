@@ -118,9 +118,6 @@ function updatew(solver::BilinearADMM, x, z, w)
     return w + eval_c(solver, x, z)
 end
 
-function check_convergence(solver::BilinearADMM, r, s)
-end
-
 function get_primal_tolerance(solver::BilinearADMM, x, z, w)
     ϵ_abs = solver.opts.ϵ_abs_primal
     ϵ_rel = solver.opts.ϵ_rel_primal
@@ -141,8 +138,6 @@ end
 
 function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
         max_iters=100,
-        e_primal=1e-3,
-        e_dual=1e-3,
     )
     x, z, w = solver.x, solver.z, solver.w
     x .= x0
@@ -155,8 +150,10 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         s = dual_residual(solver, x, z)
         J = eval_f(solver, x) + eval_g(solver, z)
         dz = norm(z - solver.z_prev)
+        ϵ_primal = get_primal_tolerance(solver, x, z, w)
+        ϵ_dual = get_primal_tolerance(solver, x, z, w)
         @printf("%8d %10.2g %10.2g %10.2g, %10.2g\n", iter, J, norm(r), norm(s), norm(dz))
-        if norm(r) < e_primal && norm(s) < e_dual
+        if norm(r) < ϵ_primal && norm(s) < ϵ_dual
             break
         end
         solver.z_prev .= z
