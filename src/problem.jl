@@ -1,3 +1,7 @@
+export BiLinearProblem, getmodel, 
+    cost, statecost, controlcost, statecost_grad!, controlcost_grad!,
+    constraints!, constraint_state_jacobian!, constraint_control_jacobian!
+
 struct BiLinearProblem
     model::BiLinearDynamics
     Q::Diagonal{Float64, Vector{Float64}}
@@ -22,11 +26,12 @@ function BiLinearProblem(model, Q, R, Qf, x0, xf, N)
     Np = N * n + (N - 1) * m  # number of primals
     xinds = [(1:n) .+ (k-1)*n for k = 1:N]
     uinds = [(1:m) .+ (k-1)*m .+ N*n for k = 1:N-1]
-    xinds = [(1:n) .+ (k-1)*n .+ Np for k = 1:N]
+    yinds = [(1:n) .+ (k-1)*n .+ Np for k = 1:N]
     BiLinearProblem(model, Q, R, Qf, x0, xf, N, xinds, uinds, yinds)
 end
 
 dims(prob::BiLinearProblem) = (state_dim(prob.model), control_dim(prob.model), prob.N)
+getmodel(prob::BiLinearProblem) = prob.model
 
 function num_primals(prob::BiLinearProblem)
     n,m,N = dims(prob)
@@ -94,13 +99,12 @@ end
 function controlcost_grad!(prob, gu, U)
     _,m,N = dims(prob)
     R = prob.R
-    J = zero(eltype(U))
     for k = 1:N-1
         iu = (k-1)*m .+ (1:m)
         u = @view U[iu]
-        gu .= R * u
+        gu[iu] .= R * u
     end
-    return J
+    return gu
 end
 
 function constraints!(prob, c, X, U)
@@ -109,7 +113,7 @@ function constraints!(prob, c, X, U)
     # Initial condition
     ic = 1:n
     ix = 1:n
-    x = @view Z[ix]
+    x = @view X[ix]
     c[ic] .= prob.x0 - x
     ic = ic .+ n
 
@@ -152,7 +156,7 @@ function constraint_state_jacobian!(prob, jx, X, U)
         jx[ic, ix2] .= -I(n)
         ic = ic .+ n
     end
-    return c
+    return jx
 end
 
 function constraint_control_jacobian!(prob, ju, X, U)
@@ -172,5 +176,5 @@ function constraint_control_jacobian!(prob, ju, X, U)
         ju[ic, iu1] .= Bhat
         ic = ic .+ n
     end
-    return c
+    return ju
 end
