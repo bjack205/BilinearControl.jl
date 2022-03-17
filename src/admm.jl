@@ -1,3 +1,138 @@
-struct ADMMSolver
-    prob::BiLinearProblem
+using Printf
+
+struct BilinearADMM
+    # Objective
+    Q::Diagonal{Float64, Vector{Float64}}
+    q::Vector{Float64}
+    R::Diagonal{Float64, Vector{Float64}}
+    r::Vector{Float64}
+
+    # Bilinear Constraints
+    A::Matrix{Float64}
+    B::Matrix{Float64}
+    C::Vector{Matrix{Float64}}
+    d::Vector{Float64}
+
+    # Parameters
+    ρ::Ref{Float64}
+
+    # Storage
+    x::Vector{Float64}
+    z::Vector{Float64}
+    w::Vector{Float64}  # scaled duals
+
+    x_prev::Vector{Float64}
+    z_prev::Vector{Float64}
+    w_prev::Vector{Float64}
+end
+
+function BilinearADMM(A,B,C,d, Q,q,R,r; ρ = 10.0)
+    n = size(A,2)
+    m = size(B,2)
+    p = length(d)
+    x = zeros(n)
+    z = zeros(m)
+    w = zeros(p)
+    x_prev = zero(x)
+    z_prev = zero(z)
+    w_prev = zero(w)
+    ρref = Ref(ρ)
+    BilinearADMM(Q, q, R, r, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev)
+end
+
+setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
+getpenalty(solver::BilinearADMM) = solver.ρ[]
+
+eval_f(solver::BilinearADMM, x) = 0.5 * dot(x, solver.Q, x) + dot(solver.q, x)
+eval_g(solver::BilinearADMM, z) = 0.5 * dot(z, solver.R, z) + dot(solver.r, z)
+
+function eval_c(solver::BilinearADMM, x, z)
+    A, B, C = solver.A, solver.B, solver.C
+    A*x + B*z + sum(z[i] * C[i]*x for i in eachindex(z))
+end
+
+function getAhat(solver::BilinearADMM, z)
+    Ahat = copy(solver.A)
+    for i in eachindex(z)
+        Ahat .+= solver.C[i] * z[i]
+    end
+    return Ahat
+end
+
+function getBhat(solver::BilinearADMM, x)
+    Bhat = copy(solver.B)
+    for i in eachindex(solver.C)
+        Bhat[:,i] .+= solver.C[i] * x
+    end
+    return Bhat
+end
+
+geta(solver::BilinearADMM, z) = solver.B*z + solver.d
+getb(solver::BilinearADMM, x) = solver.A*x + solver.d
+
+primal_residual(solver::BilinearADMM, x, z) = eval_c(solver, x, z)
+
+function dual_residual(solver::BilinearADMM, x, z)
+    ρ = getpenalty(solver)
+    Ahat = getAhat(solver, solver.z_prev)
+    Bhat = getBhat(solver, x)
+    s = ρ * Ahat'Bhat*(z - solver.z_prev)
+    return s
+end
+
+function solvex(solver::BilinearADMM, z, w)
+    ρ = getpenalty(solver)
+    p = length(w)
+    Ahat = getAhat(solver, z)
+    a = geta(solver, z)
+    n = length(a)
+
+    H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
+    g = [solver.q; a + w]
+    δ = -(H\g)
+    x = δ[1:n]
+    return x
+end
+
+function solvez(solver::BilinearADMM, x, w)
+    ρ = getpenalty(solver)
+    Bhat = getBhat(solver, x)
+    b = getb(solver, x)
+    H = R + ρ * Bhat'Bhat
+    g = solver.r + ρ * Bhat'*(b + w)
+    z = -(H\g)
+    return z
+end
+
+function updatew(solver::BilinearADMM, x, z, w)
+    return w + eval_c(solver, x, z)
+end
+
+function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
+        max_iters=100,
+        e_primal=1e-3,
+        e_dual=1e-3,
+    )
+    x, z, w = solver.x, solver.z, solver.w
+    x .= x0
+    z .= z0
+    w .= w0
+    @printf("%8s %10s %10s %10s\n", "iter", "cost", "||r||", "||s||")
+    solver.z_prev .= NaN
+    for iter = 1:max_iters
+        r = primal_residual(solver, x, z)
+        s = dual_residual(solver, x, z)
+        J = eval_f(solver, x) + eval_g(solver, z)
+        @printf("%8d %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s))
+        if norm(r) < e_primal && norm(s) < e_dual
+            break
+        end
+        solver.z_prev .= z
+
+        x .= solvex(solver, z, w)
+        z .= solvez(solver, x, w)
+        w .= updatew(solver, x, z, w)
+
+    end
+    return x,z,w
 end
