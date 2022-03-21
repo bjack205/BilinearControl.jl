@@ -1,5 +1,6 @@
 using Test
 using Symbolics
+using SparseArrays
 
 # getdifferential
 vars = @variables x y z
@@ -9,14 +10,31 @@ e = x*(3y^2 + 4y) + y*x*(4 - 2y)
 D = getdifferential(value(x*y^2))
 @test expand_derivatives(D(Symbolics.expand(e))) == 1
 
+@variables t θ(t)
+e = θ^2 + 3 * θ
+@test expand_derivatives(getdifferential(value(θ))(e)) - (3 + 2θ) == 0
+
+θdot = Differential(t)(θ)
+e = 2θ + θdot * θ + 4*Differential(t)(θ) + cos(θdot)
+@test expand_derivatives(getdifferential(value(θdot))(e)) - (θ + 4 - sin(θdot)) == 0
+
 # getconstant
+vars = @variables x y z
 vars0 = @variables x0 y0 z0
 @test getconstant(value(x), vars) == 0
 @test getconstant(value(x + y + 2), vars) == 2
 @test getconstant(value(x0), vars) === value(x0)
 @test iszero(getconstant(value(3 + 4*x0*sin(y0)), vars) - (3 + 4*x0*sin(y0)))
 
+@variables t x(t) y(t)
+xdot = Differential(t)(x)
+ydot = Differential(t)(y)
+vars = [x, y, xdot, ydot]
+@test getconstant(value(x * xdot + xdot^2 + xdot + x), vars) == 0
+
 # Taylor expansions
+vars = @variables x y z
+vars0 = @variables x0 y0 z0
 e0 = sin(x0) + cos(x0)*(x - x0)
 e1 = taylorexpand(sin(x), vars, vars0, 1)
 @test iszero(e0 - e1)
@@ -185,8 +203,10 @@ taylorexpand(statederivative[1], vars, vars0, order)
 vars0 = [x0, ẋ0]
 order = 3
 approx_dynamics = map(statederivative) do xdot
-    taylorexpand(xdot, vars, vars0, order)
+    Num(taylorexpand(xdot, vars, vars0, order))
 end
+approx_dynamics
+xddot_approx = b*xdot + a *(sin(x0) + cos(x0)*(x-x0) - sin(x0)*(x-x0)^2/2 - cos(x0)*(x-x0)^3/6)
 
 # Form the expanded vector
 y = buildstatevector(statevec, order)
@@ -208,13 +228,37 @@ ydot0 = [
 ]
 @test ydot0 - ydot == zeros(9)
 
-# Substitute in the dynamics
-subs = Dict(Dt(statevec[i])=>statederivative[i] for i = 1:length(statevec))
-for j = 1:length(ydot)
-    ydot[j] = substitute(ydot[j], subs)
+# Substitute in the approximate dynamics
+subs = Dict(Dt(statevec[i])=>approx_dynamics[i] for i = 1:length(statevec))
+ydot_approx = map(ydot) do yi
+    substitute(yi, subs)
 end
-@test iszero(ydot[1] - xdot)
-@test iszero(ydot[2] - xddot)
-@test iszero(ydot[3] - (2x*xdot))
-@test iszero(ydot[4] - (ẋ^2 + x*xddot))
-@test iszero(ydot[5] - (ẋ^2 + x*xddot))
+@test iszero(ydot_approx[1] - xdot)
+@test iszero(ydot_approx[2] - xddot_approx)
+@test iszero(ydot_approx[3] - (2x*xdot))
+@test iszero(ydot_approx[4] - (ẋ^2 + x*xddot_approx))
+@test iszero(ydot_approx[5] - (2ẋ*xddot_approx))
+
+# Get coeffs 
+coeffs, rvals = getcoeffs(ydot_approx, y[1], vars)
+r = coeffs[1] - a*(cos(x0) + sin(x0)*x0 - cos(x0)*(x0)^2 * 0.5)  # derivative of xddot wrt x
+@test norm(filter(x->x isa Real, arguments(value(r)))) < 1e-12
+@test coeffs[2] - xddot_approx_const == 0
+@test rvals == [2, 4]
+
+coeffs, rvals = getcoeffs(ydot_approx, y[2], vars)
+@test coeffs - [1, b, 2*xddot_approx_const] == zeros(3)
+@test rvals == [1, 2, 5]
+
+coeffs, rvals = getcoeffs(ydot_approx, y[3], vars)
+@test coeffs[3] - xddot_approx_const == 0
+@test rvals == [2,4,7]
+
+coeffs, rvals = getcoeffs(ydot_approx, x*ẋ^2, vars)
+@test coeffs[1:2] == [2.0, 2*b]
+@test rvals == 7:9
+
+using SparseArrays
+spzeros(4,4)
+n = length(y)
+A = getA(ydot_approx, y)

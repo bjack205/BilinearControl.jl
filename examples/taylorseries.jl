@@ -2,7 +2,7 @@ import Pkg; Pkg.activate(@__DIR__)
 using Plots
 using Symbolics
 using LinearAlgebra
-using Test
+using SparseArrays
 using Symbolics
 using Symbolics.SymbolicUtils
 using Symbolics: value, istree
@@ -108,7 +108,7 @@ function getconstant(e::SymbolicUtils.Symbolic, vars)
     termvars = Symbolics.get_variables(e)
     isconstant = !any(termvars) do tvar
         any(vars) do var
-            value(var) === value(tvar)
+            hash(value(var)) === hash(value(tvar))
         end
     end
     if isconstant
@@ -143,6 +143,7 @@ Note you will usually need to call `Symbolics.value` prior to calling this funct
 getdifferential(var::SymbolicUtils.Mul) = mapreduce(Differential, *, arguments(value(var)))
 getdifferential(var::SymbolicUtils.Pow) = Differential(var)
 getdifferential(var::SymbolicUtils.Sym) = Differential(var)
+getdifferential(var::SymbolicUtils.Term) = Differential(var)
 
 function getcoeffs(e::Num, vars)
 
@@ -213,35 +214,19 @@ function buildstatevector(x, order)
     filter(x->getpow(x) <= order, y)
 end
 
-@variables t t0
-e = taylorexpansion(f, t0, t, 4)
-
-x0 = pi/4 
-xs = range(-pi, pi, length=51) .+ x0
-y0 = f.(xs)
-p = plot(xs, y0, label="sin", legend=:bottomright)
-for i = 1:2:13
-    e = taylorexpansion(f, t0, t, i)
-    f_expr = build_function(e, [t, t0])
-    f = eval(f_expr)
-    y = map(x->f([x, x0]), xs)
-    p = plot!(xs, y, label="n=$i")
-    display(p)
+function getA(ydot, y)
+    n = length(y)
+    basevars = filter(x->getpow(x)==1, y)
+    nzval = Num[]
+    rowval = Int[]
+    colptr = zeros(Int, n+1)
+    colptr[1] = 1
+    for i = 1:n
+        coeffs, rvals = getcoeffs(ydot, y[i], basevars)
+        nterms = length(coeffs)
+        colptr[i+1] = colptr[i] + nterms
+        append!(nzval, coeffs)
+        append!(rowval, rvals)
+    end
+    return SparseMatrixCSC(n, n, colptr, rowval, nzval)
 end
-
-@variables t theta(t) theta0
-sin_approx = taylorexpansion(sin, theta0, theta, 3)
-D = Differential(t)
-thetadot = D(theta)
-a = -2.1
-b = 0.1
-thetaddot = a * sin(theta)  + b * thetadot
-thetaddot_approx = substitute(thetaddot, Dict(sin(theta)=>sin_approx))
-x0 = [theta, thetadot]
-x1 = trilvec(x0*x0')
-x2 = trilvec([x0; x1]*[x0; x1]')
-x = filter(x->getpow(x) <= 3, unique([x0;x1;x2]))
-x8 = x[8]
-
-x8dot = expand_derivatives(D(x8))
-substitute(x8dot, Dict(D(D(theta))=>thetaddot))
