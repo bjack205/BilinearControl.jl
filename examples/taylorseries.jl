@@ -195,6 +195,17 @@ getpow(sym::SymbolicUtils.Mul) = mapreduce(getpow, +, arguments(sym))
 getpow(sym::SymbolicUtils.Add) = maximum(getpow, arguments(sym))
 
 
+function buildstatevector(x, order)
+    iters = ceil(Int, log2(order))
+    @show iters
+    y = copy(x)
+    for i = 1:iters
+        y_ = trilvec(y*y')
+        y = unique([y; y_])
+    end
+    filter(x->getpow(x) <= order, y)
+end
+
 @variables t t0
 e = taylorexpansion(f, t0, t, 4)
 

@@ -118,3 +118,48 @@ coeffs, rvals = getcoeffs(exprs, y^2*x, vars)
 coeffs, rvals = getcoeffs(exprs, y^3, vars)
 @test coeffs == [1] 
 @test rvals == [1]
+
+# Building state vector
+@variables x
+statevec = [x]
+yvec = buildstatevector(statevec, 5)
+@test all(iszero, yvec - [x, x^2, x^3, x^4, x^5])
+
+@variables x y
+statevec = [x,y]
+yvec1 = buildstatevector(statevec, 4)
+yvec0 = [x, y, x^2, x*y, y^2, x^3, x^2*y, x*y^2, y^3, x^4, x^3*y, x^2*y^2, x*y^3, y^4]
+@test all(iszero, yvec1 - yvec0)
+
+@variables x y z
+statevec = [x,y,z]
+yvec1 = buildstatevector(statevec, 2)
+yvec0 = [x, y, z, x^2, x*y, x*z, y^2, y*z, z^2]
+@test all(iszero, yvec1 - yvec0)
+
+@variables t x(t)
+ẋ = Differential(t)(x)
+statevec = [x,ẋ]
+yvec1 = buildstatevector(statevec, 3)
+yvec0 = [x, ẋ, x^2, x*ẋ, ẋ^2, x^3, x^2*ẋ, x*ẋ^2, ẋ^3]
+@test all(iszero, yvec1 - yvec0)
+
+# Pendulum
+@variables t theta(t) theta0
+Dt = Differential(t)
+thetadot = Dt(theta)
+x = [theta, thetadot]
+
+# Define the dynamics
+a = -2.1
+b = 0.1
+thetaddot = a * sin(theta)  + b * thetadot
+xdot = [thetadot, thetaddot]
+
+# Form the expanded vector
+y = 
+
+x1 = trilvec(x0*x0')
+x2 = trilvec([x0; x1]*[x0; x1]')
+x = filter(x->getpow(x) <= 3, unique([x0;x1;x2]))
+ceil(Int, log2(3))
