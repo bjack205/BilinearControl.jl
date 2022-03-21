@@ -49,6 +49,21 @@ e0 = sin(exp(2x0^2)) + cos(exp(2x0^2))*(exp(2x0^2) * (2x^2 - 2x0^2) + exp(2x0^2)
 e1 = taylorexpand(sin(exp(2x^2)), vars, vars0, 1)
 @test iszero(simplify(expand(e0) - expand(e1)))
 
+# Taylor expansions with dependent variables
+@variables t x(t) y(t) x0 y0
+vars = [x,y]
+vars0 = [x0,y0]
+@test taylorexpand(value(x), vars, vars0, 1) === value(x)
+@test taylorexpand(x, vars, vars0, 1) === value(x)
+
+@test taylorexpand(2x, vars, vars0, 1) - 2x == 0
+@test taylorexpand(2x^2, vars, vars0, 1) - 2x^2 == 0
+@test taylorexpand(2x^2, vars, vars0, 1) - 2x^2 == 0
+
+e0 = sin(x0) + cos(x0)*(x - x0)
+e1 = taylorexpand(sin(x), vars, vars0, 1)
+@test iszero(e0 - e1)
+
 # getpow
 @variables t a(t) b(t) x y 
 @test getpow(x) == 1
@@ -144,22 +159,62 @@ yvec1 = buildstatevector(statevec, 3)
 yvec0 = [x, ẋ, x^2, x*ẋ, ẋ^2, x^3, x^2*ẋ, x*ẋ^2, ẋ^3]
 @test all(iszero, yvec1 - yvec0)
 
-# Pendulum
-@variables t theta(t) theta0
+#############################################
+## Pendulum
+#############################################
+
+@variables t x(t) x0 y(t)
 Dt = Differential(t)
-thetadot = Dt(theta)
-x = [theta, thetadot]
+xdot = Dt(x)
+ẋ = xdot
+ẍ = (Dt^2)(x)
+vars = [x, xdot]
 
 # Define the dynamics
 a = -2.1
 b = 0.1
-thetaddot = a * sin(theta)  + b * thetadot
-xdot = [thetadot, thetaddot]
+xddot = a * sin(x)  + b * xdot 
+statederivative = [xdot, xddot]
+e = statederivative[1]
+typeof(value(x))
+istree(value(x))
+taylorexpand(statederivative[1], vars, vars0, order)
+
+# Get Taylor approximation of dynamics
+@variables x0 ẋ0
+vars0 = [x0, ẋ0]
+order = 3
+approx_dynamics = map(statederivative) do xdot
+    taylorexpand(xdot, vars, vars0, order)
+end
 
 # Form the expanded vector
-y = 
+y = buildstatevector(statevec, order)
+y0 = [x, ẋ, x^2, x*ẋ, ẋ^2, x^3, x^2*ẋ, x*ẋ^2, ẋ^3]
+@test all(iszero, y - y0)
 
-x1 = trilvec(x0*x0')
-x2 = trilvec([x0; x1]*[x0; x1]')
-x = filter(x->getpow(x) <= 3, unique([x0;x1;x2]))
-ceil(Int, log2(3))
+# Form the expanded state derivative
+ydot = expand_derivatives.(D.(y))
+ydot0 = [
+    ẋ,               # x
+    ẍ,               # xdot
+    2x*ẋ,            # x^2
+    ẋ^2 + x*ẍ,       # x*xdot
+    2ẋ*ẍ,            # xdot^2
+    3x^2*ẋ,          # x^3
+    2x*ẋ^2 + x^2*ẍ,  # x^2*xdot
+    ẋ^3 + x*2ẋ*ẍ,    # x*xdot^2
+    3ẋ^2*ẍ,          # xdot^3
+]
+@test ydot0 - ydot == zeros(9)
+
+# Substitute in the dynamics
+subs = Dict(Dt(statevec[i])=>statederivative[i] for i = 1:length(statevec))
+for j = 1:length(ydot)
+    ydot[j] = substitute(ydot[j], subs)
+end
+@test iszero(ydot[1] - xdot)
+@test iszero(ydot[2] - xddot)
+@test iszero(ydot[3] - (2x*xdot))
+@test iszero(ydot[4] - (ẋ^2 + x*xddot))
+@test iszero(ydot[5] - (ẋ^2 + x*xddot))

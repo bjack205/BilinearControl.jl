@@ -40,6 +40,13 @@ end
     taylorexpand(f::Symbolics.Symbolic, vars, vars0, order)
 """
 function taylorexpand(f::SymbolicUtils.Term, vars, vars0, order)
+    # Check if the term is one of the variables (e.g. a dependent variable)
+    for i = 1:length(vars)
+        if f === value(vars[i])
+            return f
+        end
+    end
+
     # Generate a symbolic expression representing the Taylor expansion of the called function
     op = operation(f)
     args = arguments(f)
@@ -79,7 +86,7 @@ function taylorexpand(sym::SymbolicUtils.Mul, args...)
 end
 
 function taylorexpand(sym::SymbolicUtils.Pow{<:Real,<:Any,<:Real}, args...)
-    taylorexpand(sym.base)^sym.exp
+    taylorexpand(sym.base, args...)^sym.exp
 end
 
 function taylorexpand(sym::SymbolicUtils.Div, args...)
