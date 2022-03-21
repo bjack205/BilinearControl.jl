@@ -149,8 +149,27 @@ function getcoeffs(e::Num, vars)
     end
 end
 
-function getcoeffs(exprs::Vector{Num}, var)
+function getcoeffs(exprs::Vector{Num}, var, basevars)
+    rowvals = Int[]
+    terms = Num[]
+    D = getdifferential(value(var))
+    for (i,e) in enumerate(exprs)
+        # Expand the expression to get all terms as multiplications
+        e_expanded = Symbolics.expand(e)
 
+        # Take the derivative with respect to the current variable
+        dvar = Symbolics.expand(expand_derivatives(D(e_expanded)))
+
+        # Extract out the constant part of the expression
+        coeff = getconstant(value(dvar), basevars)
+
+        # If it's not zero, add to results
+        if hash(coeff) != hash(Num(0))
+            push!(rowvals, i)
+            push!(terms, coeff)
+        end
+    end
+    return terms, rowvals 
 end
 
 function trilvec(A::AbstractMatrix)
