@@ -1,11 +1,17 @@
-import Pkg; Pkg.activate(@__DIR__)
-using Plots
 using Symbolics
 using LinearAlgebra
 using SparseArrays
 using Symbolics
 using Symbolics.SymbolicUtils
 using Symbolics: value, istree
+
+getpow(num::Num) = getpow(Symbolics.value(num))
+getpow(x::Real) = 0
+getpow(::Union{<:SymbolicUtils.Term,SymbolicUtils.Sym}) = 1
+getpow(sym::SymbolicUtils.Pow{<:Any,<:Any,<:Integer}) = getpow(sym.base) * sym.exp
+getpow(sym::SymbolicUtils.Pow) = error("Expression has a non-integer power") 
+getpow(sym::SymbolicUtils.Mul) = mapreduce(getpow, +, arguments(sym))
+getpow(sym::SymbolicUtils.Add) = maximum(getpow, arguments(sym))
 
 """
     taylorexpansion(f::Function, nargs, order=:x)
@@ -145,18 +151,13 @@ getdifferential(var::SymbolicUtils.Pow) = Differential(var)
 getdifferential(var::SymbolicUtils.Sym) = Differential(var)
 getdifferential(var::SymbolicUtils.Term) = Differential(var)
 
-function getcoeffs(e::Num, vars)
+"""
+    getcoeffs(exprs, var, basevars)
 
-    # Get the original variables
-    basevars = filter(x->getpow(x) == 1, vars)
-    e_expanded = Symbolics.expand(e)
-    map(vars) do var
-        D = getdifferential(value(var))
-        dvar = Symbolics.expand(expand_derivatives(D(e_expanded)))  # get derivative wrt to the variable
-        getconstant(value(dvar), basevars)
-    end
-end
-
+Get the linear coefficients with respect to `var` for each symbolic expression in `exprs`.
+Any symbolic variable not in `basevars` is considered a constant and will be included in
+the expression for the coefficients.
+"""
 function getcoeffs(exprs::Vector{Num}, var, basevars)
     rowvals = Int[]
     terms = Num[]
@@ -180,6 +181,64 @@ function getcoeffs(exprs::Vector{Num}, var, basevars)
     return terms, rowvals 
 end
 
+function _buildsparsematrix(exprs, vars, basevars)
+    n = length(exprs)  # number of rows
+    m = length(vars)   # number of columns
+    nzval = Num[]
+    rowval = Int[]
+    colptr = zeros(Int, m+1)
+    colptr[1] = 1
+    for i = 1:m
+        coeffs, rvals = getcoeffs(exprs, vars[i], basevars)
+        nterms = length(coeffs)
+        colptr[i+1] = colptr[i] + nterms
+        append!(nzval, coeffs)
+        append!(rowval, rvals)
+    end
+    return SparseMatrixCSC(n, m, colptr, rowval, nzval)
+end
+
+function getAsym(ydot, y)
+    basevars = filter(x->getpow(x)==1, y)
+    _buildsparsematrix(ydot, y, basevars)
+end
+
+function getAsym(ydot, y, u)
+    basevars = filter(x->getpow(x)==1, y)
+    append!(basevars, u)  # must be constant wrt to both original state and control
+    _buildsparsematrix(ydot, y, basevars)
+end
+
+function getB(ydot, y, u)
+    basevars = filter(x->getpow(x)==1, y)
+    append!(basevars, u)  # must be constant wrt to both original state and control
+    _buildsparsematrix(ydot, u, basevars)
+end
+
+function getC(ydot, y, u)
+    basevars = filter(x->getpow(x)==1, y)
+    append!(basevars, u)  # must be constant wrt to both original state and control
+    map(u) do uk
+        # Differentiate the dynamics wrt the current control variable
+        dydotdu = Differential(uk).(ydot)
+
+        # Get the coefficients now that the current control has been differentiated out
+        _buildsparsematrix(dydotdu, y, basevars)
+    end
+end
+
+function buildstatevector(x, order)
+    iters = ceil(Int, log2(order))
+    @show iters
+    y = copy(x)
+    for i = 1:iters
+        y_ = trilvec(y*y')
+        y = unique([y; y_])
+    end
+    filter(x->getpow(x) <= order, y)
+end
+
+
 function trilvec(A::AbstractMatrix)
     n = minimum(size(A))
     numel = n * (n + 1) ÷ 2
@@ -194,42 +253,7 @@ function trilvec(A::AbstractMatrix)
     return v
 end
 
-getpow(num::Num) = getpow(Symbolics.value(num))
-getpow(x::Real) = 0
-getpow(::Union{<:SymbolicUtils.Term,SymbolicUtils.Sym}) = 1
-getpow(sym::SymbolicUtils.Pow{<:Any,<:Any,<:Integer}) = getpow(sym.base) * sym.exp
-getpow(sym::SymbolicUtils.Pow) = error("Expression has a non-integer power") 
-getpow(sym::SymbolicUtils.Mul) = mapreduce(getpow, +, arguments(sym))
-getpow(sym::SymbolicUtils.Add) = maximum(getpow, arguments(sym))
 
-
-function buildstatevector(x, order)
-    iters = ceil(Int, log2(order))
-    @show iters
-    y = copy(x)
-    for i = 1:iters
-        y_ = trilvec(y*y')
-        y = unique([y; y_])
-    end
-    filter(x->getpow(x) <= order, y)
-end
-
-function getA(ydot, y)
-    n = length(y)
-    basevars = filter(x->getpow(x)==1, y)
-    nzval = Num[]
-    rowval = Int[]
-    colptr = zeros(Int, n+1)
-    colptr[1] = 1
-    for i = 1:n
-        coeffs, rvals = getcoeffs(ydot, y[i], basevars)
-        nterms = length(coeffs)
-        colptr[i+1] = colptr[i] + nterms
-        append!(nzval, coeffs)
-        append!(rowval, rvals)
-    end
-    return SparseMatrixCSC(n, n, colptr, rowval, nzval)
-end
 
 function build_expanded_vector_function(y)
     vars = filter(x->getpow(x)==1, y)
@@ -250,24 +274,59 @@ function build_expanded_vector_function(y)
     end
 end
 
-function build_Amat_function(A, vars0)
+function build_bilinear_dynamics_functions(Asym, Bsym, Csym, vars0, controls)
     n0 = length(vars0)
-    @variables _x0[n0]  # use underscore to avoid potential naming conflicts
-    subs = Dict(vars0[i]=>_x0[i] for i = 1:n0)
-    exprs = map(enumerate(A.nzval)) do (i,e)
-        # Substitute out vars0 for array var _x0
-        e_sub = substitute(e, subs)
+    m = length(controls)
 
-        # Convert to expression
-        expr = Symbolics.toexpr(e_sub)
-        :(nzval[$i] = $expr)
+    # Rename states and controls to _x, _u array variables
+    @variables _x0[n0] _u[m]  # use underscore to avoid potential naming conflicts
+    subs = Dict(vars0[i]=>_x0[i] for i = 1:n0)
+    merge!(subs, Dict(controls[i]=>_u[i] for i = 1:m))
+
+    function genexprs(A, subs)
+        map(enumerate(A.nzval)) do (i,e)
+            # Substitute in new state and control variable names 
+            e_sub = substitute(e, subs)
+
+            # Convert to expression
+            expr = Symbolics.toexpr(e_sub)
+            :(nzval[$i] = $expr)
+        end
     end
-    quote
-        function buildA!(A, x0, y)
+    Aexprs = genexprs(Asym, subs)
+    Bexprs = genexprs(Bsym, subs)
+    Cexprs = map(1:m) do i
+        Cexpr = genexprs(Csym[i], subs)
+        quote
+            nzval = C[$i].nzval
+            $(Cexpr...)
+        end
+    end
+    updateA! = quote
+        function (A, x0, y, u)
             _x0 = x0
+            _u = u
             nzval = A.nzval
-            $(exprs...)
+            $(Aexprs...)
             return A
         end
     end
+    updateB! = quote
+        function (B, x0, y, u)
+            _x0 = x0
+            _u = u
+            nzval = B.nzval
+            $(Bexprs...)
+            return B
+        end
+    end
+    updateC! = quote
+        function (C, x0, y, u)
+            _x0 = x0
+            _u = u
+            $(Cexprs...)
+            return C
+        end
+    end
+    return updateA!, updateB!, updateC!
 end

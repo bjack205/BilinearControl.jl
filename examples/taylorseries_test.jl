@@ -1,3 +1,5 @@
+import Pkg; Pkg.activate(@__DIR__)
+include("taylorseries.jl")
 using Test
 using Symbolics
 using SparseArrays
@@ -114,7 +116,7 @@ exprs = [
     x*(x - 4y^2) - 4x
 ]
 coeffs, rvals = getcoeffs(exprs, x, vars)
-@test terms == [10,-4]
+@test coeffs == [10,-4]
 @test rvals == [1,4]
 
 coeffs, rvals = getcoeffs(exprs, y, vars)
@@ -188,6 +190,7 @@ xdot = Dt(x)
 ẋ = xdot
 ẍ = (Dt^2)(x)
 vars = [x, xdot]
+order = 3
 
 # Define the dynamics
 function pendulum_dynamics(vars)
@@ -202,9 +205,6 @@ a = -2.1
 b = 0.1
 xddot = a * sin(x)  + b * xdot 
 statederivative = pendulum_dynamics(vars) 
-typeof(value(x))
-istree(value(x))
-taylorexpand(statederivative[1], vars, vars0, order)
 
 # Get Taylor approximation of dynamics
 @variables x0 ẋ0
@@ -213,8 +213,10 @@ order = 3
 approx_dynamics = map(statederivative) do xdot
     Num(taylorexpand(xdot, vars, vars0, order))
 end
-approx_dynamics
-xddot_approx = b*xdot + a *(sin(x0) + cos(x0)*(x-x0) - sin(x0)*(x-x0)^2/2 - cos(x0)*(x-x0)^3/6)
+xddot_approx = b*xdot + 
+    a *(sin(x0) + cos(x0)*(x-x0) - sin(x0)*(x-x0)^2/2 - cos(x0)*(x-x0)^3/6)
+@test approx_dynamics[2] - xddot_approx == 0
+xddot_approx_const = a*(sin(x0) - cos(x0)*x0 - sin(x0)*x0^2/2 + cos(x0)*x0^3/6)
 
 # Form the expanded vector
 y = buildstatevector(statevec, order)
@@ -278,8 +280,8 @@ pendulum_expand!(y_, x_)
 @test y_[end] == x_[2]^3
 
 # Test build A
-Asym = getA(ydot_approx, y)
-build_A_expr = build_Amat_function(Asym, vars0)
+Asym = getAsym(ydot_approx, y)
+build_A_expr = build_bilinear_dynamics_functions(Asym, vars0)
 pendulum_build_A! = eval(build_A_expr)
 nterms = nnz(Asym)
 n = length(y)
@@ -289,4 +291,104 @@ pendulum_build_A!(A, x0_, y_)
 # Compare dynamics
 xdot0 = pendulum_dynamics(x_)
 xdot1 = (A*y_)[1:2]
+@test norm(xdot0 - xdot1) < 1e-3
+
+#############################################
+## Forced Pendulum
+#############################################
+
+function pendulum_dynamics(states, controls)
+    x = states[1]
+    xdot = states[2]
+    tau = controls[1]
+    a = -2.1 # g / J⋅ℓ
+    b = 0.1  # damping / J
+    c = 0.5  # 1/J
+    xddot = a * sin(x)  + b * xdot  + c*tau
+    return [xdot, xddot]
+end
+
+# Set up analytical dynamics
+@variables t x(t) τ 
+n0,m = 2,1
+a = -2.1
+b = 0.1
+c = 0.5
+Dt = Differential(t)
+xdot = Dt(x)
+
+states = [x, xdot]
+controls = [τ]
+statederivative = pendulum_dynamics(states, controls)
+@test statederivative[2] - (c*τ + b*xdot + a*sin(x)) == 0
+
+# Get Taylor approximation of dynamics
+@variables x0 ẋ0
+vars0 = [x0, ẋ0]
+order = 3
+approx_dynamics = map(statederivative) do xdot
+    Num(taylorexpand(xdot, states, vars0, order))
+end
+approx_dynamics
+xddot_approx = c*τ + b*xdot + a *(
+    sin(x0) + cos(x0)*(x-x0) - sin(x0)*(x-x0)^2/2 - cos(x0)*(x-x0)^3/6)
+@test approx_dynamics[2] - xddot_approx == 0
+
+# Form the expanded vector
+y = buildstatevector(statevec, order)
+n = length(y)  # new state dimension
+
+# Form the expanded state derivative
+ydot = expand_derivatives.(Dt.(y))
+
+# Substitute in approximate dynamics
+subs = Dict(Dt(statevec[i])=>approx_dynamics[i] for i = 1:length(statevec))
+ydot_approx = map(ydot) do yi
+    substitute(yi, subs)  # expand here?
+end
+ydot_approx
+
+# Build symbolic matrices
+Asym = getA(ydot_approx, y, controls)
+@test Asym[1,2] == 1
+@test Asym[4,5] == 1
+Bsym = getB(ydot_approx, y, controls)
+@test Bsym[2] == c
+@test norm(Vector(Bsym[4:end])) == 0
+@test norm(Matrix(Csym[1][1:3,:])) == 0
+Csym = getC(ydot_approx, y, controls)
+@test Csym[1][4,1] == c
+@test Csym[1][5,2] == 2c
+@test Csym[1][7,3] == c
+@test Csym[1][8,4] == 2c
+@test Csym[1][9,5] == 3c
+
+# Test dynamics
+A = similar(Asym, Float64)
+B = similar(Bsym, Float64)
+C = map(x->similar(x, Float64), Csym)
+@test nnz(A) == nnz(Asym)
+@test nnz(B) == nnz(B)
+@test nnz(C[1]) == nnz(C[1])
+
+updateA_expr, updateB_expr, updateC_expr = 
+    build_bilinear_dynamics_functions(Asym, Bsym, Csym, vars0, controls)
+
+pendulum_updateA! = eval(updateA_expr)
+pendulum_updateB! = eval(updateB_expr)
+pendulum_updateC! = eval(updateC_expr)
+
+# Generate some inputs
+x0_ = zeros(n0)
+x_ = [deg2rad(30), deg2rad(10)]
+y_ = zeros(n)
+u_ = [0.5]
+pendulum_expand!(y_, x_)
+pendulum_updateA!(A, x0_, y_, u_)
+pendulum_updateB!(B, x0_, y_, u_)
+pendulum_updateC!(C, x0_, y_, u_)
+ydot_ = A*y_ + B*u_ + u_[1]*C[1]*y_
+xdot1 = ydot_[1:2]
+xdot0 = pendulum_dynamics(x_, u_)
+norm(xdot1 - xdot0)
 @test norm(xdot0 - xdot1) < 1e-3
