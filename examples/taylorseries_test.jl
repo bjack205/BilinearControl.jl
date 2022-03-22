@@ -188,7 +188,7 @@ yvec0 = [x, ẋ, x^2, x*ẋ, ẋ^2, x^3, x^2*ẋ, x*ẋ^2, ẋ^3]
 ## Pendulum
 #############################################
 
-@variables t x(t) x0 ẋ0 τ
+@variables t x(t) τ
 Dt = Differential(t)
 xdot = Dt(x)
 ẋ = xdot
@@ -217,7 +217,8 @@ xddot = a * sin(x)  + b * xdot
 statederivative = pendulum_dynamics(states, controls)
 
 # Get Taylor approximation of dynamics
-states0 = [x0, ẋ0]
+states0 = [Symbolics.variable(Symbol("_x0"), i) for i = 1:n0]
+x0 = states0[1]
 approx_dynamics = map(statederivative) do xdot
     Num(taylorexpand(xdot, states, states0, order))
 end
@@ -261,6 +262,7 @@ end
 
 # Get coeffs 
 vars = [states; controls]
+ydot_approx
 coeffs, rvals = getcoeffs(ydot_approx, x, vars)
 @test norm(filter(x->x isa Real, arguments(value(r)))) < 1e-12
 @test coeffs[2] - xddot_approx_const == 0
@@ -321,7 +323,7 @@ D = similar(Dsym, Float64)
 @test nnz(C[1]) == nnz(C[1])
 
 updateA_expr, updateB_expr, updateC_expr, updateD_expr = 
-    build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, controls)
+    build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, states0, controls)
 
 pendulum_updateA! = eval(updateA_expr)
 pendulum_updateB! = eval(updateB_expr)
@@ -353,3 +355,41 @@ ydot_ = A*y_ + B*u_ + u_[1]*C[1]*y_ + D
 xdot1 = ydot_[1:2]
 xdot0 = pendulum_dynamics(x_, u_)
 @test norm(xdot1 - xdot0) < 1e-12
+
+## Test full method
+order = 5
+@time bilinear_pendulum = bilinearize_dynamics(pendulum_dynamics, states, controls, t, order)
+
+state_expand_expr = build_expanded_vector_function(bilinear_pendulum)
+
+updateA_expr, updateB_expr, updateC_expr, updateD_expr = 
+    build_bilinear_dynamics_functions(bilinear_pendulum)
+
+pendulum_updateA! = eval(updateA_expr)
+pendulum_updateB! = eval(updateB_expr)
+pendulum_updateC! = eval(updateC_expr)
+pendulum_updateD! = eval(updateD_expr)
+pendulum_expand! = eval(state_expand_expr)
+
+# Generate some inputs
+x0_ = zeros(bilinear_pendulum.n0)
+x_ = [deg2rad(30), deg2rad(10)]
+y_ = zeros(bilinear_pendulum.n)
+u_ = [0.5]
+pendulum_expand!(y_, x_)
+
+# Update matrices
+A = similar(bilinear_pendulum.A, Float64)
+B = similar(bilinear_pendulum.B, Float64)
+C = [similar(C, Float64) for C in bilinear_pendulum.C]
+D = similar(bilinear_pendulum.D, Float64)
+
+pendulum_updateA!(A, x0_, y_)
+pendulum_updateB!(B, x0_, y_)
+pendulum_updateC!(C, x0_, y_)
+pendulum_updateD!(D, x0_, y_)
+
+ydot_ = A*y_ + B*u_ + u_[1]*C[1]*y_ + D
+xdot1 = ydot_[1:2]
+xdot0 = pendulum_dynamics(x_, u_)
+@test norm(xdot1 - xdot0) < 1e-5

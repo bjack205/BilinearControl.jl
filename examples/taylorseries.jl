@@ -61,7 +61,7 @@ function taylorexpand(f::SymbolicUtils.Term, vars, vars0, order)
     @variables _x[nargs] _x0[nargs]
 
     # Taylor expand the arguments
-    subs = Pair.(vars, vars0)
+    subs = Dict(vars[i]=>vars0[i] for i = 1:length(vars))
     for i = 1:nargs
         # Taylor expand the argument
         arg_approx = taylorexpand(args[i], vars, vars0, order)
@@ -241,7 +241,6 @@ end
 
 function buildstatevector(x, order)
     iters = ceil(Int, log2(order))
-    @show iters
     y = copy(x)
     for i = 1:iters
         y_ = trilvec(y*y')
@@ -265,7 +264,65 @@ function trilvec(A::AbstractMatrix)
     return v
 end
 
+struct SymbolicBilinearDynamics
+    n0::Int
+    n::Int
+    m::Int
+    A::SparseMatrixCSC{Num,Int}
+    B::SparseMatrixCSC{Num,Int}
+    C::Vector{SparseMatrixCSC{Num,Int}}
+    D::SparseMatrixCSC{Num,Int}
+    dynamics::Function
+    states::Vector{Num}
+    controls::Vector{Num}
+    states0::Vector{Num}
+    constants::Vector{Num}
+    expandedstates::Vector{Num}
+end
 
+function bilinearize_dynamics(dynamics::Function, states, controls, t, order; constants=Num[])
+    @assert !istree(value(t)) "Independent variable must be independent!"
+    Dt = Differential(t)
+    n0 = length(states)
+    m = length(controls)
+
+    # Evaluate the continuous dynamics
+    statederivative = dynamics(states, controls)
+
+    # Get Taylor approximation of the dynamics
+    states0 = [Symbolics.variable(Symbol("_x0"), i) for i = 1:n0]
+    approx_dynamics = map(statederivative) do xdot
+        Num(taylorexpand(xdot, states, states0, order))
+    end
+
+    # Form the expanded state vector
+    y = buildstatevector(states, order)
+    n = length(y)  # new state dimension
+
+    # Form the expanded state derivative
+    ydot = expand_derivatives.(Dt.(y)) 
+
+    # Substitute in the approximate dynamics
+    subs = Dict(Dt(states[i])=>approx_dynamics[i] for i = 1:n0)
+    ydot_approx = map(ydot) do yi
+        substitute(yi, subs)
+    end
+
+    # Build symbolic sparse matrices
+    #   These store symbolic expressions for the nonzero elements
+    #   Each is only a function of the linearization state or provided constants
+    Asym = getAsym(ydot_approx, y, controls)
+    Bsym = getBsym(ydot_approx, y, controls)
+    Csym = getCsym(ydot_approx, y, controls)
+    Dsym = getDsym(ydot_approx, y, controls)
+
+    # Build struct
+    SymbolicBilinearDynamics(n0, n, m, Asym, Bsym, Csym, Dsym, dynamics, states, controls, states0, constants, y)
+end
+
+function build_expanded_vector_function(sbd::SymbolicBilinearDynamics)
+    build_expanded_vector_function(sbd.expandedstates)
+end
 
 function build_expanded_vector_function(y)
     vars = filter(x->getpow(x)==1, y)
@@ -284,6 +341,10 @@ function build_expanded_vector_function(y)
             return y
         end
     end
+end
+
+function build_bilinear_dynamics_functions(sbd::SymbolicBilinearDynamics)
+    build_bilinear_dynamics_functions(sbd.A, sbd.B, sbd.C, sbd.D, sbd.states0, sbd.controls)
 end
 
 function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, controls)
@@ -316,35 +377,35 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
     end
     Dexprs = genexprs(Dsym, subs)
     updateA! = quote
-        function (A, x0, y, u)
+        function (A, x0, y)
             _x0 = x0
-            _u = u
+            # _u = u
             nzval = A.nzval
             $(Aexprs...)
             return A
         end
     end
     updateB! = quote
-        function (B, x0, y, u)
+        function (B, x0, y)
             _x0 = x0
-            _u = u
+            # _u = u
             nzval = B.nzval
             $(Bexprs...)
             return B
         end
     end
     updateC! = quote
-        function (C, x0, y, u)
+        function (C, x0, y)
             _x0 = x0
-            _u = u
+            # _u = u
             $(Cexprs...)
             return C
         end
     end
     updateD! = quote
-        function (D, x0, y, u)
+        function (D, x0, y)
             _x0 = x0
-            _u = u
+            # _u = u
             nzval = D.nzval
             $(Dexprs...)
             return D
