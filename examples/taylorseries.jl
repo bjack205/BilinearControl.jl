@@ -157,17 +157,23 @@ getdifferential(var::SymbolicUtils.Term) = Differential(var)
 Get the linear coefficients with respect to `var` for each symbolic expression in `exprs`.
 Any symbolic variable not in `basevars` is considered a constant and will be included in
 the expression for the coefficients.
+
+If `iszero(var)` (e.g. `Num(0)`), the constant coefficients are extracted.
 """
 function getcoeffs(exprs::Vector{Num}, var, basevars)
     rowvals = Int[]
     terms = Num[]
-    D = getdifferential(value(var))
     for (i,e) in enumerate(exprs)
         # Expand the expression to get all terms as multiplications
         e_expanded = Symbolics.expand(e)
 
         # Take the derivative with respect to the current variable
-        dvar = Symbolics.expand(expand_derivatives(D(e_expanded)))
+        if !iszero(var)
+            D = getdifferential(value(var))
+            dvar = Symbolics.expand(expand_derivatives(D(e_expanded)))
+        else
+            dvar = e_expanded
+        end
 
         # Extract out the constant part of the expression
         coeff = getconstant(value(dvar), basevars)
@@ -209,13 +215,13 @@ function getAsym(ydot, y, u)
     _buildsparsematrix(ydot, y, basevars)
 end
 
-function getB(ydot, y, u)
+function getBsym(ydot, y, u)
     basevars = filter(x->getpow(x)==1, y)
     append!(basevars, u)  # must be constant wrt to both original state and control
     _buildsparsematrix(ydot, u, basevars)
 end
 
-function getC(ydot, y, u)
+function getCsym(ydot, y, u)
     basevars = filter(x->getpow(x)==1, y)
     append!(basevars, u)  # must be constant wrt to both original state and control
     map(u) do uk
@@ -225,6 +231,12 @@ function getC(ydot, y, u)
         # Get the coefficients now that the current control has been differentiated out
         _buildsparsematrix(dydotdu, y, basevars)
     end
+end
+
+function getDsym(ydot, y, u)
+    basevars = filter(x->getpow(x)==1, y)
+    append!(basevars, u)  # must be constant wrt to both original state and control
+    _buildsparsematrix(ydot, [Num(0)], basevars)
 end
 
 function buildstatevector(x, order)
@@ -274,7 +286,7 @@ function build_expanded_vector_function(y)
     end
 end
 
-function build_bilinear_dynamics_functions(Asym, Bsym, Csym, vars0, controls)
+function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, controls)
     n0 = length(vars0)
     m = length(controls)
 
@@ -302,6 +314,7 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, vars0, controls)
             $(Cexpr...)
         end
     end
+    Dexprs = genexprs(Dsym, subs)
     updateA! = quote
         function (A, x0, y, u)
             _x0 = x0
@@ -328,5 +341,14 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, vars0, controls)
             return C
         end
     end
-    return updateA!, updateB!, updateC!
+    updateD! = quote
+        function (D, x0, y, u)
+            _x0 = x0
+            _u = u
+            nzval = D.nzval
+            $(Dexprs...)
+            return D
+        end
+    end
+    return updateA!, updateB!, updateC!, updateD!
 end
