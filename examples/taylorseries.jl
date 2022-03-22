@@ -230,3 +230,44 @@ function getA(ydot, y)
     end
     return SparseMatrixCSC(n, n, colptr, rowval, nzval)
 end
+
+function build_expanded_vector_function(y)
+    vars = filter(x->getpow(x)==1, y)
+    n0 = length(vars)
+    @variables x[n0]
+    subs = Dict(y[i]=>x[i] for i = 1:n0)
+    exprs = map(enumerate(y)) do (i,yk)
+        y_ = substitute(yk, subs)
+        y_expr = Symbolics.toexpr(y_)
+        :(y[$i] = $y_expr) 
+    end
+    
+    quote
+        function expand!(y, x)
+            $(exprs...)
+            return y
+        end
+    end
+end
+
+function build_Amat_function(A, vars0)
+    n0 = length(vars0)
+    @variables _x0[n0]  # use underscore to avoid potential naming conflicts
+    subs = Dict(vars0[i]=>_x0[i] for i = 1:n0)
+    exprs = map(enumerate(A.nzval)) do (i,e)
+        # Substitute out vars0 for array var _x0
+        e_sub = substitute(e, subs)
+
+        # Convert to expression
+        expr = Symbolics.toexpr(e_sub)
+        :(nzval[$i] = $expr)
+    end
+    quote
+        function buildA!(A, x0, y)
+            _x0 = x0
+            nzval = A.nzval
+            $(exprs...)
+            return A
+        end
+    end
+end

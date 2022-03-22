@@ -1,6 +1,7 @@
 using Test
 using Symbolics
 using SparseArrays
+using BenchmarkTools 
 
 # getdifferential
 vars = @variables x y z
@@ -189,11 +190,18 @@ ẍ = (Dt^2)(x)
 vars = [x, xdot]
 
 # Define the dynamics
+function pendulum_dynamics(vars)
+    x = vars[1]
+    xdot = vars[2]
+    a = -2.1
+    b = 0.1
+    xddot = a * sin(x)  + b * xdot 
+    return [xdot, xddot]
+end
 a = -2.1
 b = 0.1
 xddot = a * sin(x)  + b * xdot 
-statederivative = [xdot, xddot]
-e = statederivative[1]
+statederivative = pendulum_dynamics(vars) 
 typeof(value(x))
 istree(value(x))
 taylorexpand(statederivative[1], vars, vars0, order)
@@ -214,7 +222,7 @@ y0 = [x, ẋ, x^2, x*ẋ, ẋ^2, x^3, x^2*ẋ, x*ẋ^2, ẋ^3]
 @test all(iszero, y - y0)
 
 # Form the expanded state derivative
-ydot = expand_derivatives.(D.(y))
+ydot = expand_derivatives.(Dt.(y))
 ydot0 = [
     ẋ,               # x
     ẍ,               # xdot
@@ -258,7 +266,27 @@ coeffs, rvals = getcoeffs(ydot_approx, x*ẋ^2, vars)
 @test coeffs[1:2] == [2.0, 2*b]
 @test rvals == 7:9
 
-using SparseArrays
-spzeros(4,4)
+## Test build expanded vector function
+pendulum_expand_expr = build_expanded_vector_function(y)
+pendulum_expand! = eval(pendulum_expand_expr)
+y_ = zeros(length(y))
+x_ = [deg2rad(30), deg2rad(10)]
+x0_ = zeros(2)
+pendulum_expand!(y_, x_)
+@test y_[1:2] == x_
+@test y_[3] == x_[1]^2
+@test y_[end] == x_[2]^3
+
+# Test build A
+Asym = getA(ydot_approx, y)
+build_A_expr = build_Amat_function(Asym, vars0)
+pendulum_build_A! = eval(build_A_expr)
+nterms = nnz(Asym)
 n = length(y)
-A = getA(ydot_approx, y)
+A = SparseMatrixCSC(n,n, copy(Asym.colptr), copy(Asym.rowval), zeros(nterms))
+pendulum_build_A!(A, x0_, y_)
+
+# Compare dynamics
+xdot0 = pendulum_dynamics(x_)
+xdot1 = (A*y_)[1:2]
+@test norm(xdot0 - xdot1) < 1e-3
