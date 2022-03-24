@@ -264,13 +264,15 @@ end
 vars = [states; controls]
 ydot_approx
 coeffs, rvals = getcoeffs(ydot_approx, x, vars)
-@test norm(filter(x->x isa Real, arguments(value(r)))) < 1e-12
+# @test norm(filter(x->x isa Real, arguments(value(r)))) < 1e-12
 @test coeffs[2] - xddot_approx_const == 0
 @test rvals == [2, 4]
 
+ydot_approx
 coeffs, rvals = getcoeffs(ydot_approx, ẋ, vars)
 @test coeffs - [1, b, 2*xddot_approx_const] == zeros(3)
 @test rvals == [1, 2, 5]
+b
 
 coeffs, rvals = getcoeffs(ydot_approx, x^2, vars)
 @test coeffs[3] - xddot_approx_const == 0
@@ -336,10 +338,10 @@ x_ = [deg2rad(30), deg2rad(10)]
 y_ = zeros(n)
 u_ = [0.5]
 pendulum_expand!(y_, x_)
-pendulum_updateA!(A, x0_, y_, u_)
-pendulum_updateB!(B, x0_, y_, u_)
-pendulum_updateC!(C, x0_, y_, u_)
-pendulum_updateD!(D, x0_, y_, u_)
+pendulum_updateA!(A, x0_)
+pendulum_updateB!(B, x0_)
+pendulum_updateC!(C, x0_)
+pendulum_updateD!(D, x0_)
 ydot_ = A*y_ + B*u_ + u_[1]*C[1]*y_ + D
 xdot1 = ydot_[1:2]
 xdot0 = pendulum_dynamics(x_, u_)
@@ -347,23 +349,28 @@ norm(xdot1 - xdot0)
 @test norm(xdot0 - xdot1) < 1e-3
 
 # Check that the setting the linearization point to current point results in 0 error
-pendulum_updateA!(A, x_, y_, u_)
-pendulum_updateB!(B, x_, y_, u_)
-pendulum_updateC!(C, x_, y_, u_)
-pendulum_updateD!(D, x_, y_, u_)
+pendulum_updateA!(A, x_)
+pendulum_updateB!(B, x_)
+pendulum_updateC!(C, x_)
+pendulum_updateD!(D, x_)
 ydot_ = A*y_ + B*u_ + u_[1]*C[1]*y_ + D
 xdot1 = ydot_[1:2]
 xdot0 = pendulum_dynamics(x_, u_)
 @test norm(xdot1 - xdot0) < 1e-12
 
 ## Test full method
-order = 5
+order = 9
 @time bilinear_pendulum = bilinearize_dynamics(pendulum_dynamics, states, controls, t, order)
 
 state_expand_expr = build_expanded_vector_function(bilinear_pendulum)
 
 updateA_expr, updateB_expr, updateC_expr, updateD_expr = 
     build_bilinear_dynamics_functions(bilinear_pendulum)
+
+build_mats = build_bilinearsparsity_fucntions(bilinear_pendulum)
+
+write(joinpath(@__DIR__, "pendulum_bilinear.jl"), string(Expr(:block, state_expand_expr, updateA_expr, updateB_expr, updateC_expr, updateD_expr, build_mats)))
+:(nzval = $(bilinear_pendulum.A.rowval))
 
 pendulum_updateA! = eval(updateA_expr)
 pendulum_updateB! = eval(updateB_expr)
@@ -384,12 +391,62 @@ B = similar(bilinear_pendulum.B, Float64)
 C = [similar(C, Float64) for C in bilinear_pendulum.C]
 D = similar(bilinear_pendulum.D, Float64)
 
-pendulum_updateA!(A, x0_, y_)
-pendulum_updateB!(B, x0_, y_)
-pendulum_updateC!(C, x0_, y_)
-pendulum_updateD!(D, x0_, y_)
+pendulum_updateA!(A, x0_)
+pendulum_updateB!(B, x0_)
+pendulum_updateC!(C, x0_)
+pendulum_updateD!(D, x0_)
 
 ydot_ = A*y_ + B*u_ + u_[1]*C[1]*y_ + D
 xdot1 = ydot_[1:2]
 xdot0 = pendulum_dynamics(x_, u_)
 @test norm(xdot1 - xdot0) < 1e-5
+
+
+## Cartpole
+@variables t p(t) th(t) F
+Dt = Differential(t)
+v = Dt(p)
+ω = Dt(th)
+states = [p, th, v, ω]
+controls = [F]
+n0 = length(states)
+
+
+function cartpole_dynamics(states, controls)
+    # mc = 1.0
+    # mp = 0.2
+    # l = 0.5
+    # g = 9.81
+    mc,mp,l,g = 1,1,1,1
+    θ = states[2]
+    θdot = states[4]
+    F = controls[1]
+    c = 1/((mc + mp)*mp*l^2 - (mp*l*cos(θ))^2)
+    Hinv = [mp*l^2 -(mp*l*cos(θ)); -(mp*l*cos(θ)) mc+mp]
+    C = [-mp*l*sin(θ)*θdot^2 + F; mp*g*l*sin(θ)]
+    qdd = c * Hinv * C
+    return [states[3], states[4], qdd[1], qdd[2]]
+end
+
+order = 3
+statederivative = cartpole_dynamics(states, controls)
+states0 = [Symbolics.variable(Symbol("_x0"), i) for i = 1:n0]
+
+approx_dynamics = map(statederivative) do xdot
+    Num(taylorexpand(simplify(xdot, expand=true), states, states0, order))
+end
+approx_dynamics
+
+y = buildstatevector(states, 3)
+n = length(y)
+ydot = expand_derivatives.(Dt.(y))
+
+subs = Dict(Dt(states[i])=>approx_dynamics[i] for i = 1:n0)
+ydot_approx = map(ydot) do yi
+    substitute(yi, subs)
+end
+
+Asym = getAsym(ydot_approx, y, controls)
+Bsym = getBsym(ydot_approx, y, controls)
+Csym = getCsym(ydot_approx, y, controls)
+Dsym = getDsym(ydot_approx, y, controls)

@@ -21,8 +21,10 @@ The resulting expression will contain `Symbolics` array variables of length `nar
 names `name` and `name0` (e.g. `x` and `x0`). 
 """
 function taylorexpansion(f::Function, nargs, order; name::Symbol=:x)
-    name0 = Symbol(string(name) * "0")
-    x, x0 = @variables $name[nargs] $name0[nargs]
+    # x, x0 = @variables $name[nargs] $name0[nargs]
+    x0 = [Symbolics.variable(Symbol(string(name) * "0"), i) for i = 1:nargs]
+    x = [Symbolics.variable(Symbol(string(name)), i) for i = 1:nargs]
+    
     f0 = f(x0...)
 
     # Assign first term in the series
@@ -48,7 +50,7 @@ end
 function taylorexpand(f::SymbolicUtils.Term, vars, vars0, order)
     # Check if the term is one of the variables (e.g. a dependent variable)
     for i = 1:length(vars)
-        if f === value(vars[i])
+        if hash(f) == hash(value(vars[i]))
             return f
         end
     end
@@ -58,10 +60,13 @@ function taylorexpand(f::SymbolicUtils.Term, vars, vars0, order)
     args = arguments(f)
     nargs = length(args)
     f_approx = expand_derivatives(taylorexpansion(op, nargs, order, name=:_x))
-    @variables _x[nargs] _x0[nargs]
+    # @variables _x[1:nargs] _x0[1:nargs]
+    
+    _x0 = [Symbolics.variable(Symbol("_x0"), i) for i = 1:nargs]
+    _x = [Symbolics.variable(Symbol("_x"), i) for i = 1:nargs]
 
     # Taylor expand the arguments
-    subs = Dict(vars[i]=>vars0[i] for i = 1:length(vars))
+    subs = Dict(value(vars[i])=>value(vars0[i]) for i = 1:length(vars))
     for i = 1:nargs
         # Taylor expand the argument
         arg_approx = taylorexpand(args[i], vars, vars0, order)
@@ -151,6 +156,17 @@ getdifferential(var::SymbolicUtils.Pow) = Differential(var)
 getdifferential(var::SymbolicUtils.Sym) = Differential(var)
 getdifferential(var::SymbolicUtils.Term) = Differential(var)
 
+function hasvar(e::SymbolicUtils.Symbolic, var)
+    vars = Symbolics.get_variables(e)
+    h = hash(value(var))
+    for evar in vars
+        if hash(evar) == h 
+            return true
+        end
+    end
+    return false
+end
+
 """
     getcoeffs(exprs, var, basevars)
 
@@ -164,6 +180,9 @@ function getcoeffs(exprs::Vector{Num}, var, basevars)
     rowvals = Int[]
     terms = Num[]
     for (i,e) in enumerate(exprs)
+        # if !hasvar(value(e), value(var))
+        #     continue
+        # end
         # Expand the expression to get all terms as multiplications
         e_expanded = Symbolics.expand(e)
 
@@ -303,7 +322,7 @@ function bilinearize_dynamics(dynamics::Function, states, controls, t, order; co
     ydot = expand_derivatives.(Dt.(y)) 
 
     # Substitute in the approximate dynamics
-    subs = Dict(Dt(states[i])=>approx_dynamics[i] for i = 1:n0)
+    subs = Dict(Dt(value(states[i]))=>value(approx_dynamics[i]) for i = 1:n0)
     ydot_approx = map(ydot) do yi
         substitute(yi, subs)
     end
@@ -328,7 +347,9 @@ function build_expanded_vector_function(y)
     vars = filter(x->getpow(x)==1, y)
     n0 = length(vars)
     @variables x[n0]
-    subs = Dict(y[i]=>x[i] for i = 1:n0)
+    # x = [Symbolics.variable(Symbol("x"), i) for i = 1:n0]
+
+    subs = Dict(value(y[i])=>value(x[i]) for i = 1:n0)
     exprs = map(enumerate(y)) do (i,yk)
         y_ = substitute(yk, subs)
         y_expr = Symbolics.toexpr(y_)
@@ -353,7 +374,7 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
 
     # Rename states and controls to _x, _u array variables
     @variables _x0[n0] _u[m]  # use underscore to avoid potential naming conflicts
-    subs = Dict(vars0[i]=>_x0[i] for i = 1:n0)
+    subs = Dict{Num,Num}(value(vars0[i])=>value(_x0[i]) for i = 1:n0)
     merge!(subs, Dict(controls[i]=>_u[i] for i = 1:m))
 
     function genexprs(A, subs)
@@ -377,7 +398,7 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
     end
     Dexprs = genexprs(Dsym, subs)
     updateA! = quote
-        function (A, x0, y)
+        function updateA!(A, x0)
             _x0 = x0
             # _u = u
             nzval = A.nzval
@@ -386,7 +407,7 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
         end
     end
     updateB! = quote
-        function (B, x0, y)
+        function updateB!(B, x0)
             _x0 = x0
             # _u = u
             nzval = B.nzval
@@ -395,7 +416,7 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
         end
     end
     updateC! = quote
-        function (C, x0, y)
+        function updateC!(C, x0)
             _x0 = x0
             # _u = u
             $(Cexprs...)
@@ -403,7 +424,7 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
         end
     end
     updateD! = quote
-        function (D, x0, y)
+        function updateD!(D, x0)
             _x0 = x0
             # _u = u
             nzval = D.nzval
@@ -412,4 +433,42 @@ function build_bilinear_dynamics_functions(Asym, Bsym, Csym, Dsym, vars0, contro
         end
     end
     return updateA!, updateB!, updateC!, updateD!
+end
+
+function build_bilinearsparsity_fucntions(sbd::SymbolicBilinearDynamics)
+    
+    Asym,Bsym,Csym,Dsym = sbd.A, sbd.B, sbd.C, sbd.D
+    Cexprs = map(Csym) do Ci
+        quote
+            SparseMatrixCSC(n, n,
+                $(Ci.colptr), 
+                $(Ci.rowval),
+                zeros($(nnz(Ci)))
+            )
+        end
+    end
+    Cexpr = :(C = [$(Cexprs...)])
+    quote 
+        function getsparsearrays()
+            n = $(size(Asym, 1))
+            m = $(length(Csym))
+            A = SparseMatrixCSC(n, n,
+                $(Asym.colptr), 
+                $(Asym.rowval),
+                zeros($(nnz(Asym)))
+            )
+            B = SparseMatrixCSC(n, m,
+                $(Bsym.colptr), 
+                $(Bsym.rowval),
+                zeros($(nnz(Bsym)))
+            )
+            $Cexpr
+            D = SparseMatrixCSC(n, 1,
+                $(Dsym.colptr), 
+                $(Dsym.rowval),
+                zeros($(nnz(Dsym)))
+            )
+            return A,B,C,D
+        end
+    end
 end
