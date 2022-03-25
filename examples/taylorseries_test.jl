@@ -188,6 +188,8 @@ yvec0 = [x, ẋ, x^2, x*ẋ, ẋ^2, x^3, x^2*ẋ, x*ẋ^2, ẋ^3]
 ## Pendulum
 #############################################
 
+using RobotZoo
+import RobotDynamics as RD
 @variables t x(t) τ
 Dt = Differential(t)
 xdot = Dt(x)
@@ -204,15 +206,22 @@ function pendulum_dynamics(states, controls)
     x = states[1]
     xdot = states[2]
     tau = controls[1]
-    a = -2.1 # g / J⋅ℓ
-    b = 0.1  # damping / J
-    c = 0.5  # 1/J
+    mass = 1.0
+    l = 0.5
+    damp = 0.1
+    g = 9.81
+    m = mass * l^2
+
+    a = -g/(l*m)  # g / J⋅ℓ
+    b = -damp/m      # damping / J
+    c = 1/m       # 1/J
     xddot = a * sin(x)  + b * xdot  + c*tau
+    xddot = tau / m - g*sin(x) / l - damp * xdot / m
     return [xdot, xddot]
 end
-a = -2.1
-b = 0.1
-c = 0.5
+a = -78.48
+b = -0.4
+c = 4.0
 xddot = a * sin(x)  + b * xdot 
 statederivative = pendulum_dynamics(states, controls)
 
@@ -370,7 +379,6 @@ updateA_expr, updateB_expr, updateC_expr, updateD_expr =
 build_mats = build_bilinearsparsity_fucntions(bilinear_pendulum)
 
 write(joinpath(@__DIR__, "pendulum_bilinear.jl"), string(Expr(:block, state_expand_expr, updateA_expr, updateB_expr, updateC_expr, updateD_expr, build_mats)))
-:(nzval = $(bilinear_pendulum.A.rowval))
 
 pendulum_updateA! = eval(updateA_expr)
 pendulum_updateB! = eval(updateB_expr)

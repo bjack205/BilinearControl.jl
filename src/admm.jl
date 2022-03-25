@@ -11,7 +11,7 @@ Base.@kwdef mutable struct ADMMOptions
     penalty_threshold::Float64 = 10.0
 end
 
-struct BilinearADMM
+struct BilinearADMM{M}
     # Objective
     Q::Diagonal{Float64, Vector{Float64}}
     q::Vector{Float64}
@@ -19,10 +19,10 @@ struct BilinearADMM
     r::Vector{Float64}
 
     # Bilinear Constraints
-    A::Matrix{Float64}
-    B::Matrix{Float64}
-    C::Vector{Matrix{Float64}}
-    d::Vector{Float64}
+    A::M
+    B::M
+    C::Vector{M}
+    d::M
 
     # Parameters
     ρ::Ref{Float64}
@@ -51,7 +51,8 @@ function BilinearADMM(A,B,C,d, Q,q,R,r; ρ = 10.0)
     w_prev = zero(w)
     ρref = Ref(ρ)
     opts = ADMMOptions() 
-    BilinearADMM(Q, q, R, r, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev, opts)
+    M = typeof(A)
+    BilinearADMM{M}(Q, q, R, r, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev, opts)
 end
 
 setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
@@ -99,7 +100,7 @@ function solvex(solver::BilinearADMM, z, w)
     p = length(w)
     Ahat = getAhat(solver, z)
     a = geta(solver, z)
-    n = length(a)
+    n = size(Ahat,2) 
 
     H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
     g = [solver.q; a + w]
@@ -109,6 +110,7 @@ function solvex(solver::BilinearADMM, z, w)
 end
 
 function solvez(solver::BilinearADMM, x, w)
+    R = solver.R
     ρ = getpenalty(solver)
     Bhat = getBhat(solver, x)
     b = getb(solver, x)
