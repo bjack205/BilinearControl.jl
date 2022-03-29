@@ -120,7 +120,7 @@ function twospinproblem()
 
     # Objective 
     Q = Diagonal(fill(1.0, n))
-    R = Diagonal(fill(1e-2, m))
+    R = Diagonal(fill(1e-0, m))
     obj = LQRObjective(Q,R,Q*(N-1), xf, N)
 
     # Constraints
