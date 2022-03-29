@@ -677,7 +677,7 @@ version = "0.3.0+0"
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RecipesBase", "Rotations", "SparseArrays", "StaticArrays"]
 path = "/home/brian/.julia/dev/RobotDynamics"
 uuid = "38ceca67-d8d3-44e8-9852-78a5596522e1"
-version = "0.4.4"
+version = "0.4.5"
 
 [[deps.RobotZoo]]
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RobotDynamics", "Rotations", "StaticArrays"]
