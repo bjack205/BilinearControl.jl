@@ -128,6 +128,9 @@ function twospinproblem()
     goalcon =  GoalConstraint(xf)
     add_constraint!(cons, goalcon, N)
 
+    # Initial guess
+    U0 = fill(0.1, m, N-1)
+
     # Problem
-    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons)
+    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
 end

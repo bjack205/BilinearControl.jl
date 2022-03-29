@@ -23,6 +23,11 @@ RobotDynamics.state_dim(model::BilinearDynamics) = size(model.A,1)
 RobotDynamics.control_dim(model::BilinearDynamics) = length(model.C) 
 RD.default_diffmethod(::BilinearDynamics) = RD.UserDefined()
 
+getA(model::BilinearDynamics) = model.A
+getB(model::BilinearDynamics) = model.B
+getC(model::BilinearDynamics) = model.C
+getD(model::BilinearDynamics) = zeros(RD.state_dim(model))
+
 function RobotDynamics.dynamics(model::BilinearDynamics, x, u)
     A, B, C = model.A, model.B, model.C
     xdot = A * x + B * u

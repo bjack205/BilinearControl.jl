@@ -10,6 +10,7 @@ import RobotDynamics as RD
 using TrajectoryOptimization
 const TO = TrajectoryOptimization
 include("quantum_hamiltonions.jl")
+include("bilinear_constraint.jl")
 
 prob = twospinproblem()
 dmodel = prob.model[1]
@@ -66,5 +67,24 @@ altro = ALTROSolver(prob)
 altro.opts.dynamics_diffmethod = RD.ImplicitFunctionTheorem(RD.UserDefined())
 altro.opts.verbose = 3
 altro.opts.cost_tolerance = 1e-3
+altro.opts.cost_tolerance_intermediate = 1e-2
 solve!(altro)
 states(altro)[end] - prob.xf
+
+using Plots
+controls(altro)
+plot(controls(altro))
+
+# Try solving with BilinearADMM
+prob = twospinproblem()
+rollout!(prob)
+model = prob.model[1].continuous_dynamics
+Abar,Bbar,Cbar,Dbar = buildbilinearconstraintmatrices(model, prob.x0, prob.xf, prob.Z[1].dt, prob.N)
+Xvec = vcat(states(prob)...)
+Uvec = vcat(controls(prob)...)
+Zvec = vcat([z.z for z in prob.Z]...)
+c1 = Abar*Xvec + Bbar*Uvec + sum(Uvec[i] * Cbar[i] * Xvec for i = 1:length(Uvec)) + Dbar
+
+c2 = evaluatebilinearconstraint(model, prob.x0, prob.xf, prob.Z[1].dt, prob.N, Zvec)
+c3 = evaluatebilinearconstraint(prob)
+c1 ≈ c2 ≈ c3
