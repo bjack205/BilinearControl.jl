@@ -17,6 +17,7 @@ struct BilinearADMM{M}
     q::Vector{Float64}
     R::Diagonal{Float64, Vector{Float64}}
     r::Vector{Float64}
+    c::Float64
 
     # Bilinear Constraints
     A::M
@@ -39,7 +40,7 @@ struct BilinearADMM{M}
     opts::ADMMOptions
 end
 
-function BilinearADMM(A,B,C,d, Q,q,R,r; ρ = 10.0)
+function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0)
     n = size(A,2)
     m = size(B,2)
     p = length(d)
@@ -52,7 +53,7 @@ function BilinearADMM(A,B,C,d, Q,q,R,r; ρ = 10.0)
     ρref = Ref(ρ)
     opts = ADMMOptions() 
     M = typeof(A)
-    BilinearADMM{M}(Q, q, R, r, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev, opts)
+    BilinearADMM{M}(Q, q, R, r, c, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev, opts)
 end
 
 setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
@@ -171,7 +172,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     for iter = 1:max_iters
         r = primal_residual(solver, x, z)
         s = dual_residual(solver, x, z)
-        J = eval_f(solver, x) + eval_g(solver, z)
+        J = eval_f(solver, x) + eval_g(solver, z) + solver.c
         dz = norm(z - solver.z_prev)
         ϵ_primal = get_primal_tolerance(solver, x, z, w)
         ϵ_dual = get_primal_tolerance(solver, x, z, w)

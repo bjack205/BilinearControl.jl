@@ -58,7 +58,7 @@ fc([x0;u0])
 J = zeros(n, n+m)
 y = zeros(n)
 RD.jacobian!(model, J, y, z)
-J ≈ FiniteDiff.finite_difference_jacobian(fc, [x0;u0])
+@test J ≈ FiniteDiff.finite_difference_jacobian(fc, [x0;u0])
 
 # Try solving with ALTRO
 prob = twospinproblem()
@@ -70,12 +70,12 @@ altro.opts.cost_tolerance = 1e-3
 altro.opts.cost_tolerance_intermediate = 1e-2
 solve!(altro)
 states(altro)[end] - prob.xf
+Altro.cost(altro)
 
 using Plots
-controls(altro)
 plot(controls(altro))
 
-# Try solving with BilinearADMM
+## Test bilinear constraint function 
 prob = twospinproblem()
 rollout!(prob)
 model = prob.model[1].continuous_dynamics
@@ -83,8 +83,25 @@ Abar,Bbar,Cbar,Dbar = buildbilinearconstraintmatrices(model, prob.x0, prob.xf, p
 Xvec = vcat(states(prob)...)
 Uvec = vcat(controls(prob)...)
 Zvec = vcat([z.z for z in prob.Z]...)
-c1 = Abar*Xvec + Bbar*Uvec + sum(Uvec[i] * Cbar[i] * Xvec for i = 1:length(Uvec)) + Dbar
 
+c1 = Abar*Xvec + Bbar*Uvec + sum(Uvec[i] * Cbar[i] * Xvec for i = 1:length(Uvec)) + Dbar
 c2 = evaluatebilinearconstraint(model, prob.x0, prob.xf, prob.Z[1].dt, prob.N, Zvec)
 c3 = evaluatebilinearconstraint(prob)
-c1 ≈ c2 ≈ c3
+@test c1 ≈ c2 ≈ c3
+
+## Solve with ADMM
+Q = Diagonal(vcat([Vector(diag(cst.Q)) for cst in prob.obj]...))
+R = Diagonal(vcat([Vector(diag(prob.obj[k].R)) for k = 1:prob.N-1]...))
+q = vcat([Vector(cst.q) for cst in prob.obj]...)
+r = vcat([Vector(prob.obj[k].r) for k = 1:prob.N-1]...)
+c = sum(cst.c for cst in prob.obj)
+admm = BilinearControl.BilinearADMM(Abar, Bbar, Cbar, Dbar, Q,q,R,r,c)
+Xvec = vcat(states(prob)...)
+Uvec = vcat(controls(prob)...)
+admm.opts.penalty_threshold = 1e6
+BilinearControl.setpenalty!(admm, 500)
+Xsol, Usol = BilinearControl.solve(admm, Xvec, Uvec, max_iters=2000)
+Xs = [x for x in eachcol(reshape(Xsol,n,:))]
+@test maximum(norm.(Xs)) - 1 < 1e-4   # test maximum norm
+@test norm(Xs[end] - prob.xf) < 1e-4  # test final state
+@test norm(Xs[1] - prob.x0) < 1e-4    # test initial state
