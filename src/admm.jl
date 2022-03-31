@@ -62,6 +62,11 @@ getpenalty(solver::BilinearADMM) = solver.ρ[]
 eval_f(solver::BilinearADMM, x) = 0.5 * dot(x, solver.Q, x) + dot(solver.q, x)
 eval_g(solver::BilinearADMM, z) = 0.5 * dot(z, solver.R, z) + dot(solver.r, z)
 
+getA(solver::BilinearADMM) = solver.A
+getB(solver::BilinearADMM) = solver.B
+getC(solver::BilinearADMM) = solver.C
+getD(solver::BilinearADMM) = solver.d
+
 function eval_c(solver::BilinearADMM, x, z)
     A, B, C = solver.A, solver.B, solver.C
     A*x + B*z + sum(z[i] * C[i]*x for i in eachindex(z)) + solver.d
@@ -162,6 +167,7 @@ end
 
 function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
         max_iters=100,
+        verbose::Bool=false
     )
     x, z, w = solver.x, solver.z, solver.w
     x .= x0
