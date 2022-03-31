@@ -1,5 +1,6 @@
 import Pkg; Pkg.activate(@__DIR__)
 include("bilinear_dubins_model.jl")
+include("bilinear_constraint.jl")
 using Altro
 using TrajectoryOptimization
 using LinearAlgebra
@@ -7,6 +8,7 @@ using RobotZoo
 using StaticArrays
 using Test
 using Plots
+using BilinearControl
 const TO = TrajectoryOptimization
 
 function testdynamics()
@@ -57,7 +59,7 @@ function buildliftedproblem(prob0)
     add_constraint!(cons, goalcon, N)
 
     # Build the problem
-    Problem(dmodel, obj, y0, prob0.tf, constraints=cons)
+    Problem(dmodel, obj, y0, prob0.tf, xf=yf, constraints=cons)
 end
 
 function expansion_errors(model, model0, X)
@@ -88,9 +90,29 @@ cost(altro)
 cost(altro0)
 states(altro)[end]
 
+## Solve with ADMM
+prob = buildliftedproblem(prob0)
+rollout!(prob)
+model = prob.model[1].continuous_dynamics
+n,m = RD.dims(model)
+A,B,C,D = buildbilinearconstraintmatrices(prob.model[1].continuous_dynamics, prob.x0, prob.xf, prob.Z[1].dt, prob.N)
+X = vcat(Vector.(states(prob))...)
+U = vcat(Vector.(controls(prob))...)
+c1 = A*X + B*U + sum(U[i] * C[i] * X for i = 1:length(U)) + D
+c2 = evaluatebilinearconstraint(prob)
+@test c1 ≈ c2
+
+Q,q,R,r,c = buildcostmatrices(prob)
+admm = BilinearADMM(A,B,C,D, Q,q,R,r,c)
+admm.opts.penalty_threshold = 1e4
+BilinearControl.setpenalty!(admm, 1e3)
+Xsol, Usol = BilinearControl.solve(admm, X, U)
+xtraj = reshape(Xsol,n,:)[1,:]
+ytraj = reshape(Xsol,n,:)[2,:]
+[norm(x[3:4]) for x in eachcol(reshape(Xsol,n,:))]
+RD.traj2(xtraj, ytraj)
 
 ## MPC
-
 function liftedmpcproblem(x0, Zref, kstart=1; N=51)
     model0 = RobotZoo.DubinsCar()
     model = BilinearDubins()

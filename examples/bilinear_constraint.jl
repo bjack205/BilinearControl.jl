@@ -1,3 +1,4 @@
+using SparseArrays
 
 """
 Builds a bilinear constraint for the entire trajectory optimization problem, using 
@@ -53,6 +54,15 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     Dbar[ic] .= xf
 
     return Abar, Bbar, Cbar, Dbar
+end
+
+function buildcostmatrices(prob)
+    Q = Diagonal(vcat([Vector(diag(cst.Q)) for cst in prob.obj]...))
+    R = Diagonal(vcat([Vector(diag(prob.obj[k].R)) for k = 1:prob.N-1]...))
+    q = vcat([Vector(cst.q) for cst in prob.obj]...)
+    r = vcat([Vector(prob.obj[k].r) for k = 1:prob.N-1]...)
+    c = sum(cst.c for cst in prob.obj)
+    Q, q, R, r, c
 end
 
 function evaluatebilinearconstraint(model, x0, xf, h, N, Z)

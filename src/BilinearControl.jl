@@ -1,5 +1,7 @@
 module BilinearControl
 
+export BilinearADMM
+
 using LinearAlgebra
 
 include("utils.jl")

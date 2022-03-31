@@ -49,7 +49,7 @@ function getC(::BilinearDubins)
         0 0 0 0
         0 0 0 0
     ]
-    C1 = SA_F64[
+    C2 = SA_F64[
         0 0 0 0
         0 0 0 0
         0 0 0 -1 
@@ -59,4 +59,4 @@ function getC(::BilinearDubins)
     return [C1,C2]
 end
 
-getD(::BilinearDubins) = @SVector zeros(5)
+getD(::BilinearDubins) = @SVector zeros(4)
