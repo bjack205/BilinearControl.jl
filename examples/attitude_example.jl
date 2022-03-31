@@ -1,4 +1,10 @@
 import Pkg; Pkg.activate(@__DIR__)
+
+using MeshCat, GeometryBasics
+vis = Visualizer() 
+render(vis)
+open(vis)
+
 using BilinearControl
 using BilinearControl.RD
 using BilinearControl.TO
@@ -7,7 +13,7 @@ using FiniteDiff
 using LinearAlgebra
 using Statistics
 import BilinearControl.RD
-include("attitude_model.jl")
+include(joinpath(@__DIR__, "..", "test", "models", "attitude_model.jl"))
 
 using BilinearControl: getA, getB, getC, getD
 const Nu = 2
@@ -115,10 +121,10 @@ Us = collect(eachcol(reshape(Usol, m, :)))
 Zsol = SampledTrajectory(Xs,Us, tf=prob.tf)
 
 # Test that it got to the goal
-@test abs(Xs[end]'prob.xf - 1.0) < 1e-6
+@test abs(Xs[end]'prob.xf - 1.0) < 1e-5
 
 # Test that the quaternion norms are preserved
-@test all(x->abs(x-1) < 2e-4, norm.(Xs))
+@test all(x->abs(x-1) < 2e-3, norm.(Xs))
 
 # Check that the control signals are smooth 
 Us = reshape(Usol, m, :)
@@ -134,8 +140,8 @@ vis = Visualizer()
 render(vis)
 
 function setmesh!(vis, ::AttitudeDynamics)
-    lwh = (1,2,3)
-    obj = Rect3D(Vec(.-lwh ./ 2), Vec(lwh))
+    meshfile = joinpath(@__DIR__, "Endurance.obj")
+    obj = MeshFileGeometry(meshfile)
     setobject!(vis["robot"], obj)
 end
 

@@ -135,14 +135,16 @@ function evaluatebilinearconstraint(prob::TO.Problem)
     ic = ic .+ n
 
     # Dynamics
-    y1 = zeros(n)
+    # y1 = zeros(n)
     for k = 1:N-1
         z1 = prob.Z[k]
         z2 = prob.Z[k+1]
         ci = view(c, ic)
 
         y2 = view(c, ic)
-        RD.dynamics_error!(model, y2, y1, z2, z1)
+        y2 .= RD.dynamics_error(model, z2, z1)
+        # RD.dynamics_error!(model, y2, y1, z2, z1)
+
         ic = ic .+ n
     end
 
