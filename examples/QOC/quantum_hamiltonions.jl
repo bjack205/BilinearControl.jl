@@ -1,4 +1,4 @@
-include("bilinear_dynamics.jl")
+using BilinearControl: evec
 
 function sqrtiSWAP()
     d = 1/sqrt(2)
@@ -37,7 +37,7 @@ function real2complex(A::AbstractMatrix{T}) where T <: Real
     @assert size(A,2) == n
     @assert iseven(n)
     m = n ÷ 2
-    C = zeros(Complex{T}, m, m)
+    C = similar(A, Complex{T}, m, m)
     for j = 1:m, i = 1:m
         C[i,j] = Complex(A[i,j], A[i+m,j])
     end
@@ -48,7 +48,7 @@ function complex2real(C::AbstractMatrix{<:Complex{T}}) where T <: Real
     m = size(C,1)
     @assert size(C,2) == m
     n = 2m
-    A = zeros(T, n, n)
+    A = similar(C, T, n, n)
     for j = 1:m, i = 1:m
         r,c = real(C[i,j]), imag(C[i,j])
         A[i+0, j+0] = +r 
@@ -93,17 +93,17 @@ function twospinhamiltonian(fq_1 = 1/2pi, fq_2 = 1/2pi)
     σx_2 = kron(I2, σx)
     Hdrive = σx_1 * σx_2
 
-    # Convert to real
-    Hdrift_real = complex2real(Hdrift/1im)
-    Hdrive_real = complex2real(Hdrive/1im)
-    return Hdrift_real, Hdrive_real
+    return sparse(Hdrift/im), sparse(Hdrive/1im)
 end
 
 function twospinproblem()
-    Hdrift, Hdrive = twospinhamiltonian() 
+    # Dynamics 
+    Hdrift0, Hdrive0 = twospinhamiltonian(2/2pi) 
+    Hdrift = complex2real(Hdrift0)
+    Hdrive = complex2real(Hdrive0)
     n = size(Hdrift, 1)
     m = 1
-    model = BilinearDynamics(Hdrift, zeros(n, m), [Hdrive])
+    model = BilinearDynamics(Hdrift, spzeros(n, m), [Hdrive])
     dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
 
     # Discretization
@@ -113,7 +113,7 @@ function twospinproblem()
 
     # Initial and final state
     U = sqrtiSWAP()
-    ψ0 = ComplexF64[1,0,0,0]
+    ψ0 = ComplexF64[0,1,0,0]
     ψf = U*ψ0
     x0 = complex2real(ψ0)
     xf = complex2real(ψf)
@@ -133,4 +133,52 @@ function twospinproblem()
 
     # Problem
     Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+end
+
+function twospingateproblem()
+    nq = 4  # number of qubits
+    Hdrift0, Hdrive0 = twospinhamiltonian() 
+
+    # Discretization
+    tf = 20.0
+    dt = 0.2
+    N = round(Int,tf/dt) + 1
+
+    # Dynamics
+    Aim = blockdiag([Hdrift0 for i = 1:nq]...)
+    Cim = blockdiag([Hdrive0 for i = 1:nq]...)
+    A = complex2real(Aim)
+    C = complex2real(Cim)
+    n = size(A, 1) 
+    m = 1
+    model = BilinearDynamics(A, spzeros(n, m), [C])
+    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+    
+    # Initial and final states
+    U = sqrtiSWAP()
+    x0 = vcat(map(1:nq) do i
+        ψi = evec(ComplexF64, i, nq)
+        complex2real(ψi)
+    end...)
+    xf = vcat(map(1:nq) do i
+        ψi = evec(ComplexF64, i, nq)
+        complex2real(U*ψi)
+    end...)
+
+    # Objective 
+    Q = Diagonal(fill(1.0, n))
+    R = Diagonal(fill(1e-3, m))
+    obj = LQRObjective(Q,R,Q*(N-1), xf, N)
+
+    # Constraints
+    cons = ConstraintList(n, m, N)
+    goalcon =  GoalConstraint(xf)
+    add_constraint!(cons, goalcon, N)
+
+    # Initial guess
+    U0 = fill(0.1, m, N-1)
+
+    # Problem
+    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+
 end

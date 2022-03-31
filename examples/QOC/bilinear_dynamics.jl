@@ -9,15 +9,15 @@ Dynamics of the form:
 ```
 
 """
-struct BilinearDynamics{T} <: RobotDynamics.ContinuousDynamics
-    A::Matrix{T}
-    B::Matrix{T}
-    C::Vector{Matrix{T}}
+struct BilinearDynamics{M} <: RobotDynamics.ContinuousDynamics
+    A::M
+    B::M
+    C::Vector{M}
 end
 
-function BilinearDynamics(A::AbstractMatrix, B::AbstractVector{<:AbstractMatrix}, 
-                                 C::AbstractMatrix) where {Nx,Nu}
-    BilinearDynamics(A, B, C)
+function BilinearDynamics(A::M, B::AbstractVector{M}, 
+                                 C::M) where {M<:AbstractMatrix} 
+    BilinearDynamics{M}(A, B, C)
 end
 RobotDynamics.state_dim(model::BilinearDynamics) = size(model.A,1) 
 RobotDynamics.control_dim(model::BilinearDynamics) = length(model.C) 
