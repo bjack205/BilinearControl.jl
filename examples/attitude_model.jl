@@ -44,10 +44,26 @@ function RD.jacobian!(::AttitudeDynamics{3}, J, y, x, u)
     return nothing
 end
 
-BilinearControl.getA(::AttitudeDynamics) = @SMatrix zeros(4,4)
-BilinearControl.getB(::AttitudeDynamics{Nx}) where Nx = @SMatrix zeros(4,Nx)
+function RD.dynamics!(::AttitudeDynamics{2}, xdot, x, u)
+    q = x
+    ωhat = SA[0.0, u[1], u[2], 0] 
+    xdot .= 0.5 * lmult(q) * ωhat 
+    return nothing
+end
 
-function BilinearControl.getC(::AttitudeDynamics{3})
+function RD.jacobian!(::AttitudeDynamics{2}, J, y, x, u)
+    q = x
+    ωhat = SA[0.0, u[1], u[2], 0] 
+    L = lmult(q)
+    J[:,1:4] .= 0.5*rmult(ωhat)
+    J[:,5:end] .= 0.5*L[:,2:3]
+    return nothing
+end
+
+BilinearControl.getA(::AttitudeDynamics) = @SMatrix zeros(4,4)
+BilinearControl.getB(::AttitudeDynamics{Nu}) where Nu = @SMatrix zeros(4,Nu)
+
+function BilinearControl.getC(::AttitudeDynamics{Nu}) where Nu
     C1 = 0.5 * SA[
         0 -1 0 0
         +1 0 0 0
@@ -60,6 +76,9 @@ function BilinearControl.getC(::AttitudeDynamics{3})
         +1 0 0 0
         0 +1 0 0
     ]
+    if Nu == 2
+        return [C1,C2]
+    end
     C3 = 0.5 * SA[
         0 0 0 -1
         0 0 +1 0
