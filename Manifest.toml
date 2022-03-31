@@ -284,7 +284,7 @@ version = "1.3.0"
 
 [[deps.RobotDynamics]]
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RecipesBase", "Rotations", "SparseArrays", "StaticArrays"]
-git-tree-sha1 = "2b76b50743c2bab0bbdf4ad33c8211ed17e45d86"
+git-tree-sha1 = "769dc117a8774fdd57ba5bdc4efbe0590e561f4e"
 repo-rev = "bilinear"
 repo-url = "https://github.com/RoboticExplorationLab/RobotDynamics.jl.git"
 uuid = "38ceca67-d8d3-44e8-9852-78a5596522e1"
@@ -333,9 +333,9 @@ version = "0.6.0"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
-git-tree-sha1 = "6976fab022fea2ffea3d945159317556e5dad87c"
+git-tree-sha1 = "4f6ec5d99a28e1a749559ef7dd518663c5eca3d5"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.4.2"
+version = "1.4.3"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
