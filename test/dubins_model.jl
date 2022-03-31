@@ -1,5 +1,4 @@
 using StaticArrays
-import RobotDynamics as RD
 
 struct BilinearDubins <: RD.ContinuousDynamics end
 RD.state_dim(::BilinearDubins) = 4
@@ -38,11 +37,11 @@ function RD.jacobian!(::BilinearDubins, J, y, x, u)
     return J
 end
 
-getA(::BilinearDubins) = @SMatrix zeros(4,4)
+BilinearControl.getA(::BilinearDubins) = @SMatrix zeros(4,4)
 
-getB(::BilinearDubins) = @SMatrix zeros(4,2)
+BilinearControl.getB(::BilinearDubins) = @SMatrix zeros(4,2)
 
-function getC(::BilinearDubins)
+function BilinearControl.getC(::BilinearDubins)
     C1 = SA_F64[
         0 0 1 0
         0 0 0 1
@@ -59,4 +58,4 @@ function getC(::BilinearDubins)
     return [C1,C2]
 end
 
-getD(::BilinearDubins) = @SVector zeros(4)
+BilinearControl.getD(::BilinearDubins) = @SVector zeros(4)

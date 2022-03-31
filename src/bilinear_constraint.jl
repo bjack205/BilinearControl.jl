@@ -1,3 +1,4 @@
+using SparseArrays
 
 """
 Builds a bilinear constraint for the entire trajectory optimization problem, using 
@@ -55,6 +56,9 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     return Abar, Bbar, Cbar, Dbar
 end
 
+"""
+Evaluates the bilinear constraint. Useful for verification of the bilinear matrices.
+"""
 function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
     A = getA(model)  # continuous dynamics A
     B = getB(model)  # continuous dynamics B
@@ -100,7 +104,16 @@ function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
     return c
 end
 
-function evaluatebilinearconstraint(prob::Problem)
+function buildcostmatrices(prob::TO.Problem)
+    Q = Diagonal(vcat([Vector(diag(cst.Q)) for cst in prob.obj]...))
+    R = Diagonal(vcat([Vector(diag(prob.obj[k].R)) for k = 1:prob.N-1]...))
+    q = vcat([Vector(cst.q) for cst in prob.obj]...)
+    r = vcat([Vector(prob.obj[k].r) for k = 1:prob.N-1]...)
+    c = sum(cst.c for cst in prob.obj)
+    Q, q, R, r, c
+end
+
+function evaluatebilinearconstraint(prob::TO.Problem)
     model = prob.model[1]
     n,m = RD.dims(model)
 
