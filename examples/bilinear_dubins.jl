@@ -4,6 +4,7 @@ using Altro
 using TrajectoryOptimization
 using LinearAlgebra
 using RobotZoo
+using StaticArrays
 using Test
 using Plots
 const TO = TrajectoryOptimization
@@ -15,10 +16,11 @@ function testdynamics()
     n,m = RD.dims(model0)
     ny = RD.state_dim(model)
     x,u = rand(model0)
-    y = expand(model, x)
+    y = SA[x[1], x[2], cos(x[3]), sin(x[3])]
 
     # Test that the dynamics match
-    @test RD.dynamics(model, y, u)[1:3] == RD.dynamics(model0, x, u)
+    ydot = RD.dynamics(model, y, u)
+    xdot = RD.dynamics(model0, x, u)
     A,B,C,D = getA(model), getB(model), getC(model), getD(model)
     @test RD.dynamics(model, y, u) ≈ A*y + B*u + sum(u[i]*C[i]*y for i = 1:m) + D
 end
@@ -40,8 +42,10 @@ function buildliftedproblem(prob0)
 
     # Objective
     # Sets cost for extra costs to 0
-    obj = Objective(map(prob0.obj) do costfun
-        TO.change_dimension(costfun, ny, nu, 1:nx, 1:nu)
+    obj = Objective(map(prob0.obj.cost) do cst
+        Q = Diagonal([diag(cst.Q)[1:2]; fill(cst.Q[3,3]*1e-3, 2)])
+        R = copy(cst.R)
+        LQRCost(Q, R, yf)
     end)
 
     # Initial trajectory
@@ -49,7 +53,7 @@ function buildliftedproblem(prob0)
 
     # Goal state
     cons = ConstraintList(ny, nu, N)
-    goalcon = GoalConstraint(yf, 1:nx)  # only constraint the original states
+    goalcon = GoalConstraint(yf)  # only constraint the original states
     add_constraint!(cons, goalcon, N)
 
     # Build the problem
@@ -72,6 +76,7 @@ RD.traj2(states(altro0))
 # Solve lifted problem with ALTRO with implicit midpoint
 initial_controls!(prob0, U0)
 prob = buildliftedproblem(prob0)
+
 altro = ALTROSolver(prob, opts)
 altro.opts.dynamics_diffmethod = RD.ImplicitFunctionTheorem(RD.ForwardAD())
 # altro.opts.dynamics_diffmethod = RD.ForwardAD()
@@ -83,12 +88,6 @@ cost(altro)
 cost(altro0)
 states(altro)[end]
 
-e = let
-    model0 = prob0.model[1].continuous_dynamics
-    model = prob.model[1].continuous_dynamics
-    expansion_errors(model, model0, states(altro))
-end
-e
 
 ## MPC
 
