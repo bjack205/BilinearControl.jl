@@ -1,5 +1,6 @@
 import Pkg; Pkg.activate(@__DIR__)
 using LinearAlgebra
+using SparseArrays
 using Symbolics
 using SymbolicUtils
 using StaticArrays
@@ -55,7 +56,15 @@ function splitcoeff(f, expr::SymbolicUtils.Mul)
     )
     return newterm, coeff
 end
+
+function splitcoeff(f, expr::SymbolicUtils.Div)
+    @assert f(expr.den) "All denominators must be constant."
+    expr_nocoeff, coeff = splitcoeff(f, expr.num)
+    return (expr_nocoeff, coeff/expr.den)
+end
+
 splitcoeff(f, expr) = f(expr) ? (1,expr) : (expr, 1)
+
 
 function filtersubstitute(f, expr, dict; fold=true)
     expr_nocoeff, coeff = splitcoeff(f, expr)
@@ -103,6 +112,7 @@ iscoeff(value(a))
 @test splitcoeff(iscoeff, value(a*x)) .- (x,a)  == (0,0)
 @test splitcoeff(iscoeff, value(b[1]*x*y*2)) .- (x*y, 2b[1]) == (0,0)
 @test splitcoeff(iscoeff, 2) == (1,2)
+@test splitcoeff(iscoeff, value(x/m)) .- (x, 1//m) == (0,0)
 
 @variables xy yz x2y
 subs = Dict(value(x*y)=>value(xy), value(y*z)=>value(yz), value(x^2*y)=>value(x2y))
@@ -180,6 +190,7 @@ end
 # Create expanded state vector and control vector
 x_vec = [r; q; v; qq_vec; qqv_vec]
 u_vec = [F..., ω...]
+xdot_vec = [rdot; qdot; vdot; qqdot; qqvdot]
 
 # Store in a dictionary for fast look-ups
 stateinds = Dict(value(x_vec[i])=>i for i in eachindex(x_vec))
@@ -194,6 +205,7 @@ function getcoeffs(expr::SymbolicUtils.Symbolic, stateinds, controlinds, constan
 
     # Split control from coefficient
     controlvar, coeff = splitcoeff(iscoeff, controlcoeff)
+    coeff = Num(coeff)
 
     if haskey(stateinds, statevar) 
         stateindex = stateinds[statevar]
@@ -235,3 +247,75 @@ coeffs = getcoeffs(value(e), stateinds, controlinds, constants)
 @test (1,4,4) in coeffs
 @test (2m,0,5) in coeffs
 @test (-3.2, 0, 0) in coeffs
+
+# Get all of the coefficients
+#   Stored as a vector tuples:
+#     (val, ix, iu, row)
+#   where
+#     val is the nonzero cofficient
+#     ix is the index of the state vector
+#     iu is the index of the control vector
+#     row is the row (state index)
+coeffs = Tuple{Real,Int,Int,Int}[]
+for i = 1:length(x_vec)
+    e = xdot_vec[i]
+    _coeffs = getcoeffs(value(e), stateinds, controlinds, constants)
+    row_coeffs = map(_coeffs) do coeff
+        (coeff...,i)
+    end
+    append!(coeffs, row_coeffs)
+end
+
+# Sort into A,B,C,D matrices
+Acoeffs = Tuple{Real,Int,Int}[]
+Bcoeffs = Tuple{Real,Int,Int}[]
+Ccoeffs = [Tuple{Real,Int,Int}[] for i = 1:length(controlinds)]
+Dcoeffs = Tuple{Real,Int,Int}[]
+for coeff in coeffs
+    val,ix,iu,row = coeff
+    if ix > 0 && iu == 0 
+        push!(Acoeffs, (val,row,ix))
+    elseif ix == 0 && iu > 0
+        push!(Bcoeffs, (val,row,iu))
+    elseif ix > 0 && iu > 0
+        push!(Ccoeffs[iu], (val,row,ix))
+    elseif ix == 0 && iu == 0
+        push!(Dcoeffs, (val,row))
+    else
+        error("Got unexpected coefficient")
+    end
+end
+
+# Sort the coefficients by column, then by row
+function coeff_lessthan(a,b)
+    r1,c1 = a[2],a[3]
+    r2,c2 = b[2],b[3]
+    if c1 == c2
+        return r1 < r2
+    else
+        return c1 < c2
+    end
+end
+sort!(Acoeffs, lt=coeff_lessthan)
+sort!(Bcoeffs, lt=coeff_lessthan)
+map(Ccoeffs) do coeff
+    sort!(coeff, lt=coeff_lessthan)
+end
+sort!(Dcoeffs, lt=coeff_lessthan)
+
+# Convert to SparseArrays
+function coeffstosparse(m, n, coeffs)
+    v = getindex.(coeffs,1)
+    r = getindex.(coeffs,2)
+    c = getindex.(coeffs,3)
+    sparse(r, c, v, m, n)
+end
+function coeffstosparse(m, coeffs)
+    v = getindex.(coeffs,1)
+    r = getindex.(coeffs,2)
+    sparsevec(r, v, m)
+end
+Asym = coeffstosparse(50, 50, Acoeffs)
+Bsym = coeffstosparse(50, 50, Acoeffs)
+Csym = map(x->coeffstosparse(50, 50, x), Ccoeffs)
+Dsym = coeffstosparse(50, Acoeffs)
