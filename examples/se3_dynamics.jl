@@ -137,11 +137,26 @@ v_ = SA[v...]
 ω_ = SA[ω...]
 F_ = SA[F...]
 
+
+# Create original state and control vectors
+x0_vec = [r; q; v]
+u_vec = [F..., ω...]
+nx0 = length(x0_vec)
+nu = length(u_vec)
+
 # Expanded variables
 qq = Symbolics.variables(:qq, 1:4, 1:4)
 qqv = Symbolics.variables(:qqv, 1:4, 1:4, 1:3)
 
-# Create dictionary of substitutions
+# Create extended states y
+qq0_vec = [q[i]*q[j] for (i,j) in ij]
+qqv0_vec = [q[i]*q[j]*v[k] for (i,j,k) in ijk]
+qq_vec = [qq[i,j] for (i,j) in ij]
+qqv_vec = [qqv[i,j,k] for (i,j,k) in ijk]
+y0_vec = [qq0_vec; qqv0_vec]
+y_vec = [qq_vec; qqv_vec]
+
+# Create dictionary of substitutions, converting state to extended state
 ij = NTuple{2,Int}[]
 ijk = NTuple{3,Int}[]
 for j = 1:4, i = j:4
@@ -150,20 +165,13 @@ for j = 1:4, i = j:4
         push!(ijk, (i,j,k))
     end
 end
-qq_vec = [qq[i,j] for (i,j) in ij]
-qqv_vec = [qqv[i,j,k] for (i,j,k) in ijk]
-
-subs = Dict(value(q[i]*q[j])=>value(qq[i,j]) for (i,j) in ij)
-subs2 = Dict(value(q[i]*q[j]*v[k])=>value(qqv[i,j,k]) for (i,j,k) in ijk)
-merge!(subs, subs2)
-@test length(subs) == 40
+x2y_dict = Dict(value(x)=>value(y) for (x,y) in zip(y0_vec,y_vec))
+@test length(x2y_dict) == 40
 
 # Constants
-@variables m J1 J2 J3
-J = Diagonal(SA[J1, J2, J3])
-Jinv = inv(J) 
-constants = Set(value.([m, J1, J2, J3]))
-controls = Set(value.([ω..., F...]))
+c_vec = @variables m
+constants = Set(value.(c_vec))
+controls = Set(value.(u_vec))
 iscoeff(x) = (x isa Number) || (x in constants)
 isconstorcontrol(x) = iscoeff(x) || (x in controls)
 
@@ -172,25 +180,28 @@ quat = UnitQuaternion(q, false)
 A = SMatrix(quat)
 rdot = A*v_
 qdot = lmult(q)*SA[0, ω[1], ω[2], ω[3]] / 2
-vdot = F_ / m - ω_ × v_
+vdot = F_ / m - (ω_ × v_)
 
 rdot = map(rdot) do expr
-    filtersubstitute(iscoeff, expand(expr), subs)
+    filtersubstitute(iscoeff, expand(expr), x2y_dict)
 end
+x0dot_vec = [rdot; qdot; vdot]
 
+# Dynamics of extended states
 qqdot = map(ij) do (i,j)
-    filtersubstitute(isconstorcontrol, expand(q[i]*qdot[j] + qdot[i]*q[j]), subs)
+    filtersubstitute(isconstorcontrol, expand(q[i]*qdot[j] + qdot[i]*q[j]), x2y_dict)
 end
 
 qqvdot = map(ijk) do (i,j,k)
     expr = q[i]*q[j]*vdot[k] + q[i]*qdot[j]*v[k] + qdot[i]*q[j]*v[k]
-    filtersubstitute(isconstorcontrol, expand(expr), subs)
+    filtersubstitute(isconstorcontrol, expand(expr), x2y_dict)
 end
+ydot_vec = [qqdot; qqvdot]
 
 # Create expanded state vector and control vector
-x_vec = [r; q; v; qq_vec; qqv_vec]
-u_vec = [F..., ω...]
-xdot_vec = [rdot; qdot; vdot; qqdot; qqvdot]
+x_vec = [x0_vec; y_vec]
+xdot_vec = [x0dot_vec; ydot_vec]
+nx = length(x_vec)
 
 # Store in a dictionary for fast look-ups
 stateinds = Dict(value(x_vec[i])=>i for i in eachindex(x_vec))
@@ -315,7 +326,147 @@ function coeffstosparse(m, coeffs)
     r = getindex.(coeffs,2)
     sparsevec(r, v, m)
 end
-Asym = coeffstosparse(50, 50, Acoeffs)
-Bsym = coeffstosparse(50, 50, Acoeffs)
-Csym = map(x->coeffstosparse(50, 50, x), Ccoeffs)
-Dsym = coeffstosparse(50, Acoeffs)
+Asym = coeffstosparse(nx, nx, Acoeffs)
+Bsym = coeffstosparse(nx, nu, Bcoeffs)
+Csym = map(x->coeffstosparse(nx, nx, x), Ccoeffs)
+Dsym = coeffstosparse(nx, Dcoeffs)
+
+# Function inputs
+name = "se3_angvel"
+
+## Build function to build the sparse arrays
+nx = length(x_vec)
+nu = length(u_vec)
+nc = length(c_vec)
+
+# Rename inputs to
+@variables _x[1:n] _u[1:m] _c[1:p]
+toargs = Dict(value(x_vec[i])=>value(_x[i]) for i = 1:nx)
+merge!(toargs, Dict(value(u_vec[i])=>value(_u[i]) for i = 1:nu))
+merge!(toargs, Dict(value(c_vec[i])=>value(_c[i]) for i = 1:nc))
+
+# Generate function to evaluate the dynamics
+xdot_sub = substitute(xdot_vec, toargs)
+xdot_expr = map(enumerate(xdot_sub)) do (i,xdot)
+    :(xdot[$i] = $xdot)
+end
+dynamics_function = quote
+    function $(Symbol(name * "_dynamics!"))(xdot, x, u, constants)
+        _x,_u,_c = x, u, constants
+        $(xdot_expr...)
+        return
+    end
+end
+dynamics_function
+
+# Generate function to expand the state vector from original states
+y0_sub = substitute(y0_vec, toargs)
+expand_expr = map(enumerate(y0_sub)) do (i,y) 
+    :(y[$i] = $y)
+end
+expand_function = quote
+    function $(Symbol(name * "_expand!"))(y, x)
+        _x = x
+        $(expand_expr...)
+        return y
+    end
+end
+expand_function
+
+# Generate expressions from symbolics
+function genexprs(A, subs)
+    map(enumerate(A.nzval)) do (i,e)
+        # Convert to expression
+        e_sub = substitute(e, subs)
+
+        # Convert to expression
+        expr = Symbolics.toexpr(e_sub)
+        :(nzval[$i] = $expr)
+    end
+end
+Aexprs = genexprs(Asym, toargs)
+Bexprs = genexprs(Bsym, toargs)
+Cexprs = map(1:m) do i
+    Cexpr = genexprs(Csym[i], toargs)
+    quote
+        nzval = C[$i].nzval
+        $(Cexpr...)
+    end
+end
+Dexprs = genexprs(Dsym, toargs)
+
+# Create update functions
+update_functions = quote
+    function $(Symbol(name * "_updateA!"))(A, constants)
+        _c = constants
+        nzval = A.nzval
+        $(Aexprs...)
+        return A
+    end
+    function $(Symbol(name * "_updateB!"))(B, constants)
+        _c = constants
+        nzval = B.nzval
+        $(Bexprs...)
+        return B
+    end
+    function $(Symbol(name * "_updateC!"))(C, constants)
+        _c = constants
+        $(Cexprs...)
+        return D
+    end
+    function $(Symbol(name * "_updateD!"))(D, constants)
+        _c = constants
+        nzval = D.nzval
+        $(Dexprs...)
+        return D
+    end
+end
+update_functions
+
+# Create functions to generate sparse arrays
+Cmatgen_expr = map(Csym) do Ci
+    quote
+        SparseMatrixCSC(n, n,
+            $(Ci.colptr), 
+            $(Ci.rowval),
+            zeros($(nnz(Ci)))
+        )
+    end
+end
+genmats_function = quote
+    function $(name * "_genarrays")()
+        n = $nx
+        m = $nu
+        A = SparseMatrixCSC(n, n,
+            $(Asym.colptr), 
+            $(Asym.rowval),
+            zeros($(nnz(Asym)))
+        )
+        B = SparseMatrixCSC(n, m,
+            $(Bsym.colptr), 
+            $(Bsym.rowval),
+            zeros($(nnz(Bsym)))
+        )
+        C = [$(Cmatgen_expr...)]
+        D = SparseVector(n,
+            $(Dsym.nzind),
+            zeros($(nnz(Dsym)))
+        )
+        return A,B,C,D
+    end
+end
+genmats_function
+
+expr = build_se3_dynamics_functions(
+    Asym, Bsym, Csym, Dsym, xdot_vec, x_vec, u_vec, collect(constants)
+)
+expr
+Vector(constants)
+collect(constants)
+Symbolics.to_expr
+Symbolics.toexpr.(Asym.nzval)
+Symbolics.gen_controllable
+a_expr = build_function(Asym.nzval, constants)
+b_expr = build_function(Bsym.nzval, constants)
+c_expr = build_function(Csym.nzval, constants)
+d_expr = build_function(Dsym.nzval, constants)
