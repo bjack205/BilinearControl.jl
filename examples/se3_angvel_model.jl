@@ -1,12 +1,3 @@
-import Pkg; Pkg.activate(@__DIR__)
-using RobotDynamics
-using SparseArrays
-using StaticArrays
-using LinearAlgebra
-using ForwardDiff
-using FiniteDiff
-using Test
-const RD = RobotDynamics
 include("se3_angvel_dynamics.jl")
 include("rotation_utils.jl")
 
@@ -39,13 +30,13 @@ function RD.dynamics!(model::SE3AngVelDynamics, xdot, x, u)
 end
 
 
-struct SE3AngVelExpandedDynamics <: RD.ContinuousDynamics
+struct SE3AngVelBilinearDynamics <: RD.ContinuousDynamics
     mass::Float64
     A::SparseMatrixCSC{Float64,Int}
     B::SparseMatrixCSC{Float64,Int}
     C::Vector{SparseMatrixCSC{Float64,Int}}
     D::SparseVector{Float64,Int}
-    function SE3AngVelExpandedDynamics(mass)
+    function SE3AngVelBilinearDynamics(mass)
         constants = [mass]
         A,B,C,D = se3_angvel_genarrays()
         se3_angvel_updateA!(A, constants)
@@ -56,12 +47,12 @@ struct SE3AngVelExpandedDynamics <: RD.ContinuousDynamics
     end
 end
 
-RD.state_dim(::SE3AngVelExpandedDynamics) = 50
-RD.control_dim(::SE3AngVelExpandedDynamics) = 6
-RD.default_diffmethod(::SE3AngVelExpandedDynamics) = RD.UserDefined()
-RD.default_signature(::SE3AngVelExpandedDynamics) = RD.InPlace()
+RD.state_dim(::SE3AngVelBilinearDynamics) = 50
+RD.control_dim(::SE3AngVelBilinearDynamics) = 6
+RD.default_diffmethod(::SE3AngVelBilinearDynamics) = RD.UserDefined()
+RD.default_signature(::SE3AngVelBilinearDynamics) = RD.InPlace()
 
-function Base.rand(::SE3AngVelExpandedDynamics)
+function Base.rand(::SE3AngVelBilinearDynamics)
     x0 = [randn(3); normalize(randn(4)); randn(3)]
     u = randn(6)
     x = zeros(50)
@@ -69,11 +60,11 @@ function Base.rand(::SE3AngVelExpandedDynamics)
     return x, u
 end
 
-function RD.dynamics!(model::SE3AngVelExpandedDynamics, xdot, x, u)
+function RD.dynamics!(model::SE3AngVelBilinearDynamics, xdot, x, u)
     se3_angvel_dynamics!(xdot, x, u, SA[model.mass])
 end
 
-function RD.jacobian!(model::SE3AngVelExpandedDynamics, J, y, x, u)
+function RD.jacobian!(model::SE3AngVelBilinearDynamics, J, y, x, u)
     Jx = view(J, :, 1:50)
     Ju = view(J, :, 51:56)
     Jx .= model.A

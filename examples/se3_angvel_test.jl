@@ -1,6 +1,17 @@
+import Pkg; Pkg.activate(@__DIR__)
+using RobotDynamics
+using SparseArrays
+using StaticArrays
+using LinearAlgebra
+using ForwardDiff
+using FiniteDiff
+using Test
+const RD = RobotDynamics
+
+include("se3_angvel_model.jl")
 
 model0 = SE3AngVelDynamics(2.0)
-model = SE3AngVelExpandedDynamics(2.0)
+model = SE3AngVelBilinearDynamics(2.0)
 n,m = RD.dims(model)
 x,u = rand(model)
 xdot = zero(x)
