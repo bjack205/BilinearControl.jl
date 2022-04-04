@@ -102,3 +102,54 @@ let nx = length(x_sym), nu = length(u_sym)
     @test ydot2 ≈ ydot
     @test ydot2[1:10] ≈ xdot
 end
+
+##
+include("se3_dynamics_model.jl")
+model0 = SE3Dynamics(2.0, I(3))
+model = SE3BilinearDynamics(2.0, I(3))
+
+n,m = RD.dims(model)
+x0,u0 = rand(model0)
+x = zeros(n)
+expand!(model, x, x0)
+xdot = zero(x)
+RD.dynamics!(model, xdot, x, u0)
+
+x0dot = RD.dynamics(model0, x0, u0)
+@test xdot[1:13] ≈ x0dot
+
+# Jacobian
+J = zeros(n, n+m)
+RD.jacobian!(model, J, xdot, x, u)
+
+Jfd = zero(J)
+FiniteDiff.finite_difference_jacobian!(
+    Jfd, (y,z)->RD.dynamics!(model, y, z[1:152], z[153:end]), [x; u]
+)
+@test Jfd ≈ J rtol=1e-8
+
+## Compare simulations
+dmodel0 = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model0)
+dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+
+times = range(0,1.0,step=1e-2)
+length(times)
+X0 = [copy(x0) for t in times]
+X = [copy(x) for t in times]
+for i = 1:length(times) - 1
+    h = times[i+1] - times[i]
+    z0 = KnotPoint(X0[i], u0, times[i], h)
+    X0[i+1] = RD.discrete_dynamics(dmodel0, z0)
+
+    RD.discrete_dynamics!(dmodel, X[i+1], X[i], u, times[i], h)
+end
+X0_ = [x[1:13] for x in X]
+[norm(x[4:7]) for x in X]
+norm(X0 - X0_, Inf)
+norm(X0[end][1:3] - X0_[end][1:3], Inf)
+norm(X0[end][8:10] - X0_[end][8:10], Inf)
+norm(X0[end][11:13] - X0_[end][11:13], Inf)
+x0f = X[end][1:13]
+xf = zero(X[1])
+expand!(model, xf, x0f)
+norm(xf - X[end], Inf)
