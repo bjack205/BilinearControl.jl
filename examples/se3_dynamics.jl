@@ -1,6 +1,26 @@
 include("symbolics_utils.jl")
 include("rotation_utils.jl")
 
+"""
+Build the bilinear dynamics for SE(3) with 6DOF force / torque inputs. 
+The state is `[r; q; v; ω]`, the control is `[F; τ]` with dynamics:
+
+```julia
+A(q) v               # rotate body velocity into world frame
+lmult(q)*[0; ω] / 2  # quaternion kinematics
+F/m - ω × v          # linear acceleration
+Jinv*(τ - ω × Jω)    # Euler's equation
+```
+
+Note that the linear and angular velocities are both defined in the body frame.
+
+Returns the following arguments:
+- `xdot_sym` a vector of symbolic expressions for the expanded state derivative
+- `x_vec` a vector of the symbolic variables defining the expanded state
+- `u_vec` a vector of the symbolic variables defining the control vector
+- `c_sym` a vector of the symbolic constants used in the dynamics
+- `y0_sym` a symbolic vector of the expanded states, in terms of the original state variables
+"""
 function se3_symbolic_dynamics()
     ## Original variables
     @variables r[1:3] q[1:4] v[1:3] ω[1:3] F[1:3] τ[1:3]
@@ -127,6 +147,27 @@ function se3_symbolic_dynamics()
 end
 
 
+"""
+Build the bilinear dynamics for SE(3) with 3DOF force and 3DOF angular velocity inputs. 
+This mapping is exact.
+
+The state is `[r; q; v]`, the control is `[F; ω]` with dynamics:
+
+```julia
+A(q) v               # rotate body velocity into world frame
+lmult(q)*[0; ω] / 2  # quaternion kinematics
+F/m - ω × v          # linear acceleration
+```
+
+Note that the linear and angular velocities are both defined in the body frame.
+
+Returns the following arguments:
+- `xdot_sym` a vector of symbolic expressions for the expanded state derivative
+- `x_vec` a vector of the symbolic variables defining the expanded state
+- `u_vec` a vector of the symbolic variables defining the control vector
+- `c_sym` a vector of the symbolic constants used in the dynamics
+- `y0_sym` a symbolic vector of the expanded states, in terms of the original state variables
+"""
 function se3_angvel_symbolic_dynamics()
     ## Original variables
     @variables r[1:3] q[1:4] v[1:3] ω[1:3] F[1:3]
@@ -205,7 +246,14 @@ function se3_angvel_symbolic_dynamics()
     return xdot_sym, x_sym, u_sym, c_sym, s0_sym
 end
 
+"""
+Takes symbolic vectors defining the dynamics of a bilinear system, and extracts 
+out the coefficients to form a bilinear system of the form:
 
+```math
+A x + B u + \\sum_{i = 1}^m u_i C_i x + D
+```
+"""
 function build_symbolic_matrices(xdot_sym, x_sym, u_sym, c_sym)
     # Store in a dictionary for fast look-ups
     stateinds = Dict(value(x_sym[i])=>i for i in eachindex(x_sym))
@@ -269,6 +317,30 @@ function build_symbolic_matrices(xdot_sym, x_sym, u_sym, c_sym)
     return Asym, Bsym, Csym, Dsym
 end
 
+"""
+Builds a Julia expression containing definitions for the following functions:
+
+    <name>_expand!(y,x)
+
+Expand the original state vector `x` to the expanded state vector `y`.
+
+    <name>_dynamics!(ydot, y, u, c)
+
+Evaluate the continuous dynamics with state `y`, control `u`, and constants `c`, saving 
+the output in `ydot`.
+
+    <name>_updateA!(A, c)
+    <name>_updateB!(A, c)
+    <name>_updateC!(A, c)
+    <name>_updateD!(A, c)
+
+Update the bilinear matrices using the vector of constants `c`.
+
+    A,B,C,D = <name>_genarrays()
+
+Generate the sparse bilinear matrices, initialized with the correct sparsity structure. 
+Must call `<name>_updateX!` to fill them in.
+"""
 function build_bilinear_dynamics_functions(name::AbstractString, xdot_sym, x_sym, u_sym, 
                                            c_sym, y0_sym; filename::AbstractString="")
     nx = length(x_sym)
