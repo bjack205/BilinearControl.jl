@@ -12,6 +12,191 @@ using Test
 include("symbolics_utils.jl")
 include("rotation_utils.jl")
 
+## Original variables
+@variables r[1:3] q[1:4] v[1:3] ω[1:3] F[1:3] τ[1:3]
+r_ = SA[r...]
+q_ = SA[q...]
+v_ = SA[v...]
+ω_ = SA[ω...]
+F_ = SA[F...]
+τ_ = SA[τ...]
+
+x0_sym = [r_; q_; v_; ω_]
+u_sym = [F_; τ_]
+
+# Constants
+c_sym = @variables m J1 J2 J3
+J = Diagonal(SA[J1, J2, J3])
+Jinv = inv(J)
+
+# Functions for checking coefficients
+constants = Set(value.(c_sym))
+controls = Set(value.(u_sym))
+iscoeff(x) = (x isa Number) || (x in constants)
+isconstorcontrol(x) = iscoeff(x) || (x in controls)
+
+# Compound states
+qq0, qq = createcompoundstates(q,q)
+ww0, ww = createcompoundstates(ω, ω)
+
+qw0, qw = createcompoundstates(q, ω)
+vw0, vw = createcompoundstates(v, ω)
+
+wwq0, wwq = createcompoundstates(ww, q, ww0)
+wwv0, wwv = createcompoundstates(ww, v, ww0)
+qqw0, qqw = createcompoundstates(qq, ω, qq0)
+qqv0, qqv = createcompoundstates(qq, v, qq0)
+
+s0_sym = [qq0; ww0; qw0; vw0; wwq0; wwv0; qqw0; qqv0]
+s_sym  = [qq;  ww;  qw;  vw;  wwq;  wwv;  qqw;  qqv]
+
+# Create dictionary of substitutions, converting state to extended state
+x2s_dict = Dict(value(x)=>value(y) for (x,y) in zip(s0_sym,s_sym))
+
+# Original dynamics
+quat = UnitQuaternion(q, false)
+A = SMatrix(quat)
+
+rdot = A*v_
+qdot = lmult(q)*SA[0, ω[1], ω[2], ω[3]] / 2
+vdot = F_ / m - (ω_ × v_)
+ωdot = Jinv * (τ_ - ω_ × (J * ω_))
+
+x0dot_sym = [rdot; qdot; vdot; ωdot]
+
+# Dynamics of extended states
+qqdot = map(qq) do expr 
+    i,j = getindices(expr)
+    # filtersubstitute(isconstorcontrol, expand(q[i]*qdot[j] + qdot[i]*q[j]), x2s_dict)
+    expand(q[i]*qdot[j] + qdot[i]*q[j])
+end
+
+wwdot = map(ww) do expr 
+    i,j = getindices(expr)
+    # filtersubstitute(isconstorcontrol, expand(ω[i]*ωdot[j] + ωdot[i]*ω[j]), x2s_dict)
+    # expand(ω[i]*ωdot[j] + ωdot[i]*ω[j])
+    expand(ω[i]*τ[j]/J[j,j] + ω[j]*τ[i]/J[i,i])  # dropping higher ω terms
+end
+wwdot
+
+qwdot = map(qw) do expr 
+    i,j = getindices(expr)
+    # filtersubstitute(isconstorcontrol, expand(q[i]*ωdot[j] + qdot[i]*ω[j]), x2s_dict)
+    expand(q[i]*ωdot[j] + qdot[i]*ω[j])
+end
+
+vwdot = map(vw) do expr 
+    i,j = getindices(expr)
+    # filtersubstitute(isconstorcontrol, expand(v[i]*ωdot[j] + vdot[i]*ω[j]), x2s_dict)
+    expand(v[i]*ωdot[j] + vdot[i]*ω[j])
+end
+vwdot
+
+wwqdot = map(wwq) do expr 
+    i,j,k = getindices(expr)
+    expand(
+        # expand(ωdot[i]*ω[j]*q[k]) + expand(ω[i]*ωdot[j]*q[k]) + expand(ω[i]*ω[j]*qdot[k])
+        expand(τ[i]*ω[j]*q[k]/J[i,i]) + expand(ω[i]*τ[j]*q[k]/J[j,j])  # dropping higher ω terms
+    )
+end
+
+wwvdot = map(wwv) do expr 
+    i,j,k = getindices(expr)
+    expand(
+        # expand(ωdot[i]*ω[j]*v[k]) + expand(ω[i]*ωdot[j]*v[k]) + expand(ω[i]*ω[j]*vdot[k])
+        expand(τ[i]*ω[j]*v[k]/J[i,i]) + expand(ω[i]*τ[j]*v[k]/J[j,j]) + expand(ω[i]*ω[j]*F[k]/m)  # dropping higher terms
+    )
+end
+
+qqwdot = map(qqw) do expr 
+    i,j,k = getindices(expr)
+    expand(
+        # expand(qdot[i]*q[j]*ω[k]) + expand(q[i]*qdot[j]*ω[k]) + expand(q[i]*q[j]*ωdot[k])
+        expand(q[i]*q[j]*τ[k]/J[k,k])  # dropping higher terms
+    )
+end
+
+qqvdot = map(qqv) do expr 
+    i,j,k = getindices(expr)
+    expand(
+        # expand(qdot[i]*q[j]*v[k]) + expand(q[i]*qdot[j]*v[k]) + expand(q[i]*q[j]*vdot[k])
+        expand(q[i]*q[j]*F[k]/m)
+    )
+end
+
+# Replace compound states with their symbolic variables
+s0dot_sym = [qqdot; wwdot; qwdot; vwdot; wwqdot; wwvdot; qqwdot; qqvdot]
+
+# Expanded state vector
+xdot_sym = map([x0dot_sym; s0dot_sym]) do expr
+    filtersubstitute(isconstorcontrol, expand(expr), x2s_dict)
+end
+x_sym = [x0_sym; s_sym]
+u_sym
+c_sym
+s0_sym
+
+# Build symbolic matrices
+stateinds = Dict(value(x_sym[i])=>i for i in eachindex(x_sym))
+controlinds = Dict(value(u_sym[i])=>i for i in eachindex(u_sym))
+e = value(xdot_sym[1]) 
+
+coeffs = Tuple{Real,Int,Int,Int}[]
+for i = 1:length(x_sym)
+    e = xdot_sym[i]
+    _coeffs = getcoeffs(value(e), stateinds, controlinds, constants)
+    row_coeffs = map(_coeffs) do coeff
+        (coeff...,i)
+    end
+    append!(coeffs, row_coeffs)
+end
+
+Asym,Bsym,Csym,Dsym = build_symbolic_matrices(xdot_sym, x_sym, u_sym, c_sym)
+xdot2 = Asym * x_sym + Bsym * u_sym + sum(u_sym[i]*Csym[i]*x_sym for i = 1:length(u_sym)) + Dsym
+d = simplify.(Vector{Real}(xdot2) - xdot_sym)
+findall(x->x !== Num(0), d)
+
+allfunctions = build_bilinear_dynamics_functions(
+    "se3", xdot_sym, x_sym, u_sym, c_sym, s0_sym;
+    filename=joinpath(@__DIR__,"se3_bilinear_dynamics.jl")
+)
+eval(allfunctions)
+
+let nx = length(x_sym), nu = length(u_sym)
+    # Create random state and control
+    r = randn(3)
+    q = normalize(randn(4))
+    v = randn(3)
+    ω = randn(3)
+    F = randn(3)
+    τ = randn(3)
+    x = [r; q; v; ω]
+    u = [F; τ] 
+
+    # Constants
+    m = 2.0  # mass
+    J = Diagonal(fill(1.0, 3))
+    c = [m, diag(J)...]
+
+    # Create expanded state vector
+    y = zeros(nx)
+    se3_expand!(y, x)
+    ydot = zero(y)
+
+    # Test dynamics
+    se3_dynamics!(ydot, y, u, c)
+    xdot = [qrot(q) * v; 0.5*lmult(q)*[0; ω]; F/m - (ω × v); J\(τ - (ω × (J*ω)))]
+
+    # Test bilinear dynamics
+    A,B,C,D = se3_genarrays()
+    se3_updateA!(A, c)
+    se3_updateB!(B, c)
+    se3_updateC!(C, c)
+    se3_updateD!(D, c)
+    ydot2 = A*y + B*u + sum(u[i]*C[i]*y for i = 1:nu) + D
+end
+
+
 
 function se3_angvel_dynamics()
     ## Original variables
@@ -92,10 +277,11 @@ function se3_angvel_dynamics()
 end
 
 
-function build_symbolic_matrices(xdot_vec, x_vec, u_vec, constants)
+function build_symbolic_matrices(xdot_vec, x_vec, u_vec, c_vec)
     # Store in a dictionary for fast look-ups
     stateinds = Dict(value(x_vec[i])=>i for i in eachindex(x_vec))
     controlinds = Dict(value(u_vec[i])=>i for i in eachindex(u_vec))
+    constants = Set(value.(c_vec))
 
     ## Get all of the coefficients
     #   Stored as a vector tuples:
@@ -165,7 +351,9 @@ function build_bilinear_dynamics_functions(name::AbstractString, xdot_vec, x_vec
     
     # Rename states, variables, and constants to _x, _u, and _c vectors 
     @variables _x[1:nx] _u[1:nu] _c[1:nc]
-    toargs = Dict(value(x_vec[i])=>value(_x[i]) for i = 1:nx)
+    toargs = Dict{Symbolics.Symbolic, Symbolics.Symbolic}(
+        value(x_vec[i])=>value(_x[i]) for i = 1:nx
+    )
     merge!(toargs, Dict(value(u_vec[i])=>value(_u[i]) for i = 1:nu))
     merge!(toargs, Dict(value(c_vec[i])=>value(_c[i]) for i = 1:nc))
 

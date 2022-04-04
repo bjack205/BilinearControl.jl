@@ -4,7 +4,7 @@ Splits a multiplication of symbolic terms into constant coefficients and the
 variables. The function `f` should return `true` for any term that should be 
 considered constant. 
 """
-function splitcoeff(f, expr::SymbolicUtils.Mul)
+function splitcoeff(f, expr::SymbolicUtils.Mul; recursive=false)
     args = Symbolics.unsorted_arguments(expr)
     newargs = Any[]
     coeffs = Any[]
@@ -32,13 +32,13 @@ function splitcoeff(f, expr::SymbolicUtils.Mul)
     return newterm, coeff
 end
 
-function splitcoeff(f, expr::SymbolicUtils.Div)
+function splitcoeff(f, expr::SymbolicUtils.Div; recursive=false)
     @assert f(expr.den) "All denominators must be constant."
     expr_nocoeff, coeff = splitcoeff(f, expr.num)
     return (expr_nocoeff, coeff/expr.den)
 end
 
-splitcoeff(f, expr) = f(expr) ? (1,expr) : (expr, 1)
+splitcoeff(f, expr; recursive=false) = f(expr) ? (1,expr) : (expr, 1)
 
 """
     filtersubstitute(f, expr, dict; [fold])
@@ -64,7 +64,7 @@ If `dict` contains the pair `x*y=>z` and `f` is the `getcoeff` function below:
 function filtersubstitute(f, expr, dict; fold=true)
     expr_nocoeff, coeff = splitcoeff(f, expr)
     haskey(dict, expr_nocoeff) && return coeff*dict[expr_nocoeff]
-    if istree(expr)
+    if istree(expr) && !(expr isa Symbolics.Mul)  # don't split a Mul object
         op = filtersubstitute(f, operation(expr), dict; fold=fold)
         if fold
             canfold = !(op isa SymbolicUtils.Symbolic)
@@ -77,7 +77,7 @@ function filtersubstitute(f, expr, dict; fold=true)
             args
         else
             args = map(
-                x->substitutemul(x, dict; fold=fold), 
+                x->filtersubstitute(f, x, dict; fold=fold), 
                 SymbolicUtils.unsorted_arguments(expr)
             )
         end
@@ -124,36 +124,53 @@ function getcoeffs(expr::SymbolicUtils.Symbolic, stateinds, controlinds, constan
     # Split control from coefficient
     controlvar, coeff = splitcoeff(iscoeff, controlcoeff)
     coeff = Num(coeff)
+    # @show statevar, controlvar, coeff
 
     if haskey(stateinds, statevar) 
         stateindex = stateinds[statevar]
         if haskey(controlinds, controlvar)
             # C matrix coefficient (bilinear)
             controlindex = controlinds[controlvar]
-            return (coeff, stateindex, controlindex)
+            return [(coeff, stateindex, controlindex)]
         else
             # A matrix coefficient (state only)
             @assert controlvar == 1 
-            return (coeff, stateindex, 0)
+            return [(coeff, stateindex, 0)]
         end
     elseif haskey(controlinds, controlvar)
         # B matrix coefficient (control only)
         @assert statevar == 1
         controlindex = controlinds[controlvar]
-        return (coeff, 0, controlindex)
+        return [(coeff, 0, controlindex)]
     else
         # D vector coefficient (constant)
-        return (coeff, 0, 0)
+        isone(expr) = expr === one(expr) 
+        if isone(statevar) && isone(controlvar)
+            return [(coeff, 0, 0)]
+        else
+            return Tuple{Real,Int,Int}[] 
+        end
     end
 end
 
 getcoeffs(expr::Real, args...) = (expr, 0, 0)
 
 function getcoeffs(expr::SymbolicUtils.Add, args...)
-    coeffs = map(SymbolicUtils.unsorted_arguments(expr)) do arg
-        getcoeffs(arg, args...)
+    eargs = SymbolicUtils.unsorted_arguments(expr)
+    coeffs = Tuple{Real,Int,Int}[]
+    for i = 1:length(eargs)
+        append!(coeffs, getcoeffs(eargs[i], args...))
     end
-    filter!(isnothing |> !, coeffs)
+    coeffs
+end
+
+function getcoeffs(expr::SymbolicUtils.Div, stateinds, controlinds, constants)
+    iscoeff(x) = (x isa Real) || (x in constants)
+    @assert iscoeff(expr.den) "All denominators must be constant, got $(expr.den)."
+    coeffs = getcoeffs(expr.num, stateinds, controlinds, constants)
+    map(coeffs) do (v,r,c) 
+        (v / expr.den, r, c)
+    end
 end
 
 """
@@ -190,4 +207,38 @@ function coeffstosparse(m, coeffs)
     v = getindex.(coeffs,1)
     r = getindex.(coeffs,2)
     sparsevec(r, v, m)
+end
+
+function getindices(sym::Symbolics.Term)
+    @assert operation(sym) === Base.getindex
+    Int.(arguments(sym)[2:end])
+end
+getindices(num::Num) = getindices(value(num))
+
+function createcompoundstates(x,y, x0=x, y0=y)
+    @assert length(x0) == length(x)
+    @assert length(y0) == length(y)
+    n = length(x)
+    m = length(y)
+    x_parent = value(Symbolics.getparent(value(x[1])))
+    y_parent = value(Symbolics.getparent(value(y[1])))
+    xname = Symbolics.getname(x_parent)
+    yname = Symbolics.getname(y_parent)
+    x_shape = Symbolics.getmetadata(x_parent, Symbolics.ArrayShapeCtx)
+    y_shape = Symbolics.getmetadata(y_parent, Symbolics.ArrayShapeCtx)
+    xyname = Symbol(string(xname) * string(yname))
+    aresame = xname == yname
+
+    xy, = @variables $xyname[x_shape...,y_shape...]
+
+    ij = NTuple{2,Int}[]
+    for j = 1:m
+        i0 = aresame ? j : 1
+        for i = i0:n
+            push!(ij, (i,j))
+        end
+    end
+    xy0_vec = [x0[i]*y0[j] for (i,j) in ij]
+    xy_vec = [xy[getindices(x[i])..., getindices(y[j])...] for (i,j) in ij]
+    return xy0_vec, xy_vec
 end
