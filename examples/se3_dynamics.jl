@@ -1,3 +1,12 @@
+using Symbolics 
+using Symbolics: value
+using SymbolicUtils
+using StaticArrays
+using Rotations
+using SparseArrays
+using IterTools
+using LinearAlgebra
+
 include("symbolics_utils.jl")
 include("rotation_utils.jl")
 

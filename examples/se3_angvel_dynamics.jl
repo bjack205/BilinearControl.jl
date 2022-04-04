@@ -1,12 +1,12 @@
 begin
-    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:415 =#
+    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:485 =#
     begin
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:307 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:377 =#
         function se3_angvel_expand!(y, x)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:307 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:308 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:377 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:378 =#
             _x = x
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:309 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:379 =#
             y[1] = (getindex)(_x, 1)
             y[2] = (getindex)(_x, 2)
             y[3] = (getindex)(_x, 3)
@@ -57,18 +57,18 @@ begin
             y[48] = (*)((^)((getindex)(_x, 7), 2), (getindex)(_x, 8))
             y[49] = (*)((^)((getindex)(_x, 7), 2), (getindex)(_x, 9))
             y[50] = (*)((^)((getindex)(_x, 7), 2), (getindex)(_x, 10))
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:310 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:380 =#
             return y
         end
     end
-    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
+    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:486 =#
     begin
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:320 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:390 =#
         function se3_angvel_dynamics!(xdot, x, u, constants)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:320 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:321 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:390 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:391 =#
             (_x, _u, _c) = (x, u, constants)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:322 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:392 =#
             xdot[1] = (+)((+)((+)((+)((+)((+)((+)((*)(2, (getindex)(_x, 29)), (*)(-1, (getindex)(_x, 42))), (*)(-2, (getindex)(_x, 31))), (*)(2, (getindex)(_x, 37))), (*)(2, (getindex)(_x, 41))), (*)(-1, (getindex)(_x, 48))), (getindex)(_x, 21)), (getindex)(_x, 33))
             xdot[2] = (+)((+)((+)((+)((+)((+)((+)((*)(-2, (getindex)(_x, 26)), (*)(-1, (getindex)(_x, 34))), (*)(-1, (getindex)(_x, 49))), (*)(2, (getindex)(_x, 30))), (*)(2, (getindex)(_x, 36))), (*)(2, (getindex)(_x, 47))), (getindex)(_x, 22)), (getindex)(_x, 43))
             xdot[3] = (+)((+)((+)((+)((+)((+)((+)((*)(-1, (getindex)(_x, 35)), (*)(-1, (getindex)(_x, 44))), (*)(2, (getindex)(_x, 25))), (*)(-2, (getindex)(_x, 27))), (*)(2, (getindex)(_x, 39))), (*)(2, (getindex)(_x, 46))), (getindex)(_x, 23)), (getindex)(_x, 50))
@@ -119,20 +119,20 @@ begin
             xdot[48] = (+)((+)((+)((+)((+)((/)((*)((getindex)(_u, 1), (getindex)(_x, 20)), (getindex)(_c, 1)), (*)((getindex)(_u, 5), (getindex)(_x, 39))), (*)((getindex)(_u, 6), (getindex)(_x, 30))), (*)((getindex)(_u, 6), (getindex)(_x, 49))), (*)((*)(-1//1, (getindex)(_u, 4)), (getindex)(_x, 45))), (*)((*)(-1//1, (getindex)(_u, 5)), (getindex)(_x, 50)))
             xdot[49] = (+)((+)((+)((+)((+)((/)((*)((getindex)(_u, 2), (getindex)(_x, 20)), (getindex)(_c, 1)), (*)((getindex)(_u, 5), (getindex)(_x, 40))), (*)((getindex)(_u, 4), (getindex)(_x, 50))), (*)((getindex)(_u, 6), (getindex)(_x, 31))), (*)((*)(-1//1, (getindex)(_u, 4)), (getindex)(_x, 46))), (*)((*)(-1//1, (getindex)(_u, 6)), (getindex)(_x, 48)))
             xdot[50] = (+)((+)((+)((+)((+)((/)((*)((getindex)(_u, 3), (getindex)(_x, 20)), (getindex)(_c, 1)), (*)((getindex)(_u, 6), (getindex)(_x, 32))), (*)((getindex)(_u, 5), (getindex)(_x, 41))), (*)((getindex)(_u, 5), (getindex)(_x, 48))), (*)((*)(-1//1, (getindex)(_u, 4)), (getindex)(_x, 47))), (*)((*)(-1//1, (getindex)(_u, 4)), (getindex)(_x, 49)))
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:323 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:393 =#
             return
         end
     end
-    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
+    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:487 =#
     begin
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:354 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:424 =#
         function se3_angvel_updateA!(A, constants)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:354 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:355 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:424 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:425 =#
             _c = constants
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:356 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:426 =#
             nzval = A.nzval
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:357 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:427 =#
             nzval[1] = 1
             nzval[2] = 1
             nzval[3] = 1
@@ -157,33 +157,33 @@ begin
             nzval[22] = -1
             nzval[23] = -1
             nzval[24] = 1
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:358 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:428 =#
             return A
         end
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:360 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:430 =#
         function se3_angvel_updateB!(B, constants)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:360 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:361 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:430 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:431 =#
             _c = constants
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:362 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:432 =#
             nzval = B.nzval
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:363 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:433 =#
             nzval[1] = (/)(1, (getindex)(_c, 1))
             nzval[2] = (/)(1, (getindex)(_c, 1))
             nzval[3] = (/)(1, (getindex)(_c, 1))
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:364 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:434 =#
             return B
         end
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:366 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:436 =#
         function se3_angvel_updateC!(C, constants)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:366 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:367 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:436 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:437 =#
             _c = constants
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:368 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:438 =#
             begin
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:346 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
                 nzval = (C[1]).nzval
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:347 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
                 nzval[1] = (/)(1, (getindex)(_c, 1))
                 nzval[2] = (/)(1, (getindex)(_c, 1))
                 nzval[3] = (/)(1, (getindex)(_c, 1))
@@ -196,9 +196,9 @@ begin
                 nzval[10] = (/)(1, (getindex)(_c, 1))
             end
             begin
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:346 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
                 nzval = (C[2]).nzval
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:347 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
                 nzval[1] = (/)(1, (getindex)(_c, 1))
                 nzval[2] = (/)(1, (getindex)(_c, 1))
                 nzval[3] = (/)(1, (getindex)(_c, 1))
@@ -211,9 +211,9 @@ begin
                 nzval[10] = (/)(1, (getindex)(_c, 1))
             end
             begin
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:346 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
                 nzval = (C[3]).nzval
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:347 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
                 nzval[1] = (/)(1, (getindex)(_c, 1))
                 nzval[2] = (/)(1, (getindex)(_c, 1))
                 nzval[3] = (/)(1, (getindex)(_c, 1))
@@ -226,9 +226,9 @@ begin
                 nzval[10] = (/)(1, (getindex)(_c, 1))
             end
             begin
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:346 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
                 nzval = (C[4]).nzval
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:347 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
                 nzval[1] = 1//2
                 nzval[2] = -1//2
                 nzval[3] = -1//2
@@ -321,9 +321,9 @@ begin
                 nzval[90] = 1
             end
             begin
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:346 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
                 nzval = (C[5]).nzval
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:347 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
                 nzval[1] = 1//2
                 nzval[2] = 1//2
                 nzval[3] = -1//2
@@ -416,9 +416,9 @@ begin
                 nzval[90] = -1//1
             end
             begin
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:346 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:416 =#
                 nzval = (C[6]).nzval
-                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:347 =#
+                #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:417 =#
                 nzval[1] = 1//2
                 nzval[2] = -1//2
                 nzval[3] = 1//2
@@ -510,57 +510,57 @@ begin
                 nzval[89] = 1
                 nzval[90] = -1//2
             end
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:369 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:439 =#
             return C
         end
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:371 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:441 =#
         function se3_angvel_updateD!(D, constants)
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:371 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:372 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:441 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:442 =#
             _c = constants
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:373 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:443 =#
             nzval = D.nzval
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:374 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:375 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:444 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:445 =#
             return D
         end
     end
-    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:418 =#
+    #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:488 =#
     begin
-        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:390 =#
+        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:460 =#
         function se3_angvel_genarrays()
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:390 =#
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:391 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:460 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:461 =#
             n = 50
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:392 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:462 =#
             m = 6
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:393 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:463 =#
             A = SparseMatrixCSC(n, n, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11, 12, 13, 14, 15, 15, 16, 16, 17, 18, 19, 20, 20, 21, 22, 23, 24, 25], [1, 2, 3, 3, 2, 3, 1, 2, 1, 1, 2, 3, 2, 1, 3, 1, 1, 2, 3, 3, 2, 1, 2, 3], zeros(24))
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:398 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:468 =#
             B = SparseMatrixCSC(n, m, [1, 2, 3, 4, 4, 4, 4], [8, 9, 10], zeros(3))
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:403 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:473 =#
             C = [begin
-                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:382 =#
+                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:452 =#
                         SparseMatrixCSC(n, n, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11], [21, 24, 27, 30, 33, 36, 39, 42, 45, 48], zeros(10))
                     end, begin
-                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:382 =#
+                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:452 =#
                         SparseMatrixCSC(n, n, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11], [22, 25, 28, 31, 34, 37, 40, 43, 46, 49], zeros(10))
                     end, begin
-                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:382 =#
+                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:452 =#
                         SparseMatrixCSC(n, n, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11], [23, 26, 29, 32, 35, 38, 41, 44, 47, 50], zeros(10))
                     end, begin
-                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:382 =#
+                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:452 =#
                         SparseMatrixCSC(n, n, [1, 1, 1, 1, 2, 3, 4, 5, 5, 6, 7, 8, 10, 12, 14, 15, 17, 19, 20, 22, 23, 24, 26, 28, 30, 33, 36, 38, 41, 44, 46, 49, 52, 53, 55, 57, 59, 62, 65, 67, 70, 73, 74, 76, 78, 80, 83, 86, 87, 89, 91], [5, 4, 7, 6, 10, 9, 12, 11, 15, 14, 16, 13, 17, 12, 13, 17, 14, 16, 19, 18, 20, 19, 24, 23, 25, 22, 26, 21, 33, 22, 26, 34, 23, 25, 35, 30, 36, 29, 31, 37, 28, 32, 38, 27, 39, 28, 32, 40, 29, 31, 41, 24, 25, 35, 26, 34, 27, 39, 28, 38, 40, 29, 37, 41, 30, 36, 31, 37, 41, 32, 38, 40, 45, 44, 46, 43, 47, 42, 48, 43, 47, 49, 44, 46, 50, 45, 46, 50, 47, 49], zeros(90))
                     end, begin
-                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:382 =#
+                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:452 =#
                         SparseMatrixCSC(n, n, [1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 7, 8, 10, 12, 14, 15, 17, 19, 20, 22, 23, 25, 26, 28, 31, 33, 36, 39, 41, 44, 47, 49, 52, 54, 55, 57, 60, 62, 65, 68, 70, 73, 75, 76, 78, 81, 83, 86, 88, 89, 91], [6, 7, 4, 5, 10, 8, 13, 14, 16, 11, 18, 12, 19, 17, 12, 19, 15, 20, 13, 14, 16, 17, 23, 27, 28, 21, 29, 26, 30, 36, 31, 37, 24, 32, 38, 21, 29, 42, 22, 43, 23, 27, 44, 24, 32, 45, 25, 46, 26, 30, 47, 35, 39, 40, 33, 41, 24, 38, 45, 25, 46, 26, 36, 47, 33, 41, 48, 34, 49, 35, 39, 50, 27, 44, 28, 29, 42, 30, 36, 47, 31, 37, 32, 38, 45, 39, 50, 40, 41, 48], zeros(90))
                     end, begin
-                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:382 =#
+                        #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:452 =#
                         SparseMatrixCSC(n, n, [1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 7, 8, 10, 12, 14, 15, 17, 19, 20, 22, 23, 25, 27, 28, 31, 34, 36, 39, 42, 44, 47, 50, 52, 54, 56, 57, 60, 63, 65, 68, 71, 73, 75, 77, 78, 81, 84, 86, 88, 90, 91], [7, 6, 5, 4, 9, 8, 14, 13, 17, 12, 19, 11, 20, 16, 15, 18, 12, 19, 16, 13, 17, 14, 22, 30, 21, 31, 32, 25, 27, 39, 24, 28, 40, 29, 41, 24, 28, 45, 25, 27, 46, 26, 47, 21, 31, 48, 22, 30, 49, 23, 50, 34, 36, 33, 37, 38, 33, 37, 42, 34, 36, 43, 35, 44, 24, 40, 45, 25, 39, 46, 26, 47, 36, 43, 37, 42, 38, 27, 39, 46, 28, 40, 45, 29, 41, 30, 49, 31, 48, 32], zeros(90))
                     end]
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:404 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:474 =#
             D = SparseVector(n, Int64[], zeros(0))
-            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:408 =#
+            #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:478 =#
             return (A, B, C, D)
         end
     end

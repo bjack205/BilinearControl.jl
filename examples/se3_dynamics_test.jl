@@ -1,17 +1,18 @@
 import Pkg; Pkg.activate(@__DIR__)
-using LinearAlgebra
-using SparseArrays
-using Symbolics
-using SymbolicUtils
-using StaticArrays
-using Rotations
-using Symbolics: value
-using IterTools
 using Test
 
 include("se3_dynamics.jl")
-##
+include("se3_dynamics_model.jl")
 
+## Kinematics model
+model = SE3Kinematics()
+x,u = rand(model)
+xdot = RD.dynamics(model,x,u)
+A,B,C,D = getA(model), getB(model), getC(model), getD(model)
+xdot2 = A*x + B*u + sum(u[i] * C[i] * x for i = 1:length(u)) + D
+@test xdot ≈ xdot2
+
+## Bilinear Dynamics model
 xdot_sym, x_sym, u_sym, c_sym, s0_sym = se3_symbolic_dynamics()
 
 allfunctions = build_bilinear_dynamics_functions(
@@ -56,7 +57,7 @@ let nx = length(x_sym), nu = length(u_sym)
     @test ydot2 ≈ ydot
 end
 
-## Test generated functions
+## Dynamics with angular velocity control 
 xdot_sym, x_sym, u_sym, c_sym, y0_sym = se3_angvel_symbolic_dynamics()
 allfunctions = build_bilinear_dynamics_functions(
     "se3_angvel", xdot_sym, x_sym, u_sym, c_sym, y0_sym;
