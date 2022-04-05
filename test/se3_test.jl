@@ -13,7 +13,8 @@ using Test
 using BilinearControl: getA, getB, getC, getD
 
 include("models/se3_models.jl")
-const enablevis = true
+enablevis = false 
+enablevis = true 
 
 function buildse3problem(model, x̄0::RBState, x̄f::RBState;
         Qd = fill(1e-1, RD.state_dim(model)),
@@ -53,7 +54,18 @@ function buildse3problem(model, x̄0::RBState, x̄f::RBState;
     Q = Diagonal(Qd)
     R = Diagonal(Rd)
     Qf = Diagonal(Qfd)
-    obj = TO.TrackingObjective(Q,R,Zref, Qf=Qf) 
+    obj = TO.LQRObjective(Q,R,Qf,xf,N)
+    costs = map(1:N) do k
+        Q_ = k < N ? Q : Qf
+        x = X0[k]
+        q = -Q_*x
+        q[4:12] = -x[4:12]  # equal to tr(Rf'R)
+        r = zeros(nu)
+        c = 0.5*x'Qf*x
+        TO.DiagonalCost(Q_,R,q,r,c)
+    end
+    obj = TO.Objective(costs)
+    # obj = TO.TrackingObjective(Q,R,Zref, Qf=Qf) 
 
     # Goal state
     cons = ConstraintList(nx, nu, N)
@@ -96,6 +108,7 @@ if enablevis
     visualize!(vis, rf, qf)
 end
 
+# @testset "SE(3) Kinematics" begin
 ## Kinematics
 model = SE3Kinematics()
 @test RD.dims(model) == (12,6,12)
@@ -118,59 +131,83 @@ let
     @test xdot ≈ A*x + B*u + sum(u[i]*C[i]*x for i = 1:m) + D
 end
 
-Q = fill(1e-1, 12)
-R = fill(2e-2, 6)
-Qf = fill(100.0, 12)
+Q = [fill(1e-1, 3); fill(0.0, 9)] 
+R = [fill(1e-3, 3); fill(1e-3, 3)]
+Qf = fill(10.0, 12)
 prob = buildse3problem(model, x̄0, x̄f)
-# visualize!(vis, model, prob.tf, states(prob))
 admm = BilinearADMM(prob)
 admm.opts.penalty_threshold = 1e5
 BilinearControl.setpenalty!(admm, 1e3)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
-Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=300)
+Xsol, Usol, Ysol = BilinearControl.solve(admm, X, U, max_iters=300)
 
-let
+BilinearControl.setpenalty!(admm, 1e2)
+Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, Ysol, max_iters=100)
+
+# Test that it got to the goal
+n,m = RD.dims(model)
+Xs = collect(eachcol(reshape(Xsol, n, :)))
+x̄N = RBState(Xs[end][1:3], RotMatrix{3}(Xs[end][4:12]), zeros(3), zeros(3))
+@test norm(x̄N ⊖ x̄f) < 2e-4
+
+
+# Test that the rotation matrices are still valid 
+R = [reshape(x[4:end], 3, 3) for x in Xs]
+maxerr = maximum(abs(det(r) - 1) for r in R)
+@test maxerr < 1e-1
+
+if enablevis
     n,m = RD.dims(prob.model[1])
     Xs = collect(eachcol(reshape(Xsol, n, :)))
     visualize!(vis, model, prob.tf, Xs)
 end
+# end
 
-## SE(3) with angular velocity
-model = SE3AngVelBilinearDynamics(2.0)
-Qd = [fill(1e-1, 3); fill(1e-3, 4); fill(1e-1, 3); fill(0e-8, RD.state_dim(model) - base_state_dim(model))]
-Rd = fill(1e-3, 6)
-Qfd = Qd*1
-prob = buildse3problem(model, x̄0, x̄f, Qd=Qd, Rd=Rd, Qfd=Qfd)
-visualize!(vis, model, prob.tf, states(prob))
-admm = BilinearADMM(prob)
-BilinearControl.setpenalty!(admm, 1e4)
-X = extractstatevec(prob)
-U = extractcontrolvec(prob)
-Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=100)
+@variables R[1:3,1:3] Rg[1:3,1:3]
+R_ = SMatrix{3,3}(R...)
+Rg_ = SMatrix{3,3}(Rg...)
 
-let
-    n,m = RD.dims(prob.model[1])
-    Xs = collect(eachcol(reshape(Xsol, n, :)))
-    visualize!(vis, model, prob.tf, Xs)
-end
+using Plots
+Us = reshape(Usol, m, :)
+plot(Us')
 
-## SE(3) Dynamics
-model = SE3BilinearDynamics(2.0, I(3))
-Qd = [
-    fill(1e-1, 3); 
-    fill(1e-3, 4); 
-    fill(1e-1, 3); 
-    fill(1e-2, 3); 
-    fill(0e-8, RD.state_dim(model) - base_state_dim(model))
-]
-Rd = fill(1e-2, 6)
-Qfd = Qd*10
-prob = buildse3problem(model, x̄0, x̄f, Qd=Qd, Rd=Rd, Qfd=Qfd)
-visualize!(vis, model, prob.tf, states(prob))
-admm = BilinearADMM(prob)
-BilinearControl.getpenalty(admm)
-BilinearControl.setpenalty!(admm, 1e3)
-X = extractstatevec(prob)
-U = extractcontrolvec(prob)
-Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=30)
+tr(Rg_'R_)
+# ## SE(3) with angular velocity
+# model = SE3AngVelBilinearDynamics(2.0)
+# Qd = [fill(1e-1, 3); fill(1e-3, 4); fill(1e-1, 3); fill(0e-8, RD.state_dim(model) - base_state_dim(model))]
+# Rd = fill(1e-3, 6)
+# Qfd = Qd*1
+# prob = buildse3problem(model, x̄0, x̄f, Qd=Qd, Rd=Rd, Qfd=Qfd)
+# visualize!(vis, model, prob.tf, states(prob))
+# admm = BilinearADMM(prob)
+# BilinearControl.setpenalty!(admm, 1e4)
+# X = extractstatevec(prob)
+# U = extractcontrolvec(prob)
+# Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=100)
+
+# if enablevis
+#     n,m = RD.dims(prob.model[1])
+#     Xs = collect(eachcol(reshape(Xsol, n, :)))
+#     visualize!(vis, model, prob.tf, Xs)
+# end
+
+# ## SE(3) Dynamics
+# model = SE3BilinearDynamics(2.0, I(3))
+# Qd = [
+#     fill(1e-1, 3); 
+#     fill(1e-3, 4); 
+#     fill(1e-1, 3); 
+#     fill(1e-2, 3); 
+#     fill(0e-8, RD.state_dim(model) - base_state_dim(model))
+# ]
+# Rd = fill(1e-2, 6)
+# Qfd = Qd*10
+# prob = buildse3problem(model, x̄0, x̄f, Qd=Qd, Rd=Rd, Qfd=Qfd)
+# visualize!(vis, model, prob.tf, states(prob))
+# admm = BilinearADMM(prob)
+# BilinearControl.getpenalty(admm)
+# BilinearControl.setpenalty!(admm, 1e3)
+# X = extractstatevec(prob)
+# U = extractcontrolvec(prob)
+# Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=30)

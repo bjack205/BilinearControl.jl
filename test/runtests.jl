@@ -23,3 +23,7 @@ end
 @testset "Attitude Example" begin
     include("attitude_test.jl")
 end
+
+@testset "SE3 Examples" begin
+    include("se3_test.jl")
+end
