@@ -28,17 +28,19 @@ orientation(::SE3Kinematics, x) = RotMatrix{3}(SMatrix{3,3}(x[4:12]))
 
 buildstate(::SE3Kinematics, x::RBState) = [x.r; vec(x.q)]
 
+getangularvelocity(::SE3Kinematics, u) = SA[u[4], u[5], u[6]]
+
 function RD.dynamics(::SE3Kinematics, x, u)
+    v = SA[u[1], u[2], u[3]]
+    ω = getangularvelocity(model, u)
+    ωhat = skew(ω) 
     R = SA[
         x[4] x[7] x[10]
         x[5] x[8] x[11]
         x[6] x[9] x[12]
     ]
-    v = SA[u[1], u[2], u[3]]
-    ω = SA[u[4], u[5], u[6]]
-    ωhat = skew(ω)
-    rdot = R * v
-    Rdot = R*ωhat 
+    rdot = R*v
+    Rdot = R*ωhat
     return [rdot; vec(Rdot)]
 end
 
@@ -48,45 +50,41 @@ function RD.dynamics!(model::SE3Kinematics, xdot, x, u)
 end
 
 function RD.jacobian!(::SE3Kinematics, J, y, x, u)
+    Nu = 3
+    J .= 0
+    v = SA[u[1], u[2], u[3]]
+    ω = getangularvelocity(model, u)
     R = SA[
         x[4] x[7] x[10]
         x[5] x[8] x[11]
         x[6] x[9] x[12]
     ]
-    v = SA[u[1], u[2], u[3]]
-    ω = SA[u[4], u[5], u[6]]
-    
-    J[:, 1:3] .= 0
-    J[:, 4:12] .= SA[
-        v[1] 0 0 v[2] 0 0 v[3] 0 0
-        0 v[1] 0 0 v[2] 0 0 v[3] 0
-        0 0 v[1] 0 0 v[2] 0 0 v[3]
-        0 0 0 ω[3] 0 0 -ω[2] 0 0
-        0 0 0 0 ω[3] 0 0 -ω[2] 0 
-        0 0 0 0 0 ω[3] 0 0 -ω[2] 
-        -ω[3] 0 0 0 0 0 ω[1] 0 0
-        0 -ω[3] 0 0 0 0 0 ω[1] 0
-        0 0 -ω[3] 0 0 0 0 0 ω[1] 
-        ω[2] 0 0 -ω[1] 0 0 0 0 0
-        0 ω[2] 0 0 -ω[1] 0 0 0 0
-        0 0 ω[2] 0 0 -ω[1] 0 0 0
-    ]
-    J[1:3,13:15] .= R
-    J[4:end,13:15] .= 0
-    J[:,16:18] .= SA[
-        0 0 0
-        0 0 0
-        0 0 0
-        0 -R[1,3] R[1,2]
-        0 -R[2,3] R[2,2]
-        0 -R[3,3] R[3,2]
-        R[1,3] 0 -R[1,1]
-        R[2,3] 0 -R[2,1]
-        R[3,3] 0 -R[3,1]
-        -R[1,2] R[1,1] 0
-        -R[2,2] R[2,1] 0
-        -R[3,2] R[3,1] 0
-    ] 
+    for i = 1:3
+        J[i+0,i+3] = v[1]
+        J[i+0,i+6] = v[2]
+        J[i+0,i+9] = v[3]
+
+        J[i+3+3,i+6+3] = ω[1]
+        J[i+6+3,i+3+3] = -ω[1]
+        J[i+6+3,i+0+3] = ω[2]
+        J[i+0+3,i+6+3] = -ω[2]
+
+        J[i+0,13] = R[i,1]
+        J[i+0,14] = R[i,2]
+        J[i+0,15] = R[i,3]
+
+        J[i+3+3,16] = R[i,3]
+        J[i+6+3,16] = -R[i,2]
+        J[i+6+3,17] = R[i,1]
+        J[i+0+3,17] = -R[i,3]
+        if Nu > 2
+            J[i+0+3,i+3+3] = ω[3]
+            J[i+3+3,i+0+3] = -ω[3]
+
+            J[i+0+3,18] = R[i,2]
+            J[i+3+3,18] = -R[i,1]
+        end
+    end
 end
 
 BilinearControl.getA(::SE3Kinematics) = spzeros(12,12)
@@ -98,6 +96,7 @@ function BilinearControl.getC(::SE3Kinematics)
         C[1][i+0,i+0+3] = 1
         C[2][i+0,i+3+3] = 1
         C[3][i+0,i+6+3] = 1
+
         C[4][i+6,i+6+3] = 1
         C[4][i+9,i+3+3] = -1
         C[5][i+3,i+6+3] = -1
