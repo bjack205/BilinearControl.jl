@@ -1,4 +1,3 @@
-using RobotDynamics
 using ForwardDiff
 using FiniteDiff    
 using SparseArrays
@@ -30,7 +29,7 @@ buildstate(::SE3Kinematics, x::RBState) = [x.r; vec(x.q)]
 
 getangularvelocity(::SE3Kinematics, u) = SA[u[4], u[5], u[6]]
 
-function RD.dynamics(::SE3Kinematics, x, u)
+function RD.dynamics(model::SE3Kinematics, x, u)
     v = SA[u[1], u[2], u[3]]
     ω = getangularvelocity(model, u)
     ωhat = skew(ω) 
@@ -49,7 +48,7 @@ function RD.dynamics!(model::SE3Kinematics, xdot, x, u)
     nothing
 end
 
-function RD.jacobian!(::SE3Kinematics, J, y, x, u)
+function RD.jacobian!(model::SE3Kinematics, J, y, x, u)
     Nu = 3
     J .= 0
     v = SA[u[1], u[2], u[3]]

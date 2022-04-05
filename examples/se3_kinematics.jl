@@ -54,7 +54,9 @@ function buildse3problem()
     U0 = [fill(0.1,nu) for k = 1:N-1] 
 
     # Build the problem
-    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+    prob = Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+    rollout!(prob)
+    prob
 end
 
 ## Visualization
@@ -107,8 +109,39 @@ prob = buildse3problem()
 admm = BilinearADMM(prob)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
-Xsol, Usol = BilinearControl.solve(admm, X, U)
+Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=200)
+Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, max_iters=200)
 Xs = collect(eachcol(reshape(Xsol, n, :)))
-visualize!(vis, model, prob.tf, Xs)
+Us = collect(eachcol(reshape(Usol, m, :)))
 
-## 
+# Check it reaches the goal
+@test norm(Xs[end] - prob.xf) < 1e-3
+
+# Check the rotation matrices
+@test norm([det(reshape(x[4:end],3,3)) - 1 for x in Xs], Inf) < 1e-3
+
+# Test that the controls are smooth
+@test norm(mean(diff(Us)), Inf) < 0.1
+
+@profview BilinearControl.solve(admm, X, U, max_iters=20)
+
+
+using TimerOutputs
+using StatProfilerHTML
+@profilehtml BilinearControl.solve(admm, X, U, max_iters=20)
+let x = X, z = U, solver = admm
+    w = solver.w 
+    to = TimerOutput()
+    @timeit to "r" r = BilinearControl.primal_residual(solver, x, z)
+    @timeit to "s" s = BilinearControl.dual_residual(solver, x, z)
+    @timeit to "solvex" BilinearControl.solvex(solver, z, w)
+    @timeit to "solvez" BilinearControl.solvez(solver, x, w)
+    @timeit to "updatew" BilinearControl.updatew(solver, x, z, w)
+    println(to)
+end
+
+admm.C[1] * X
+admm.C[1]
+B
+Bhat = BilinearControl.getBhat(admm, X)
+Bhat'Bhat

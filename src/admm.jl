@@ -81,8 +81,7 @@ function getAhat(solver::BilinearADMM, z)
 end
 
 function getBhat(solver::BilinearADMM, x)
-    Bhat = zeros(size(solver.B))
-    Bhat .= solver.B
+    Bhat = copy(solver.B)
     for i in eachindex(solver.C)
         Bhat[:,i] .+= solver.C[i] * x
     end

@@ -142,6 +142,7 @@ X = extractstatevec(prob)
 U = extractcontrolvec(prob)
 Xsol, Usol, Ysol = BilinearControl.solve(admm, X, U, max_iters=300)
 
+
 BilinearControl.setpenalty!(admm, 1e2)
 Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, Ysol, max_iters=100)
 
