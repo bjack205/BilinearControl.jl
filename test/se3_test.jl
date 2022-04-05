@@ -144,11 +144,10 @@ Qfd = Qd*1
 prob = buildse3problem(model, x̄0, x̄f, Qd=Qd, Rd=Rd, Qfd=Qfd)
 visualize!(vis, model, prob.tf, states(prob))
 admm = BilinearADMM(prob)
-BilinearControl.getpenalty(admm)
-BilinearControl.setpenalty!(admm, 1e3)
+BilinearControl.setpenalty!(admm, 1e4)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
-Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=30)
+Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=100)
 
 let
     n,m = RD.dims(prob.model[1])
