@@ -81,7 +81,8 @@ function getAhat(solver::BilinearADMM, z)
 end
 
 function getBhat(solver::BilinearADMM, x)
-    Bhat = copy(solver.B)
+    Bhat = zeros(size(solver.B))
+    Bhat .= solver.B
     for i in eachindex(solver.C)
         Bhat[:,i] .+= solver.C[i] * x
     end
@@ -97,8 +98,15 @@ function dual_residual(solver::BilinearADMM, x, z)
     ρ = getpenalty(solver)
     Ahat = getAhat(solver, solver.z_prev)
     Bhat = getBhat(solver, x)
-    s = ρ * Ahat'Bhat*(z - solver.z_prev)
+    s = ρ * Ahat'*(Bhat*(z - solver.z_prev))
     return s
+end
+
+function dual_residual2(solver::BilinearADMM, x, z)
+    ρ = getpenalty(solver)
+    Ahat = getAhat(solver, solver.z_prev)
+    Bhat = getBhat(solver, x)
+    ρ*Ahat'Bhat*(z - solver.z_prev)
 end
 
 function solvex(solver::BilinearADMM, z, w)
@@ -174,7 +182,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     z .= z0
     w .= w0
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
-    solver.z_prev .= NaN
+    solver.z_prev .= z 
     for iter = 1:max_iters
         r = primal_residual(solver, x, z)
         s = dual_residual(solver, x, z)

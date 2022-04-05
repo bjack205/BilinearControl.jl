@@ -1,6 +1,9 @@
 include("se3_angvel_dynamics.jl")
 include("rotation_utils.jl")
 
+#############################################
+# Rigid Body with Angular velocity control
+#############################################
 RD.@autodiff struct SE3AngVelDynamics <: RD.ContinuousDynamics
     mass::Float64
 end
@@ -30,6 +33,9 @@ function RD.dynamics!(model::SE3AngVelDynamics, xdot, x, u)
 end
 
 
+#############################################
+# Bilinear dynamics with angular velocity control
+#############################################
 struct SE3AngVelBilinearDynamics <: RD.ContinuousDynamics
     mass::Float64
     A::SparseMatrixCSC{Float64,Int}
@@ -51,6 +57,7 @@ RD.state_dim(::SE3AngVelBilinearDynamics) = 50
 RD.control_dim(::SE3AngVelBilinearDynamics) = 6
 RD.default_diffmethod(::SE3AngVelBilinearDynamics) = RD.UserDefined()
 RD.default_signature(::SE3AngVelBilinearDynamics) = RD.InPlace()
+base_state_dim(::SE3AngVelBilinearDynamics) = 10
 
 function Base.rand(::SE3AngVelBilinearDynamics)
     x0 = [randn(3); normalize(randn(4)); randn(3)]
