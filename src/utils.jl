@@ -4,3 +4,30 @@ function evec(::Type{T}, i::Integer, n::Integer) where T
     e[i] = 1
     return e
 end
+
+function getnzind(A, i0, i1)
+    if !(1 <= i0 <= size(A, 1) && 1 <= i1 <= size(A, 2)); throw(BoundsError()); end
+    r1 = Int(SparseArrays.getcolptr(A)[i1])
+    r2 = Int(SparseArrays.getcolptr(A)[i1+1]-1)
+    (r1 > r2) && return zero(i0)  # empty column
+    r1 = searchsortedfirst(rowvals(A), i0, r1, r2, Base.Order.Forward)
+    ((r1 > r2) || (rowvals(A)[r1] != i0)) ? zero(i0) : r1
+end
+
+function getnzinds(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
+    size(A) == size(B) || throw(DimensionMismatch("A and B must have the same size to extract nonzero indices."))
+    nzinds = zeros(Ti, nnz(B))
+    ind = 1
+    for c in axes(A,2)
+        for i in nzrange(B, c)
+            # Find the index into the nonzeros vector of A
+            r = rowvals(B)[i]
+            nzind = getnzind(A, r, c) 
+            @show r,c
+            nzind == 0 && throw(ArgumentError("The nonzeros of B must be a subset of those of A."))
+            nzinds[ind] = nzind
+            ind += 1
+        end
+    end
+    return nzinds 
+end
