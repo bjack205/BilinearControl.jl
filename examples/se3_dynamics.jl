@@ -517,7 +517,7 @@ function build_bilinear_dynamics_functions(
         getconstants(model::$modelname) = SA[$(map(x->:(getfield(model, $(QuoteNode(x)))), c_args)...)]
 
         expandstate!(model::$modelname, y, x) = $(Symbol(name * "_expand!"))(y, x)
-        expandstate(model::$modelname, x) = expand!(model, zeros(RD.state_dim(model)), x)
+        expandstate(model::$modelname, x) = expandstate!(model, zeros(RD.state_dim(model)), x)
 
         function RD.dynamics!(model::$modelname, xdot, x, u)
             c = getconstants(model)

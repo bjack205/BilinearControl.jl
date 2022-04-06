@@ -43,7 +43,7 @@ x0dot_sym = [rdot; vec(Rdot); vdot]
 # Compound state derivatives
 rvdot = map(rv) do expr
     i,j,k = getindices(expr)
-    expand(Rdot[i,j] * v[k]) + expand(R[i,j] * vdot[k])
+    Symbolics.expand(Rdot[i,j] * v[k]) + Symbolics.expand(R[i,j] * vdot[k])
 end
 s0dot_sym = rvdot
 
@@ -58,7 +58,7 @@ iscoeff(x) = (x isa Number) || (x in constants)
 isconstorcontrol(x) = iscoeff(x) || (x in controls)
 
 xdot_sym = map(xdot_sym) do expr
-    filtersubstitute(isconstorcontrol, expand(expr), x2s_dict)
+    filtersubstitute(isconstorcontrol, Symbolics.expand(expr), x2s_dict)
 end
 
 A,B,C,D = build_symbolic_matrices(xdot_sym, x_sym, u_sym, c_sym)

@@ -70,7 +70,7 @@ begin
         #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:520 =#
         expandstate(model::Se3ForceDynamics, x) = begin
                 #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:520 =#
-                expand!(model, zeros(RD.state_dim(model)), x)
+                expandstate!(model, zeros(RD.state_dim(model)), x)
             end
         #= /home/brian/.julia/dev/BilinearControl/examples/se3_dynamics.jl:522 =#
         function RD.dynamics!(model::Se3ForceDynamics, xdot, x, u)
