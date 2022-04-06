@@ -10,26 +10,31 @@ const RD = RobotDynamics
 
 include("se3_angvel_model.jl")
 
-model0 = SE3AngVelDynamics(2.0)
-model = SE3AngVelBilinearDynamics(2.0)
-n,m = RD.dims(model)
-x,u = rand(model)
-xdot = zero(x)
-RD.dynamics!(model, xdot, x, u)
-J = zeros(n,n+m)
 
-x0 = SVector{10}(x[1:10])
-u0 = SVector{6}(u)
-x0dot = RD.dynamics(model0, x0, u0)
-@test xdot[1:10] ≈ x0dot
+function se3_angvel_dynamics_test()
+    model0 = SE3AngVelDynamics(2.0)
+    model = SE3AngVelBilinearDynamics(2.0)
+    n,m = RD.dims(model)
+    @test n,m == 50, 6
+    x,u = rand(model)
+    xdot = zero(x)
+    RD.dynamics!(model, xdot, x, u)
+    J = zeros(n,n+m)
 
-RD.jacobian!(model, J, xdot, x, u)
+    x0 = SVector{10}(x[1:10])
+    u0 = SVector{6}(u)
+    x0dot = RD.dynamics(model0, x0, u0)
+    @test xdot[1:10] ≈ x0dot
 
-Jfd = zero(J)
-FiniteDiff.finite_difference_jacobian!(
-    Jfd, (y,z)->RD.dynamics!(model, y, z[1:50], z[51:end]), [x; u]
-)
-@test Jfd ≈ J rtol=1e-8
+    RD.jacobian!(model, J, xdot, x, u)
+
+    Jfd = zero(J)
+    FiniteDiff.finite_difference_jacobian!(
+        Jfd, (y,z)->RD.dynamics!(model, y, z[1:50], z[51:end]), [x; u]
+    )
+    @test Jfd ≈ J rtol=1e-8
+
+end
 
 J0 = zeros(10, 10+m)
 z0 = KnotPoint(x0,u0,0.0,NaN)

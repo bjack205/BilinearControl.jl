@@ -18,7 +18,6 @@ using Main.RandomLinearModels
 
 include("dynamics_tests.jl")
 
-
 @testset "Dubins Example" begin
     include("dubins_test.jl")
 end
@@ -29,7 +28,9 @@ end
 
 @testset "SE(3) Examples" begin
     include("se3_kinematics_test.jl")
+    include("se3_force_test.jl")
 end
+
 
 # @testset "SE3 Examples" begin
 #     include("se3_test.jl")

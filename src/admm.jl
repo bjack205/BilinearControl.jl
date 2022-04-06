@@ -61,9 +61,9 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0)
     # Build Ahat and Bhat
     Ahat = A + sum(C)
     Bhat = copy(B)
-    x_ = ones(n)
+    x_ = randn(n)
     for i = 1:m
-        Bhat[:,i] = C[i] * x_
+        Bhat[:,i] += C[i] * x_
     end
 
     # Precompute index caches for sparse matrices

@@ -350,8 +350,11 @@ Update the bilinear matrices using the vector of constants `c`.
 Generate the sparse bilinear matrices, initialized with the correct sparsity structure. 
 Must call `<name>_updateX!` to fill them in.
 """
-function build_bilinear_dynamics_functions(name::AbstractString, xdot_sym, x_sym, u_sym, 
-                                           c_sym, y0_sym; filename::AbstractString="")
+function build_bilinear_dynamics_functions(
+        name::AbstractString, xdot_sym, x_sym, u_sym, 
+        c_sym, y0_sym; 
+        filename::AbstractString=joinpath(pwd(), name * "_autogen.jl")
+    )
     nx = length(x_sym)
     nu = length(u_sym)
     nc = length(c_sym)
@@ -480,8 +483,69 @@ function build_bilinear_dynamics_functions(name::AbstractString, xdot_sym, x_sym
     end
     genmats_function
 
+    # Model definition
+    snake2camel(str) = join(uppercasefirst.(lowercase.(split(str, "_"))))
+    modelname = Symbol(snake2camel(name * "_dynamics"))
+    gettype(c) = SymbolicUtils.symtype(c) === Real ? Float64 : SymbolicUtils.symtype(c)
+    c_args = Symbol.(c_sym)
+    c_fields = map(c_sym) do c
+        :($(Symbol(c))::$(gettype(c)))
+    end
+    model_definition = quote 
+        struct $modelname <: RD.ContinuousDynamics
+            $(c_fields...)
+            A::SparseMatrixCSC{Float64,Int}
+            B::SparseMatrixCSC{Float64,Int}
+            C::Vector{SparseMatrixCSC{Float64,Int}}
+            D::SparseVector{Float64,Int}
+        end
+        function $modelname($(c_args...))
+            A,B,C,D = $(Symbol(name * "_genarrays"))()
+            c = SA[$(c_args...)]
+            $(Symbol(name * "_updateA!"))(A, c)
+            $(Symbol(name * "_updateB!"))(B, c)
+            $(Symbol(name * "_updateC!"))(C, c)
+            $(Symbol(name * "_updateD!"))(D, c)
+            $modelname($(c_args...), A,B,C,D)
+        end
+        RD.state_dim(::$modelname) = $nx
+        RD.control_dim(::$modelname) = $nu
+        RD.default_diffmethod(::$modelname) = RD.UserDefined()
+        RD.default_signature(::$modelname) = RD.InPlace()
+        base_state_dim(::$modelname) = $nx0
+
+        getconstants(model::$modelname) = SA[$(map(x->:(getfield(model, $(QuoteNode(x)))), c_args)...)]
+
+        expandstate!(model::$modelname, y, x) = $(Symbol(name * "_expand!"))(y, x)
+        expandstate(model::$modelname, x) = expandstate!(model, zeros(RD.state_dim(model)), x)
+
+        function RD.dynamics!(model::$modelname, xdot, x, u)
+            c = getconstants(model)
+            $(Symbol(name * "_dynamics!"))(xdot, x, u, c)
+        end
+
+        function RD.jacobian!(model::$modelname, J, y, x, u)
+            n,m = RD.dims(model)
+            Jx = view(J, :, 1:n)
+            Ju = view(J, :, n+1:n+m)
+            Jx .= model.A
+            Ju .= model.B
+            for i = 1:length(u)
+                Jx .+= model.C[i] .* u[i]
+                Ju[:,i] .+= model.C[i] * x
+            end
+            return nothing
+        end
+
+        BilinearControl.getA(model::$modelname) = model.A
+        BilinearControl.getB(model::$modelname) = model.B
+        BilinearControl.getC(model::$modelname) = model.C
+        BilinearControl.getD(model::$modelname) = model.D
+    end
+
     # Put all the functions in a single expression that can be saved to a file
     allfunctions = quote
+        $model_definition
         $expand_function
         $dynamics_function
         $update_functions
