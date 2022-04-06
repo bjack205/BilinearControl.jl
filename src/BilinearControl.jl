@@ -5,6 +5,7 @@ export BilinearADMM
 export extractstatevec, extractcontrolvec
 
 using LinearAlgebra
+using SparseArrays
 import RobotDynamics as RD
 import TrajectoryOptimization as TO
 

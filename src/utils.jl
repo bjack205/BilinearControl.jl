@@ -23,7 +23,6 @@ function getnzinds(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
             # Find the index into the nonzeros vector of A
             r = rowvals(B)[i]
             nzind = getnzind(A, r, c) 
-            @show r,c
             nzind == 0 && throw(ArgumentError("The nonzeros of B must be a subset of those of A."))
             nzinds[ind] = nzind
             ind += 1

@@ -80,6 +80,17 @@ function getAhat(solver::BilinearADMM, z)
     return Ahat
 end
 
+function updateAhat!(solver::BilinearADMM, Ahat, z, nzinds)
+    for (nzind0,nzind) in enumerate(nzinds[1])
+        nonzeros(Ahat)[nzind] = nonzeros(solver.A)[nzind0]
+    end
+    for i in eachindex(z)
+        for (nzind0, nzind) in enumerate(nzinds[i+1])
+            nonzeros(Ahat)[nzind] = nonzeros(solver.C[i])[nzind0] * z[i]
+        end
+    end
+end
+
 function getBhat(solver::BilinearADMM, x)
     Bhat = copy(solver.B)
     for i in eachindex(solver.C)
