@@ -4,6 +4,7 @@ using BilinearControl
 import BilinearControl.TO
 import BilinearControl.RD
 using BilinearControl.TO
+using BilinearControl.RD
 using ForwardDiff
 using FiniteDiff
 using LinearAlgebra
@@ -109,8 +110,10 @@ prob = buildse3problem()
 admm = BilinearADMM(prob)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
+
 Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=200)
-Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, max_iters=200)
+# Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, max_iters=200)
+n,m = RD.dims(prob.model[1])
 Xs = collect(eachcol(reshape(Xsol, n, :)))
 Us = collect(eachcol(reshape(Usol, m, :)))
 
@@ -124,7 +127,6 @@ Us = collect(eachcol(reshape(Usol, m, :)))
 @test norm(mean(diff(Us)), Inf) < 0.1
 
 @profview BilinearControl.solve(admm, X, U, max_iters=20)
-
 
 using TimerOutputs
 using StatProfilerHTML
