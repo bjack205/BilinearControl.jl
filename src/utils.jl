@@ -31,6 +31,7 @@ function getnzindsA(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
     @assert ind == nnz(B) + 1
     return nzinds 
 end
+getnzindsA(A, B) = Vector{Int}[]
 
 function getnzindsB(B, C::SparseMatrixCSC{<:Any,Ti}, col) where Ti
     size(B,1) == size(C,1) || throw(DimensionMismatch("B and C must have the same number of rows.")) 
@@ -48,3 +49,5 @@ function getnzindsB(B, C::SparseMatrixCSC{<:Any,Ti}, col) where Ti
     @assert ind == nnz(C) + 1
     return nzinds
 end
+
+getnzindsB(B, C, col) = Vector{Int}[]

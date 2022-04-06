@@ -115,9 +115,10 @@ using BilinearControl: getnzindsA, getnzindsB
 
 Ahat = BilinearControl.getAhat(admm, U)
 nnz(Ahat) == sum(nnz(C) for C in admm.C) + nnz(admm.A)
-nzindsA = map([[admm.A]; admm.C]) do C
+nzindsA = map(admm.C) do C
     getnzindsA(Ahat, C)
 end
+pushfirst!(nzindsA, getnzindsA(Ahat, admm.A))
 
 Ahat2 = similar(Ahat)
 @test !(Ahat2 ≈ Ahat)
@@ -135,15 +136,6 @@ Bhat2 = similar(Bhat)
 @test !(Bhat2 ≈ Bhat)
 BilinearControl.updateBhat!(admm, Bhat2, X, nzindsB)
 @test Bhat2 ≈ Bhat
-
-
-using BenchmarkTools
-@btime BilinearControl.getAhat($admm, $U)
-@btime BilinearControl.updateAhat!($admm, $Ahat, $U, $nzindsA)
-
-@btime BilinearControl.getBhat($admm, $X)
-@btime BilinearControl.updateBhat!($admm, $Bhat, $X, $nzindsB)
-
 
 Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=200)
 Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, max_iters=200)

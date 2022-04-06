@@ -29,6 +29,10 @@ struct BilinearADMM{M}
     ρ::Ref{Float64}
 
     # Storage
+    Ahat::M
+    Bhat::M
+    nzindsA::Vector{Vector{Int}}
+    nzindsB::Vector{Vector{Int}}
     x::Vector{Float64}
     z::Vector{Float64}
     w::Vector{Float64}  # scaled duals
@@ -53,7 +57,25 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0)
     ρref = Ref(ρ)
     opts = ADMMOptions() 
     M = typeof(A)
-    BilinearADMM{M}(Q, q, R, r, c, A, B, C, d, ρref, x, z, w, x_prev, z_prev, w_prev, opts)
+
+    # Build Ahat and Bhat
+    Ahat = A + sum(C)
+    Bhat = copy(B)
+    x_ = ones(n)
+    for i = 1:m
+        Bhat[:,i] = C[i] * x_
+    end
+
+    # Precompute index caches for sparse matrices
+    nzindsA = map(eachindex(C)) do i
+        getnzindsA(Ahat, C[i])
+    end
+    pushfirst!(nzindsA, getnzindsA(Ahat, A))
+    nzindsB = map(eachindex(C)) do i
+        getnzindsB(Bhat, C[i], i)
+    end
+    pushfirst!(nzindsB, getnzindsA(Bhat, B))
+    BilinearADMM{M}(Q, q, R, r, c, A, B, C, d, ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, opts)
 end
 
 setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
@@ -80,15 +102,26 @@ function getAhat(solver::BilinearADMM, z)
     return Ahat
 end
 
-function updateAhat!(solver::BilinearADMM, Ahat, z, nzinds)
+function updateAhat!(solver::BilinearADMM, Ahat::SparseMatrixCSC, z)
+    Ahat .= 0
+    nzinds = solver.nzindsA
     for (nzind0,nzind) in enumerate(nzinds[1])
         nonzeros(Ahat)[nzind] = nonzeros(solver.A)[nzind0]
     end
     for i in eachindex(z)
         for (nzind0, nzind) in enumerate(nzinds[i+1])
-            nonzeros(Ahat)[nzind] = nonzeros(solver.C[i])[nzind0] * z[i]
+            nonzeros(Ahat)[nzind] += nonzeros(solver.C[i])[nzind0] * z[i]
         end
     end
+    Ahat
+end
+
+function updateAhat!(solver::BilinearADMM, Ahat, z)
+    Ahat .= solver.A
+    for i in eachindex(z)
+        axpy!(z[i], solver.C[i], Ahat)
+    end
+    return Ahat
 end
 
 function getBhat(solver::BilinearADMM, x)
@@ -99,7 +132,9 @@ function getBhat(solver::BilinearADMM, x)
     return Bhat
 end
 
-function updateBhat!(solver::BilinearADMM, Bhat, x, nzinds)
+function updateBhat!(solver::BilinearADMM, Bhat::SparseMatrixCSC, x)
+    nzinds = solver.nzindsB
+
     # Copy B to Bhat
     Bhat .= 0
     for (nzind0, nzind) in enumerate(nzinds[1])
@@ -116,6 +151,16 @@ function updateBhat!(solver::BilinearADMM, Bhat, x, nzinds)
             end
         end
     end
+    Bhat
+end
+
+function updateBhat!(solver::BilinearADMM, Bhat, x)
+    Bhat .= solver.B
+    for i in eachindex(solver.C)
+        Bi = view(Bhat, :, i)
+        mul!(Bi, solver.C[i], x, 1.0, 1.0)
+    end
+    Bhat
 end
 
 geta(solver::BilinearADMM, z) = solver.B*z + solver.d
@@ -123,25 +168,33 @@ getb(solver::BilinearADMM, x) = solver.A*x + solver.d
 
 primal_residual(solver::BilinearADMM, x, z) = eval_c(solver, x, z)
 
-function dual_residual(solver::BilinearADMM, x, z)
+function dual_residual(solver::BilinearADMM, x, z; updatemats=true)
     ρ = getpenalty(solver)
-    Ahat = getAhat(solver, solver.z_prev)
-    Bhat = getBhat(solver, x)
+    Ahat = solver.Ahat
+    Bhat = solver.Bhat
+    if updatemats
+        updateAhat!(solver, Ahat, z)
+        updateBhat!(solver, Bhat, x)
+        # Ahat = getAhat(solver, solver.z_prev)
+        # Bhat = getBhat(solver, x)
+    end
     s = ρ * Ahat'*(Bhat*(z - solver.z_prev))
     return s
 end
 
-function dual_residual2(solver::BilinearADMM, x, z)
-    ρ = getpenalty(solver)
-    Ahat = getAhat(solver, solver.z_prev)
-    Bhat = getBhat(solver, x)
-    ρ*Ahat'Bhat*(z - solver.z_prev)
-end
+# function dual_residual2(solver::BilinearADMM, x, z)
+#     ρ = getpenalty(solver)
+#     Ahat = getAhat(solver, solver.z_prev)
+#     Bhat = getBhat(solver, x)
+#     ρ*Ahat'Bhat*(z - solver.z_prev)
+# end
 
-function solvex(solver::BilinearADMM, z, w)
+function solvex(solver::BilinearADMM, z, w; updateA=true)
     ρ = getpenalty(solver)
     p = length(w)
-    Ahat = getAhat(solver, z)
+    Ahat = solver.Ahat
+    updateA && updateAhat!(solver, solver.Ahat, z)
+    # Ahat = getAhat(solver, z)
     a = geta(solver, z)
     n = size(Ahat,2) 
 
@@ -155,7 +208,8 @@ end
 function solvez(solver::BilinearADMM, x, w)
     R = solver.R
     ρ = getpenalty(solver)
-    Bhat = getBhat(solver, x)
+    Bhat = updateBhat!(solver, solver.Bhat, x)
+    # Bhat = getBhat(solver, x)
     b = getb(solver, x)
     H = R + ρ * Bhat'Bhat
     g = solver.r + ρ * Bhat'*(b + w)
@@ -213,9 +267,11 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= z 
     tstart = time_ns()
+    updateBhat!(solver, solver.Bhat, x)
     for iter = 1:max_iters
+        updateAhat!(solver, solver.Ahat, z)  # updates Ahat
         r = primal_residual(solver, x, z)
-        s = dual_residual(solver, x, z)
+        s = dual_residual(solver, x, z, updatemats=false)
         J = eval_f(solver, x) + eval_g(solver, z) + solver.c
         dz = norm(z - solver.z_prev)
         ϵ_primal = get_primal_tolerance(solver, x, z, w)
@@ -232,8 +288,8 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         end
         solver.z_prev .= z
 
-        x .= solvex(solver, z, w)
-        z .= solvez(solver, x, w)
+        x .= solvex(solver, z, w, updateA=false)  # Bhat out of sync
+        z .= solvez(solver, x, w)                 # Bhat updated, Ahat out of sync
         w .= updatew(solver, x, z, w)
 
     end
