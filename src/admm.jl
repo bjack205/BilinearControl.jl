@@ -97,8 +97,15 @@ function dual_residual(solver::BilinearADMM, x, z)
     ρ = getpenalty(solver)
     Ahat = getAhat(solver, solver.z_prev)
     Bhat = getBhat(solver, x)
-    s = ρ * Ahat'Bhat*(z - solver.z_prev)
+    s = ρ * Ahat'*(Bhat*(z - solver.z_prev))
     return s
+end
+
+function dual_residual2(solver::BilinearADMM, x, z)
+    ρ = getpenalty(solver)
+    Ahat = getAhat(solver, solver.z_prev)
+    Bhat = getBhat(solver, x)
+    ρ*Ahat'Bhat*(z - solver.z_prev)
 end
 
 function solvex(solver::BilinearADMM, z, w)
@@ -174,7 +181,8 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     z .= z0
     w .= w0
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
-    solver.z_prev .= NaN
+    solver.z_prev .= z 
+    tstart = time_ns()
     for iter = 1:max_iters
         r = primal_residual(solver, x, z)
         s = dual_residual(solver, x, z)
@@ -184,6 +192,8 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         ϵ_dual = get_primal_tolerance(solver, x, z, w)
         if iter > 1
             penaltyupdate!(solver, r, s)
+        else
+            s = NaN
         end
         ρ = getpenalty(solver)
         @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
@@ -197,5 +207,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         w .= updatew(solver, x, z, w)
 
     end
+    tsolve = (time_ns() - tstart) / 1e9
+    println("Solve took $tsolve seconds.")
     return x,z,w
 end

@@ -2,6 +2,8 @@ module BilinearControl
 
 export BilinearADMM
 
+export extractstatevec, extractcontrolvec
+
 using LinearAlgebra
 import RobotDynamics as RD
 import TrajectoryOptimization as TO
@@ -13,5 +15,6 @@ include("bilinear_constraint.jl")
 include("bilinear_model.jl")
 include("problem.jl")
 include("admm.jl")
+include("trajopt_interface.jl")
 
 end # module

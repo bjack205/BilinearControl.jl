@@ -1,6 +1,5 @@
 import Pkg; Pkg.activate(@__DIR__)
-include("bilinear_dubins_model.jl")
-include("bilinear_constraint.jl")
+include(joinpath(@__DIR__, "..", "test", "models", "dubins_model.jl"))
 using Altro
 using TrajectoryOptimization
 using LinearAlgebra
@@ -9,7 +8,7 @@ using StaticArrays
 using Test
 using Plots
 using BilinearControl
-const TO = TrajectoryOptimization
+# const TO = TrajectoryOptimization
 
 function testdynamics()
     # Initialize both normal and lifted bilinear model
@@ -86,8 +85,8 @@ Altro.usestatic(altro)
 solve!(altro)
 RD.traj2(states(altro0))
 RD.traj2!(states(altro))
-cost(altro)
-cost(altro0)
+TO.cost(altro)
+TO.cost(altro0)
 states(altro)[end]
 
 ## Solve with ADMM
@@ -95,22 +94,25 @@ prob = buildliftedproblem(prob0)
 rollout!(prob)
 model = prob.model[1].continuous_dynamics
 n,m = RD.dims(model)
-A,B,C,D = buildbilinearconstraintmatrices(prob.model[1].continuous_dynamics, prob.x0, prob.xf, prob.Z[1].dt, prob.N)
+A,B,C,D = BilinearControl.buildbilinearconstraintmatrices(prob.model[1].continuous_dynamics, prob.x0, prob.xf, prob.Z[1].dt, prob.N)
 X = vcat(Vector.(states(prob))...)
 U = vcat(Vector.(controls(prob))...)
 c1 = A*X + B*U + sum(U[i] * C[i] * X for i = 1:length(U)) + D
-c2 = evaluatebilinearconstraint(prob)
+c2 = BilinearControl.evaluatebilinearconstraint(prob)
 @test c1 ≈ c2
 
-Q,q,R,r,c = buildcostmatrices(prob)
+Q,q,R,r,c = BilinearControl.buildcostmatrices(prob)
 admm = BilinearADMM(A,B,C,D, Q,q,R,r,c)
 admm.opts.penalty_threshold = 1e4
 BilinearControl.setpenalty!(admm, 1e3)
 Xsol, Usol = BilinearControl.solve(admm, X, U)
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-[norm(x[3:4]) for x in eachcol(reshape(Xsol,n,:))]
-RD.traj2(xtraj, ytraj)
+norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf)
+
+RD.traj2(states(altro0), label="ALTRO (RK4)")
+RD.traj2!(states(altro), label="ALTRO (Implicit Midpoint)")
+RD.traj2!(xtraj, ytraj, label="ADMM", legend=:topleft)
 
 ## MPC
 function liftedmpcproblem(x0, Zref, kstart=1; N=51)

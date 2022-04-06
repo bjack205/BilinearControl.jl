@@ -25,5 +25,4 @@ function RD.dynamics(model::AttitudeDynamics{3}, x, u)
     ωhat = pushfirst(ω, 0.0)
     rdot = v   # assumes velocity is in the world frame
     qdot = lmult(q) * ωhat
-    vdot = 
 end
