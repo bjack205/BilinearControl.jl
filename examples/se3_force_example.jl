@@ -119,7 +119,10 @@ admm = BilinearADMM(prob)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
 
-Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=400)
+BilinearControl.setpenalty!(admm, 1e4)
+admm.opts.penalty_threshold = 1e2
+Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=800)
 n,m = RD.dims(prob.model[1])
 Xs = collect(eachcol(reshape(Xsol, n, :)))
 visualize!(vis, model, prob.tf, Xs)
+norm([det(reshape(x[4:12], 3,3)) - 1 for x in Xs], Inf)
