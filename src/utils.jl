@@ -14,7 +14,7 @@ function getnzind(A, i0, i1)
     ((r1 > r2) || (rowvals(A)[r1] != i0)) ? zero(i0) : r1
 end
 
-function getnzinds(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
+function getnzindsA(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
     size(A) == size(B) || throw(DimensionMismatch("A and B must have the same size to extract nonzero indices."))
     nzinds = zeros(Ti, nnz(B))
     ind = 1
@@ -28,5 +28,23 @@ function getnzinds(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
             ind += 1
         end
     end
+    @assert ind == nnz(B) + 1
     return nzinds 
+end
+
+function getnzindsB(B, C::SparseMatrixCSC{<:Any,Ti}, col) where Ti
+    size(B,1) == size(C,1) || throw(DimensionMismatch("B and C must have the same number of rows.")) 
+    nzinds = zeros(Ti, nnz(C))
+    ind = 1
+    for c in axes(C,2)
+        for i in nzrange(C, c)
+            r = rowvals(C)[i]
+            nzind = getnzind(B, r, col)
+            nzind == 0 && throw(ArgumentError("Expected nonzero entry in B at ($r, $col) does not exist."))
+            nzinds[ind] = nzind
+            ind += 1
+        end
+    end
+    @assert ind == nnz(C) + 1
+    return nzinds
 end

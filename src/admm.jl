@@ -99,6 +99,25 @@ function getBhat(solver::BilinearADMM, x)
     return Bhat
 end
 
+function updateBhat!(solver::BilinearADMM, Bhat, x, nzinds)
+    # Copy B to Bhat
+    Bhat .= 0
+    for (nzind0, nzind) in enumerate(nzinds[1])
+        nonzeros(Bhat)[nzind] = nonzeros(solver.B)[nzind0]
+    end
+
+    # Copy C[i]*x to B[:,i]
+    C = solver.C
+    for i in axes(Bhat, 2)
+        for c in axes(C[i],2)
+            for j in nzrange(C[i], c)
+                nzindB = nzinds[i+1][j]
+                nonzeros(Bhat)[nzindB] += nonzeros(C[i])[j] * x[c]
+            end
+        end
+    end
+end
+
 geta(solver::BilinearADMM, z) = solver.B*z + solver.d
 getb(solver::BilinearADMM, x) = solver.A*x + solver.d
 
