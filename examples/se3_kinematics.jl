@@ -111,34 +111,9 @@ admm = BilinearADMM(prob)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
 
-using BilinearControl: getnzindsA, getnzindsB
-
-Ahat = BilinearControl.getAhat(admm, U)
-nnz(Ahat) == sum(nnz(C) for C in admm.C) + nnz(admm.A)
-nzindsA = map(admm.C) do C
-    getnzindsA(Ahat, C)
-end
-pushfirst!(nzindsA, getnzindsA(Ahat, admm.A))
-
-Ahat2 = similar(Ahat)
-@test !(Ahat2 ≈ Ahat)
-BilinearControl.updateAhat!(admm, Ahat2, U, nzindsA)
-@test Ahat2 ≈ Ahat
-
-Bhat = BilinearControl.getBhat(admm, X)
-nzindsB = map(eachindex(admm.C)) do i
-    getnzindsB(Bhat, admm.C[i], i)
-end
-pushfirst!(nzindsB, getnzindsA(Bhat, admm.B))
-nzindsB[1]
-
-Bhat2 = similar(Bhat)
-@test !(Bhat2 ≈ Bhat)
-BilinearControl.updateBhat!(admm, Bhat2, X, nzindsB)
-@test Bhat2 ≈ Bhat
-
 Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=200)
-Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, max_iters=200)
+# Xsol2, Usol2 = BilinearControl.solve(admm, Xsol, Usol, max_iters=200)
+n,m = RD.dims(prob.model[1])
 Xs = collect(eachcol(reshape(Xsol, n, :)))
 Us = collect(eachcol(reshape(Usol, m, :)))
 
@@ -152,7 +127,6 @@ Us = collect(eachcol(reshape(Usol, m, :)))
 @test norm(mean(diff(Us)), Inf) < 0.1
 
 @profview BilinearControl.solve(admm, X, U, max_iters=20)
-
 
 using TimerOutputs
 using StatProfilerHTML
