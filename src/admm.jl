@@ -91,7 +91,15 @@ getD(solver::BilinearADMM) = solver.d
 
 function eval_c(solver::BilinearADMM, x, z)
     A, B, C = solver.A, solver.B, solver.C
-    A*x + B*z + sum(z[i] * C[i]*x for i in eachindex(z)) + solver.d
+    # A*x + B*z + sum(z[i] * C[i]*x for i in eachindex(z)) + solver.d
+    c = zeros(length(solver.d)) 
+    c .= solver.d
+    mul!(c, A, x, 1.0, 1.0)
+    mul!(c, B, z, 1.0, 1.0)
+    for i in eachindex(z)
+        mul!(c, C[i], x, z[i], 1.0)
+    end
+    c
 end
 
 function getAhat(solver::BilinearADMM, z)
@@ -242,8 +250,10 @@ function get_primal_tolerance(solver::BilinearADMM, x, z, w)
     ϵ_abs = solver.opts.ϵ_abs_primal
     ϵ_rel = solver.opts.ϵ_rel_primal
     p = length(w)
-    Ahat = getAhat(solver, z)
-    Bhat = getBhat(solver, x)
+    # Ahat = getAhat(solver, z)
+    # Bhat = getBhat(solver, x)
+    Ahat = solver.Ahat
+    Bhat = solver.Bhat
     √p*ϵ_abs + ϵ_rel * max(norm(Ahat * x), norm(Bhat * z), norm(solver.d))
 end
 
