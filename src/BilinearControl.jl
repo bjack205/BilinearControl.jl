@@ -6,6 +6,7 @@ export extractstatevec, extractcontrolvec
 
 using LinearAlgebra
 using SparseArrays
+using OSQP
 import RobotDynamics as RD
 import TrajectoryOptimization as TO
 
