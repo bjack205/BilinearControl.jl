@@ -145,11 +145,10 @@ c2 = BilinearControl.evaluatebilinearconstraint(prob)
 @test c1 ≈ c2
 
 Q,q,R,r,c = BilinearControl.buildcostmatrices(prob)
-admm = BilinearADMM(A,B,C,D, Q,q,R,r,c, umin=-0.9, umax=0.9)
-admm.opts.penalty_threshold = 1e4
-BilinearControl.setpenalty!(admm, 1e3)
-admm.ulo
-admm.uhi
+ubnd = 0.9
+admm = BilinearADMM(A,B,C,D, Q,q,R,r,c, umin=-ubnd, umax=ubnd)
+admm.opts.penalty_threshold = 1e2
+BilinearControl.setpenalty!(admm, 1e4)
 Xsol, Usol = BilinearControl.solve(admm, X, U)
 v,ω = collect(eachrow(reshape(Usol, m, :)))
 xtraj = reshape(Xsol,n,:)[1,:]
@@ -157,11 +156,13 @@ ytraj = reshape(Xsol,n,:)[2,:]
 norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf)
 
 RD.traj2(states(altro0), label="ALTRO (RK4)")
-RD.traj2!(states(altro), label="ALTRO (Implicit Midpoint)")
+# RD.traj2!(states(altro), label="ALTRO (Implicit Midpoint)")
 RD.traj2!(xtraj, ytraj, label="ADMM", legend=:topleft)
 
-plot(v)
-plot!(ω)
+t = TO.gettimes(prob)
+plot(t[1:end-1], v, label="linear velocity")
+plot!(t[1:end-1], ω, label="angular velocity", legend=:bottom)
+hline!([ubnd], c=:black, s=:dash, label="control bound")
 
 ## MPC
 function liftedmpcproblem(x0, Zref, kstart=1; N=51)
