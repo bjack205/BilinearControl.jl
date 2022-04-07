@@ -1,4 +1,10 @@
 import Pkg; Pkg.activate(@__DIR__)
+using BilinearControl
+using BilinearControl.RD
+using BilinearControl.TO
+import BilinearControl.RD
+import BilinearControl.TO
+
 include(joinpath(@__DIR__, "..", "test", "models", "dubins_model.jl"))
 using Altro
 using TrajectoryOptimization
@@ -7,7 +13,6 @@ using RobotZoo
 using StaticArrays
 using Test
 using Plots
-using BilinearControl
 # const TO = TrajectoryOptimization
 
 function testdynamics()
@@ -24,6 +29,36 @@ function testdynamics()
     xdot = RD.dynamics(model0, x, u)
     A,B,C,D = getA(model), getB(model), getC(model), getD(model)
     @test RD.dynamics(model, y, u) ≈ A*y + B*u + sum(u[i]*C[i]*y for i = 1:m) + D
+end
+
+function builddubinsproblem(;N=101, ubnd=1.5)
+    # model
+    model = RobotZoo.DubinsCar()
+    n,m = RD.dims(model)
+    tf = 3.
+    dt = tf / (N-1)
+
+    # cost
+    d = 1.5
+    x0 = @SVector [0., 0., 0.]
+    xf = @SVector [d, d,  deg2rad(90)]
+    Qf = 100.0*Diagonal(@SVector ones(n))
+    Q = (1e-2)*Diagonal(@SVector ones(n))
+    R = (1e-2)*Diagonal(@SVector ones(m))
+
+    # problem
+    U = [@SVector fill(0.1,m) for k = 1:N-1]
+    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
+
+    # constraints
+    cons = ConstraintList(n,m,N)
+    add_constraint!(cons, GoalConstraint(xf), N)
+    add_constraint!(cons, BoundConstraint(n,m, u_min=-ubnd, u_max=ubnd), 1:N-1)
+
+    prob = Problem(model, obj, x0, tf, xf=xf, U0=U, constraints=cons)
+    rollout!(prob)
+
+    return prob
 end
 
 function buildliftedproblem(prob0)
@@ -57,6 +92,13 @@ function buildliftedproblem(prob0)
     goalcon = GoalConstraint(yf)  # only constraint the original states
     add_constraint!(cons, goalcon, N)
 
+    # Control bounds
+    ubnd = get_constraints(prob0)[2]
+    umin = TO.lower_bound(ubnd)[nx+1:end]
+    umax = TO.upper_bound(ubnd)[nx+1:end]
+    ubnd = BoundConstraint(ny, nu, u_min=umin, u_max=umax)
+    add_constraint!(cons, ubnd, 1:N-1)
+
     # Build the problem
     Problem(dmodel, obj, y0, prob0.tf, xf=yf, constraints=cons)
 end
@@ -68,17 +110,18 @@ function expansion_errors(model, model0, X)
 end
 
 # Solve original problem with ALTRO
-prob0,opts = Problems.DubinsCar(:turn90, N=301)
+prob0 = builddubinsproblem(ubnd=1.5)
 U0 = deepcopy(controls(prob0))
-altro0 = ALTROSolver(prob0, opts)
+altro0 = ALTROSolver(prob0)
 solve!(altro0)
 RD.traj2(states(altro0))
+plot(controls(altro0))
 
 # Solve lifted problem with ALTRO with implicit midpoint
 initial_controls!(prob0, U0)
 prob = buildliftedproblem(prob0)
 
-altro = ALTROSolver(prob, opts)
+altro = ALTROSolver(prob)
 altro.opts.dynamics_diffmethod = RD.ImplicitFunctionTheorem(RD.ForwardAD())
 # altro.opts.dynamics_diffmethod = RD.ForwardAD()
 Altro.usestatic(altro)
@@ -87,7 +130,7 @@ RD.traj2(states(altro0))
 RD.traj2!(states(altro))
 TO.cost(altro)
 TO.cost(altro0)
-states(altro)[end]
+plot(controls(altro))
 
 ## Solve with ADMM
 prob = buildliftedproblem(prob0)
@@ -102,10 +145,13 @@ c2 = BilinearControl.evaluatebilinearconstraint(prob)
 @test c1 ≈ c2
 
 Q,q,R,r,c = BilinearControl.buildcostmatrices(prob)
-admm = BilinearADMM(A,B,C,D, Q,q,R,r,c)
+admm = BilinearADMM(A,B,C,D, Q,q,R,r,c, umin=-0.9, umax=0.9)
 admm.opts.penalty_threshold = 1e4
 BilinearControl.setpenalty!(admm, 1e3)
+admm.ulo
+admm.uhi
 Xsol, Usol = BilinearControl.solve(admm, X, U)
+v,ω = collect(eachrow(reshape(Usol, m, :)))
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
 norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf)
@@ -113,6 +159,9 @@ norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf)
 RD.traj2(states(altro0), label="ALTRO (RK4)")
 RD.traj2!(states(altro), label="ALTRO (Implicit Midpoint)")
 RD.traj2!(xtraj, ytraj, label="ADMM", legend=:topleft)
+
+plot(v)
+plot!(ω)
 
 ## MPC
 function liftedmpcproblem(x0, Zref, kstart=1; N=51)

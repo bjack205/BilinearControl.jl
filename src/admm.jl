@@ -25,6 +25,10 @@ struct BilinearADMM{M}
     C::Vector{M}
     d::M
 
+    # Bound constraints
+    ulo::Vector{Float64}  # lower control bound
+    uhi::Vector{Float64}  # upper control bound
+
     # Parameters
     ρ::Ref{Float64}
 
@@ -44,7 +48,13 @@ struct BilinearADMM{M}
     opts::ADMMOptions
 end
 
-function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0)
+boundvector(v::Real, n) = fill(v, n)
+function boundvector(v::Vector, n)
+    n % length(v) == 0 || throw(ArgumentError("Length of v ($(length(v))) must divide evenly into n ($n)."))
+    repeat(v, n ÷ length(v))
+end
+
+function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, umin=-Inf, umax=Inf)
     n = size(A,2)
     m = size(B,2)
     p = length(d)
@@ -66,6 +76,10 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0)
         Bhat[:,i] += C[i] * x_
     end
 
+    # Set control bounds
+    ulo = boundvector(umin, m)
+    uhi = boundvector(umax, m)
+
     # Precompute index caches for sparse matrices
     nzindsA = map(eachindex(C)) do i
         getnzindsA(Ahat, C[i])
@@ -75,7 +89,10 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0)
         getnzindsB(Bhat, C[i], i)
     end
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
-    BilinearADMM{M}(Q, q, R, r, c, A, B, C, d, ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, opts)
+    BilinearADMM{M}(
+        Q, q, R, r, c, A, B, C, d, ulo, uhi, 
+        ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, opts
+    )
 end
 
 setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
@@ -221,7 +238,14 @@ function solvez(solver::BilinearADMM, x, w)
     b = getb(solver, x)
     H = R + ρ * Bhat'Bhat
     g = solver.r + ρ * Bhat'*(b + w)
-    z = -(H\g)
+
+    # Solve with OSQP
+    m = length(g)
+    model = OSQP.Model()
+    OSQP.setup!(model, P=H, q=vec(g), A=sparse(I,m,m), l=solver.ulo, u=solver.uhi, verbose=0)
+    res = OSQP.solve!(model)
+    z = res.x
+    # z = -(H\g)
     return z
 end
 
