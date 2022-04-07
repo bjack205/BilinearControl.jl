@@ -177,8 +177,8 @@ ytraj = reshape(Xsol,n,:)[2,:]
 n,m = RD.dims(prob.model[1])
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-@test abs(xtraj[end] - prob.xf[1]) < 1e-3
-@test abs(ytraj[end] - prob.xf[2]) < 1e-3
+@test abs(xtraj[end] - prob.xf[1]) < 5e-3
+@test abs(ytraj[end] - prob.xf[2]) < 5e-3
 
 # Check the terminal heading
 zterm = Xsol[end-1:end]
