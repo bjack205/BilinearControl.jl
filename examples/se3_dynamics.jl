@@ -155,7 +155,6 @@ function se3_symbolic_dynamics()
     return xdot_sym, x_sym, u_sym, c_sym, s0_sym
 end
 
-
 """
 Build the bilinear dynamics for SE(3) with 3DOF force and 3DOF angular velocity inputs. 
 This mapping is exact.
@@ -253,6 +252,28 @@ function se3_angvel_symbolic_dynamics()
     xdot_sym = [x0dot_sym; sdot_sym]
 
     return xdot_sym, x_sym, u_sym, c_sym, s0_sym
+end
+
+function build_compound_dynamics(x0dot_sym, x0_sym, s0dot_sym, s0_sym, s_sym)
+
+    # Create dictionary of substitutions, converting state to extended state
+    x2s_dict = Dict(value(x)=>value(y) for (x,y) in zip(s0_sym,s_sym))
+
+    # Expanded state vector
+    x_sym = [x0_sym; s_sym]
+    xdot_sym = [x0dot_sym; s0dot_sym]
+
+    # Replace compound states with symbolic variables
+    constants = Set(value.(c_sym))
+    controls = Set(value.(u_sym))
+    iscoeff(x) = (x isa Number) || (x in constants)
+    isconstorcontrol(x) = iscoeff(x) || (x in controls)
+
+    xdot_sym = map(xdot_sym) do expr
+        filtersubstitute(isconstorcontrol, Symbolics.expand(expr), x2s_dict)
+    end
+
+    return xdot_sym, x_sym 
 end
 
 """
@@ -385,7 +406,7 @@ function build_bilinear_dynamics_functions(
     end
 
     # Generate function to evaluate the dynamics
-    xdot_sub = substitute(xdot_sym, toargs)
+    xdot_sub = map(e->substitute(e, toargs), xdot_sym)
     xdot_expr = map(enumerate(xdot_sub)) do (i,xdot)
         :(xdot[$i] = $(Symbolics.toexpr(xdot)))
     end

@@ -7,4 +7,4 @@ function Base.rand(model::Se3ForceDynamics)
 end
 
 orientation(::Se3ForceDynamics, x) = RotMatrix{3}(SMatrix{3,3}(x[4:12]))
-buildstate(::Se3ForceDynamics, x::RBState) = [x.r; vec(x.q); x.v]
+buildstate(model::Se3ForceDynamics, x::RBState) = expandstate(model, [x.r; vec(x.q); x.v])

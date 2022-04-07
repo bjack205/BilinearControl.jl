@@ -1,4 +1,4 @@
-using GeometryBasics, CoordinateTransformations
+using GeometryBasics, CoordinateTransformations, Rotations
 
 """
     setbackgroundimage(vis, imagefile, [d])
