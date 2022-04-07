@@ -197,7 +197,7 @@ function testattitudeproblem(Nu)
 
     # Test that the quaternion norms are preserved
     norm_error = norm(norm.(Xs) .- 1, Inf)
-    @test norm_error < 2e-3 
+    @test norm_error < 1e-2 
 
     # Check that the control signals are smooth 
     Us = reshape(Usol, m, :)

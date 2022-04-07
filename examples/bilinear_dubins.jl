@@ -182,8 +182,8 @@ xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
 norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf)
 
-RD.traj2(states(altro0), label="ALTRO (RK4)")
-RD.traj2!(states(altro), label="ALTRO (Implicit Midpoint)")
+RD.traj2(states(altro0), label="ALTRO")
+RD.traj2!(states(altro), label="ALTRO (Bilinear)")
 RD.traj2!(xtraj, ytraj, label="ADMM", legend=:topleft)
 
 t = TO.gettimes(prob)
