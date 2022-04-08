@@ -269,7 +269,7 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
     if hasstateconstraints(solver)
         model = OSQP.Model()
         P̂ = solver.Q + ρ * Ahat'Ahat
-        q̂ = solver.q + ρ * Ahat'*(a + w)
+        q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
         OSQP.setup!(model, P=P̂, q=q̂, A=sparse(I,n,n), l=solver.xlo, u=solver.xhi, verbose=false)
         res = OSQP.solve!(model)
         return res.x
@@ -327,53 +327,7 @@ function penaltyupdate!(solver::BilinearADMM, r, s)
         end
         setpenalty!(solver, ρ_new)
     elseif solver.opts.penalty_update == :aadmm
-        x,z,w = solver.x, solver.z, solver.w
-        # w = y / ρ
-        x_prev = solver.x_prev
-        z_prev = solver.z_prev
-        w_prev = solver.w_prev
-        ĉ = eval_c(solver, x, z_prev)
-        # c = eval_c(solver, x, z)
-        solver.y[1] .= w .* ρ              # y_k+1
-        solver.ŷ[1] .= (w_prev .+ ĉ) .* ρ  # ŷ_k+1
-        Ahat = solver.Ahat
-        Bhat = solver.Bhat
-        Δy = solver.Δy
-        Δŷ = solver.Δŷ
-        ΔH = solver.ΔH
-        ΔG = solver.ΔG
-        Δy .= solver.y[1] .- solver.y[2]
-        Δŷ .= solver.ŷ[1] .- solver.ŷ[2]
-        ΔH .= Ahat * (x .- x_prev)
-        ΔG .= Bhat * (z .- z_prev)
-        α_sd = dot(Δŷ, Δŷ) / dot(ΔH, Δŷ)
-        α_mg = dot(ΔH, Δŷ) / dot(ΔH, ΔH)
-        β_sd = dot(Δy, Δy) / dot(ΔG, Δy)
-        β_mg = dot(ΔG, Δy) / dot(ΔG, ΔG)
-        if 2α_mg > α_sd
-            α = α_mg
-        else
-            α = α_sd - α_mg / 2
-        end
-        if 2β_mg > β_sd
-            β = β_mg
-        else
-            β = β_sd - β_mg / 2
-        end
-        ϵ_cor = solver.opts.ϵ_cor
-        α_cor = dot(ΔH,Δŷ) / (norm(ΔH) * norm(Δŷ))
-        β_cor = dot(ΔG,Δy) / (norm(ΔG) * norm(Δy))
-        if α_cor > ϵ_cor && β_cor > ϵ_cor
-            ρ = sqrt(α*β)
-        elseif α_cor > ϵ_cor && β_cor <= ϵ_cor
-            ρ = α
-        elseif α_cor <= ϵ_cor && β_cor > ϵ_cor
-            ρ = β
-        end
-        setpenalty!(solver, ρ)
-
-        solver.ŷ[2] .= solver.ŷ[1]
-        solver.y[2] .= solver.y[1]
+        return
     end
 end
 
@@ -401,10 +355,17 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         max_iters=100,
         verbose::Bool=false
     )
-    x, z, w = solver.x, solver.z, solver.w
+    x, z, w = solver.x_prev, solver.z_prev, solver.w_prev
+    xn, zn, wn = solver.x, solver.z, solver.w
+    
     x .= x0
     z .= z0
     w .= w0
+
+    x0 = copy(x0)
+    z0 = copy(x0)
+    w0 = copy(w0)
+
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= z 
     tstart = time_ns()
@@ -412,32 +373,34 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     s = NaN
     for iter = 1:max_iters
         updateAhat!(solver, solver.Ahat, z)
-        x .= solvex(solver, z, w)                 # Bhat out of sync
-        updateBhat!(solver, solver.Bhat, x)
-        z .= solvez(solver, x, w)                 # Ahat out of sync
-        updateAhat!(solver, solver.Ahat, z)
-        w .= updatew(solver, x, z, w)
+        xn .= solvex(solver, z, w)                 # Bhat out of sync
+        updateBhat!(solver, solver.Bhat, xn)
+        zn .= solvez(solver, xn, w)                 # Ahat out of sync
+        updateAhat!(solver, solver.Ahat, zn)
+        wn .= updatew(solver, xn, zn, w)
 
-        r = primal_residual(solver, x, z)
-        s = dual_residual(solver, x, z, updatemats=false)
-        J = eval_f(solver, x) + eval_g(solver, z) + solver.c
-        dz = norm(z - solver.z_prev)
-        ϵ_primal = get_primal_tolerance(solver, x, z, w)
-        ϵ_dual = get_dual_tolerance(solver, x, z, w)
+        r = primal_residual(solver, xn, zn)
+        s = dual_residual(solver, xn, zn, updatemats=false)
+        J = eval_f(solver, xn) + eval_g(solver, zn) + solver.c
+        dz = norm(zn - z)
+        ϵ_primal = get_primal_tolerance(solver, xn, zn, wn)
+        ϵ_dual = get_dual_tolerance(solver, xn, zn, wn)
         ρ = getpenalty(solver)
-        @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
+        @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", 
+            iter, J, norm(r), norm(s), ρ, norm(dz)
+        )
         if norm(r) < ϵ_primal && norm(s) < ϵ_dual
             break
         end
 
         penaltyupdate!(solver, r, s)
 
-        solver.x_prev .= x
-        solver.z_prev .= z
-        solver.w_prev .= w
-
+        # Set variables for next iteration
+        x .= xn
+        z .= zn
+        w .= wn
     end
     tsolve = (time_ns() - tstart) / 1e9
     println("Solve took $tsolve seconds.")
-    return x,z,w
+    return xn,zn,wn
 end
