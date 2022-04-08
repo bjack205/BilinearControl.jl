@@ -163,9 +163,12 @@ n,m = RD.dims(model)
 admm = BilinearADMM(prob)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
-admm.opts.ϵ_abs_primal = 1e-4
-admm.opts.penalty_threshold = 1e2
-BilinearControl.setpenalty!(admm, 1e2)
+admm.opts.ϵ_abs_primal = 1e-5
+admm.opts.ϵ_rel_primal = 1e-5
+admm.opts.ϵ_abs_dual = 1e-3
+admm.opts.ϵ_rel_dual = 1e-3
+admm.opts.penalty_threshold = Inf 
+BilinearControl.setpenalty!(admm, 1e3)
 Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=400)
 v,ω = collect(eachrow(reshape(Usol, m, :)))
 xtraj = reshape(Xsol,n,:)[1,:]

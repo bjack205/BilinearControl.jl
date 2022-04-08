@@ -328,7 +328,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         J = eval_f(solver, x) + eval_g(solver, z) + solver.c
         dz = norm(z - solver.z_prev)
         ϵ_primal = get_primal_tolerance(solver, x, z, w)
-        ϵ_dual = get_primal_tolerance(solver, x, z, w)
+        ϵ_dual = get_dual_tolerance(solver, x, z, w)
         if iter > 1
             penaltyupdate!(solver, r, s)
         else
