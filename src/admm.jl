@@ -26,6 +26,8 @@ struct BilinearADMM{M}
     d::M
 
     # Bound constraints
+    xlo::Vector{Float64}  # lower state bound
+    xhi::Vector{Float64}  # upper state bound
     ulo::Vector{Float64}  # lower control bound
     uhi::Vector{Float64}  # upper control bound
 
@@ -54,7 +56,10 @@ function boundvector(v::Vector, n)
     repeat(v, n ÷ length(v))
 end
 
-function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, umin=-Inf, umax=Inf)
+function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, 
+        xmin=-Inf, xmax=Inf,
+        umin=-Inf, umax=Inf,
+    )
     n = size(A,2)
     m = size(B,2)
     p = length(d)
@@ -76,7 +81,9 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, umin=-Inf, umax=Inf)
         Bhat[:,i] += C[i] * x_
     end
 
-    # Set control bounds
+    # Set bounds
+    xlo = boundvector(xmin, n)
+    xhi = boundvector(xmax, n)
     ulo = boundvector(umin, m)
     uhi = boundvector(umax, m)
 
@@ -90,7 +97,7 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, umin=-Inf, umax=Inf)
     end
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
     BilinearADMM{M}(
-        Q, q, R, r, c, A, B, C, d, ulo, uhi, 
+        Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
         ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, opts
     )
 end
@@ -105,6 +112,9 @@ getA(solver::BilinearADMM) = solver.A
 getB(solver::BilinearADMM) = solver.B
 getC(solver::BilinearADMM) = solver.C
 getD(solver::BilinearADMM) = solver.d
+
+hasstateconstraints(solver::BilinearADMM) = any(isfinite, solver.xlo) || any(isfinite, solver.xhi)
+hascontrolconstraints(solver::BilinearADMM) = any(isfinite, solver.ulo) || any(isfinite, solver.uhi)
 
 function eval_c(solver::BilinearADMM, x, z)
     A, B, C = solver.A, solver.B, solver.C
@@ -223,10 +233,19 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
     a = geta(solver, z)
     n = size(Ahat,2) 
 
-    H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
-    g = [solver.q; a + w]
-    δ = -(H\g)
-    x = δ[1:n]
+    if hasstateconstraints(solver) || true
+        model = OSQP.Model()
+        P̂ = solver.Q + ρ * Ahat'Ahat
+        q̂ = solver.q + ρ * Ahat'w
+        OSQP.setup!(model, P=P̂, q=q̂, A=sparse(I,n,n), l=solver.xlo, u=solver.xhi, verbose=false)
+        res = OSQP.solve!(model)
+        return res.x
+    else
+        H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
+        g = [solver.q; a + w]
+        δ = -(H\g)
+        x = δ[1:n]
+    end
     return x
 end
 
@@ -270,7 +289,7 @@ function penaltyupdate!(solver::BilinearADMM, r, s)
     setpenalty!(solver, ρ_new)
 end
 
-function get_primal_tolerance(solver::BilinearADMM, x, z, w)
+function get_primal_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solver.w)
     ϵ_abs = solver.opts.ϵ_abs_primal
     ϵ_rel = solver.opts.ϵ_rel_primal
     p = length(w)
@@ -281,7 +300,7 @@ function get_primal_tolerance(solver::BilinearADMM, x, z, w)
     √p*ϵ_abs + ϵ_rel * max(norm(Ahat * x), norm(Bhat * z), norm(solver.d))
 end
 
-function get_dual_tolerance(solver::BilinearADMM, x, z, w)
+function get_dual_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solver.w)
     ρ = getpenalty(solver)
     ϵ_abs = solver.opts.ϵ_abs_dual
     ϵ_rel = solver.opts.ϵ_rel_dual
@@ -309,7 +328,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         J = eval_f(solver, x) + eval_g(solver, z) + solver.c
         dz = norm(z - solver.z_prev)
         ϵ_primal = get_primal_tolerance(solver, x, z, w)
-        ϵ_dual = get_primal_tolerance(solver, x, z, w)
+        ϵ_dual = get_dual_tolerance(solver, x, z, w)
         if iter > 1
             penaltyupdate!(solver, r, s)
         else

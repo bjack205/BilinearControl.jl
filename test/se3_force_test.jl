@@ -92,10 +92,10 @@ function testse3forceproblem()
     Us = collect(eachcol(reshape(Usol, m, :)))
 
     # Check it reaches the goal
-    @test norm(Xs[end] - prob.xf) < 1e-3
+    @test norm(Xs[end] - prob.xf) < BilinearControl.get_primal_tolerance(admm) 
 
     # Check the rotation matrices
-    @test norm([det(reshape(x[4:12],3,3)) - 1 for x in Xs], Inf) < 1e-2
+    @test norm([det(reshape(x[4:12],3,3)) - 1 for x in Xs], Inf) < 1e-1
 
     # Test that the controls are smooth
     @test norm(mean(diff(Us)), Inf) < 0.1

@@ -183,6 +183,8 @@ function testattitudeproblem(Nu)
     Q,q,R,r,c = BilinearControl.buildcostmatrices(prob)
     admm = BilinearADMM(A,B,C,D, Q,q,R,r,c)
     admm.opts.penalty_threshold = 1e4
+    admm.opts.ϵ_abs_dual = 1e-4
+    admm.opts.ϵ_rel_dual = 1e-4
     BilinearControl.setpenalty!(admm, 1e3)
     Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=300)
 
@@ -193,11 +195,11 @@ function testattitudeproblem(Nu)
     Zsol = SampledTrajectory(Xs,Us, tf=prob.tf)
 
     # Test that it got to the goal
-    @test abs(Xs[end]'prob.xf - 1.0) < 1e-4
+    @test abs(Xs[end]'prob.xf - 1.0) < BilinearControl.get_primal_tolerance(admm)  
 
     # Test that the quaternion norms are preserved
     norm_error = norm(norm.(Xs) .- 1, Inf)
-    @test norm_error < 2e-3 
+    @test norm_error < 1e-2 
 
     # Check that the control signals are smooth 
     Us = reshape(Usol, m, :)
@@ -210,6 +212,10 @@ function testso3problem(Nu)
     admm = BilinearADMM(prob)
     X = extractstatevec(prob)
     U = extractcontrolvec(prob)
+    admm.opts.ϵ_abs_primal = 1e-5
+    admm.opts.ϵ_rel_primal = 1e-5
+    admm.opts.ϵ_abs_dual = 1e-4
+    admm.opts.ϵ_rel_dual = 1e-4
     Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=50)
 
     n,m = RD.dims(prob.model[1])
@@ -219,7 +225,7 @@ function testso3problem(Nu)
     # Test that it got to the goal
     Rgoal = SMatrix{3,3}(prob.xf)
     Rf = SMatrix{3,3}(Xs[end])
-    @test abs(tr(Rgoal'Rf) - 3) < 1e-5
+    @test abs(tr(Rgoal'Rf) - 3) < BilinearControl.get_primal_tolerance(admm) 
 
     # Test that the quaternion norms are preserved
     det_error = norm([det(SMatrix{3,3}(x)) .- 1 for x in Xs], Inf)

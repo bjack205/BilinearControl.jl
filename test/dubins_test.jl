@@ -11,44 +11,61 @@ function testdynamics()
     @test RD.dynamics(model, y, u) ≈ A*y + B*u + sum(u[i]*C[i]*y for i = 1:nu) + D
 end
 
-function builddubinsproblem(ubnd=Inf)
-    # Model
-    model = BilinearDubins()
+function builddubinsproblem(model=BilinearDubins(); 
+        scenario=:turn90, N=101, ubnd=Inf
+    )
+    # model
     dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+    n,m = RD.dims(model)
 
-    # Discretization
-    tf = 3.0
-    N = 301
+    tf = 3.
+    dt = tf / (N-1)
 
-    # Dimensions
-    nx = RD.state_dim(model)
-    nu = RD.control_dim(model)
+    # cost
+    d = 1.5
+    x0 = @SVector [0., 0., 0.]
+    if scenario == :turn90
+        xf = @SVector [d, d,  deg2rad(90)]
+    else
+        xf = @SVector [0, d, 0.]
+    end
+    Qf = 100.0*Diagonal(@SVector ones(n))
+    Q = (1e-2)*Diagonal(@SVector ones(n))
+    R = (1e-2)*Diagonal(@SVector ones(m))
 
-    # Initial and final conditions
-    x0 = [0,0,1,0]
-    xf = [1,1,0,1]
+    if model isa BilinearDubins
+        x0 = expandstate(model, x0)
+        xf = expandstate(model, xf)
+        Q = Diagonal([diag(Q)[1:2]; fill(Q[3,3]*1e-3, 2)]) 
+        Qf = Diagonal([diag(Qf)[1:2]; fill(Qf[3,3]*1e-3, 2)]) 
+    end
 
-    # Objective
-    Q = Diagonal([1e-2,1e-2, 1e-4, 1e-4])
-    R = Diagonal(fill(1e-2, nu))
-    Qf = Diagonal(fill(100.0, nx))
-    obj = LQRObjective(Q,R,Qf,xf,N)
-
-    # Goal state
-    cons = ConstraintList(nx, nu, N)
-    goalcon = GoalConstraint(xf)  # only constraint the original states
-    add_constraint!(cons, goalcon, N)
-    
-    # Control bound constraints
-    add_constraint!(cons, BoundConstraint(nx, nu, u_min=-ubnd, u_max=ubnd), 1:N-1)
+    # objective 
+    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
 
     # Initial Guess
-    U0 = [[0.1,0] for k = 1:N-1] 
+    U = [@SVector fill(0.1,m) for k = 1:N-1]
 
-    # Build the problem
-    prob = Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+    # constraints
+    cons = ConstraintList(n,m,N)
+    add_constraint!(cons, GoalConstraint(xf), N)
+    add_constraint!(cons, BoundConstraint(n,m, u_min=-ubnd, u_max=ubnd), 1:N-1)
+
+    if scenario == :parallelpark
+        x_min = @SVector [-0.25, -0.1, -Inf]
+        x_max = @SVector [0.25, d + 0.1, Inf]
+        if model isa BilinearDubins
+            x_min = push(x_min, -Inf) 
+            x_max = push(x_max, +Inf) 
+        end
+        bnd_x = BoundConstraint(n,m, x_min=x_min, x_max=x_max)
+        add_constraint!(cons, bnd_x, 2:N-1)
+    end
+
+    prob = Problem(dmodel, obj, x0, tf, xf=xf, U0=U, constraints=cons)
     rollout!(prob)
-    prob
+
+    return prob
 end
 
 @testset "Dubins Dynamics" begin
@@ -78,12 +95,12 @@ n,m = RD.dims(prob.model[1])
 # Make sure it made it to the goal
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-@test abs(xtraj[end] - prob.xf[1]) < 1e-4
-@test abs(ytraj[end] - prob.xf[1]) < 1e-4
+@test abs(xtraj[end] - prob.xf[1]) < BilinearControl.get_primal_tolerance(admm) 
+@test abs(ytraj[end] - prob.xf[2]) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check the terminal heading
 zterm = Xsol[end-1:end]
-@test abs(zterm'*[0,1] - 1.0) < 1e-4
+@test abs(zterm'*[0,1] - 1.0) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check that the norm is preserved
 normerr = maximum([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))])
@@ -98,12 +115,12 @@ end
 
 ## Check with constraints
 @testset "Dubins w/ Control Constraints" begin
-ubnd = 1.0
-prob = builddubinsproblem(ubnd)
+ubnd = 0.9
+prob = builddubinsproblem(ubnd=ubnd)
 admm = BilinearADMM(prob)
 @test admm.ulo == fill(-ubnd, length(admm.z))
 @test admm.uhi == fill(+ubnd, length(admm.z))
-admm.opts.penalty_threshold = 1e4
+admm.opts.penalty_threshold = 1e2
 BilinearControl.setpenalty!(admm, 1e3)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
@@ -113,12 +130,12 @@ Xsol, Usol = BilinearControl.solve(admm,X,U, max_iters=100)
 n,m = RD.dims(prob.model[1])
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-@test abs(xtraj[end] - prob.xf[1]) < 1e-4
-@test abs(ytraj[end] - prob.xf[1]) < 1e-4
+@test abs(xtraj[end] - prob.xf[1]) < BilinearControl.get_primal_tolerance(admm) 
+@test abs(ytraj[end] - prob.xf[2]) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check the terminal heading
 zterm = Xsol[end-1:end]
-@test abs(zterm'*[0,1] - 1.0) < 1e-4
+@test abs(zterm'*[0,1] - 1.0) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check that the norm is preserved
 normerr = maximum([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))])
@@ -131,6 +148,54 @@ Us = reshape(Usol, m, :)
 
 # Check maximum control
 umax = norm(Us,Inf)
-@test umax < umax0*0.9
-@test abs(umax - ubnd) < 1e-3
+@test umax < umax0*0.99
+@test umax - ubnd < 1e-3
+
+end
+
+@testset "Dubins (parallel park)" begin
+Random.seed!(1)
+ubnd = 1.15
+prob = builddubinsproblem(scenario=:parallelpark, ubnd=ubnd)
+rollout!(prob)
+model = prob.model[1].continuous_dynamics
+n,m = RD.dims(model)
+admm = BilinearADMM(prob)
+X = extractstatevec(prob)
+U = extractcontrolvec(prob)
+admm.opts.ϵ_abs_primal = 1e-5
+admm.opts.ϵ_rel_primal = 1e-5
+admm.opts.ϵ_abs_dual = 1e-3
+admm.opts.ϵ_rel_dual = 1e-3
+admm.opts.penalty_threshold = Inf 
+BilinearControl.setpenalty!(admm, 1e3)
+Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=400)
+v,ω = collect(eachrow(reshape(Usol, m, :)))
+xtraj = reshape(Xsol,n,:)[1,:]
+ytraj = reshape(Xsol,n,:)[2,:]
+
+@test norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf) < 1e-2 
+
+# Make sure it made it to the goal
+n,m = RD.dims(prob.model[1])
+xtraj = reshape(Xsol,n,:)[1,:]
+ytraj = reshape(Xsol,n,:)[2,:]
+@test abs(xtraj[end] - prob.xf[1]) < BilinearControl.get_primal_tolerance(admm) 
+@test abs(ytraj[end] - prob.xf[2]) < BilinearControl.get_primal_tolerance(admm) 
+
+# Check the terminal heading
+zterm = Xsol[end-1:end]
+@test abs(zterm'*[1,0] - 1.0) < BilinearControl.get_primal_tolerance(admm) 
+
+# Check that the norm is preserved
+normerr = maximum([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))])
+@test normerr < 1e-2
+
+# Check that the control signals are smooth 
+Us = reshape(Usol, m, :)
+@test all(x->x< 1e-2, mean(diff(Us, dims=2), dims=2))
+
+# Check maximum control
+umax = norm(Us,Inf)
+@test umax - ubnd < BilinearControl.get_primal_tolerance(admm) 
 end

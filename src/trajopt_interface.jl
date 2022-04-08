@@ -9,17 +9,24 @@ function BilinearADMM(prob::TO.Problem)
     Q,q,R,r,c = BilinearControl.buildcostmatrices(prob)
     
     # Extract control bounds
-    ucon = filter(x->x isa TO.BoundConstraint, TO.get_constraints(prob).constraints)
-    if !isempty(ucon)
-        n = RD.state_dim(prob, 1)
-        ulo = TO.lower_bound(ucon[1])[n+1:end]
-        uhi = TO.upper_bound(ucon[1])[n+1:end]
-    else
-        ulo = -Inf
-        uhi = Inf
+    boundcons = filter(x->x isa TO.BoundConstraint, TO.get_constraints(prob).constraints)
+    n,m = RD.dims(prob.model[1])
+    ulo = fill(-Inf, m)
+    uhi = fill(+Inf, m)
+    xlo = fill(-Inf, n)
+    xhi = fill(+Inf, n)
+    for con in boundcons
+        zlo = TO.lower_bound(con)
+        zhi = TO.upper_bound(con)
+        for i = 1:m
+            xlo[i] = max(xlo[i], zlo[i])
+            xhi[i] = min(xhi[i], zhi[i])
+            ulo[i] = max(ulo[i], zlo[i+n])
+            uhi[i] = min(uhi[i], zhi[i+n])
+        end
     end
 
-    admm = BilinearADMM(A,B,C,D, Q,q,R,r,c, umin=ulo, umax=uhi)
+    admm = BilinearADMM(A,B,C,D, Q,q,R,r,c, umin=ulo, umax=uhi, xmin=xlo, xmax=xhi)
     admm.opts.penalty_threshold = 1e4
     BilinearControl.setpenalty!(admm, 1e3)
     admm

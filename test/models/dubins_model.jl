@@ -5,7 +5,7 @@ RD.state_dim(::BilinearDubins) = 4
 RD.control_dim(::BilinearDubins) = 2
 RD.default_diffmethod(::BilinearDubins) = RD.UserDefined()
 
-function expand(model::BilinearDubins, x)
+function expandstate(model::BilinearDubins, x)
     return SA[x[1], x[2], cos(x[3]), sin(x[3])]
 end
 
@@ -19,6 +19,10 @@ function RD.dynamics(::BilinearDubins, x, u)
         -β * ω
         +α * ω
     ] 
+end
+
+function RD.dynamics!(model::BilinearDubins, xdot, x, u)
+    xdot .= RD.dynamics(model, x, u)
 end
 
 function RD.jacobian!(::BilinearDubins, J, y, x, u)
