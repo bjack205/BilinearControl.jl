@@ -9,8 +9,9 @@ Base.@kwdef mutable struct ADMMOptions
     τ_incr::Float64 = 2.0
     τ_decr::Float64 = 2.0
     penalty_threshold::Float64 = 10.0
-    ϵ_cor::Float64 = 1e-2  # safeguarding threshold for AADMM
+    ϵ_cor::Float64 = 0.2   # safeguarding threshold for AADMM
     Tf::Int = 2            # AADMM update rate
+    penalty_update::Symbol = :threshold # options (:aadmm, :threshold)
 end
 
 Base.@kwdef mutable struct ADMMStats
@@ -59,6 +60,14 @@ struct BilinearADMM{M}
     z_prev::Vector{Float64}
     w_prev::Vector{Float64}
 
+    # AADMM storage
+    y::Vector{Vector{Float64}}
+    ŷ::Vector{Vector{Float64}}
+    Δy::Vector{Float64}
+    Δŷ::Vector{Float64}
+    ΔH::Vector{Float64}             # A (x₊ - x)
+    ΔG::Vector{Float64}             # B (z₊ - z)
+
     opts::ADMMOptions
     stats::ADMMStats
 end
@@ -100,6 +109,14 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     ulo = boundvector(umin, m)
     uhi = boundvector(umax, m)
 
+    # Caches for AADMM
+    y = [zeros(p) for i = 1:2]
+    ŷ = [zeros(p) for i = 1:2]
+    Δy = zeros(p)
+    Δŷ = zeros(p)
+    ΔH = zeros(p)
+    ΔG = zeros(p)
+
     # Precompute index caches for sparse matrices
     nzindsA = map(eachindex(C)) do i
         getnzindsA(Ahat, C[i])
@@ -113,6 +130,7 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     BilinearADMM{M}(
         Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
         ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
+        y, ŷ, Δy, Δŷ, ΔH, ΔG,
         opts, ADMMStats() 
     )
 end
@@ -243,7 +261,7 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
     ρ = getpenalty(solver)
     p = length(w)
     Ahat = solver.Ahat
-    updateA && updateAhat!(solver, solver.Ahat, z)
+    # updateA && updateAhat!(solver, solver.Ahat, z)
     # Ahat = getAhat(solver, z)
     a = geta(solver, z)
     n = size(Ahat,2) 
@@ -251,7 +269,7 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
     if hasstateconstraints(solver)
         model = OSQP.Model()
         P̂ = solver.Q + ρ * Ahat'Ahat
-        q̂ = solver.q + ρ * Ahat'w
+        q̂ = solver.q + ρ * Ahat'*(a + w)
         OSQP.setup!(model, P=P̂, q=q̂, A=sparse(I,n,n), l=solver.xlo, u=solver.xhi, verbose=false)
         res = OSQP.solve!(model)
         return res.x
@@ -267,8 +285,9 @@ end
 function solvez(solver::BilinearADMM{M}, x, w) where M
     R = solver.R
     ρ = getpenalty(solver)
-    Bhat = updateBhat!(solver, solver.Bhat, x)
+    # Bhat = updateBhat!(solver, solver.Bhat, x)
     # Bhat = getBhat(solver, x)
+    Bhat = solver.Bhat
     b = getb(solver, x)
     H = R + ρ * Bhat'Bhat
     g = solver.r + ρ * Bhat'*(b + w)
@@ -292,20 +311,70 @@ function updatew(solver::BilinearADMM, x, z, w)
 end
 
 function penaltyupdate!(solver::BilinearADMM, r, s)
-    τ_incr = solver.opts.τ_incr
-    τ_decr = solver.opts.τ_decr
-    μ = solver.opts.penalty_threshold
     ρ = getpenalty(solver) 
-    nr = norm(r)
-    ns = norm(s)
-    if nr > μ * ns  # primal residual too large
-        ρ_new = ρ * τ_incr
-    elseif ns > μ * nr  # dual residual too large
-        ρ_new = ρ / τ_decr
-    else
-        ρ_new = ρ
+    if solver.opts.penalty_update == :threshold
+        τ_incr = solver.opts.τ_incr
+        τ_decr = solver.opts.τ_decr
+        μ = solver.opts.penalty_threshold
+        nr = norm(r)
+        ns = norm(s)
+        if nr > μ * ns  # primal residual too large
+            ρ_new = ρ * τ_incr
+        elseif ns > μ * nr  # dual residual too large
+            ρ_new = ρ / τ_decr
+        else
+            ρ_new = ρ
+        end
+        setpenalty!(solver, ρ_new)
+    elseif solver.opts.penalty_update == :aadmm
+        x,z,w = solver.x, solver.z, solver.w
+        # w = y / ρ
+        x_prev = solver.x_prev
+        z_prev = solver.z_prev
+        w_prev = solver.w_prev
+        ĉ = eval_c(solver, x, z_prev)
+        # c = eval_c(solver, x, z)
+        solver.y[1] .= w .* ρ              # y_k+1
+        solver.ŷ[1] .= (w_prev .+ ĉ) .* ρ  # ŷ_k+1
+        Ahat = solver.Ahat
+        Bhat = solver.Bhat
+        Δy = solver.Δy
+        Δŷ = solver.Δŷ
+        ΔH = solver.ΔH
+        ΔG = solver.ΔG
+        Δy .= solver.y[1] .- solver.y[2]
+        Δŷ .= solver.ŷ[1] .- solver.ŷ[2]
+        ΔH .= Ahat * (x .- x_prev)
+        ΔG .= Bhat * (z .- z_prev)
+        α_sd = dot(Δŷ, Δŷ) / dot(ΔH, Δŷ)
+        α_mg = dot(ΔH, Δŷ) / dot(ΔH, ΔH)
+        β_sd = dot(Δy, Δy) / dot(ΔG, Δy)
+        β_mg = dot(ΔG, Δy) / dot(ΔG, ΔG)
+        if 2α_mg > α_sd
+            α = α_mg
+        else
+            α = α_sd - α_mg / 2
+        end
+        if 2β_mg > β_sd
+            β = β_mg
+        else
+            β = β_sd - β_mg / 2
+        end
+        ϵ_cor = solver.opts.ϵ_cor
+        α_cor = dot(ΔH,Δŷ) / (norm(ΔH) * norm(Δŷ))
+        β_cor = dot(ΔG,Δy) / (norm(ΔG) * norm(Δy))
+        if α_cor > ϵ_cor && β_cor > ϵ_cor
+            ρ = sqrt(α*β)
+        elseif α_cor > ϵ_cor && β_cor <= ϵ_cor
+            ρ = α
+        elseif α_cor <= ϵ_cor && β_cor > ϵ_cor
+            ρ = β
+        end
+        setpenalty!(solver, ρ)
+
+        solver.ŷ[2] .= solver.ŷ[1]
+        solver.y[2] .= solver.y[1]
     end
-    setpenalty!(solver, ρ_new)
 end
 
 function get_primal_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solver.w)
@@ -340,29 +409,32 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     solver.z_prev .= z 
     tstart = time_ns()
     updateBhat!(solver, solver.Bhat, x)
+    s = NaN
     for iter = 1:max_iters
-        updateAhat!(solver, solver.Ahat, z)  # updates Ahat
+        updateAhat!(solver, solver.Ahat, z)
+        x .= solvex(solver, z, w)                 # Bhat out of sync
+        updateBhat!(solver, solver.Bhat, x)
+        z .= solvez(solver, x, w)                 # Ahat out of sync
+        updateAhat!(solver, solver.Ahat, z)
+        w .= updatew(solver, x, z, w)
+
         r = primal_residual(solver, x, z)
         s = dual_residual(solver, x, z, updatemats=false)
         J = eval_f(solver, x) + eval_g(solver, z) + solver.c
         dz = norm(z - solver.z_prev)
         ϵ_primal = get_primal_tolerance(solver, x, z, w)
         ϵ_dual = get_dual_tolerance(solver, x, z, w)
-        if iter > 1
-            penaltyupdate!(solver, r, s)
-        else
-            s = NaN
-        end
         ρ = getpenalty(solver)
         @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
         if norm(r) < ϵ_primal && norm(s) < ϵ_dual
             break
         end
-        solver.z_prev .= z
 
-        x .= solvex(solver, z, w, updateA=false)  # Bhat out of sync
-        z .= solvez(solver, x, w)                 # Bhat updated, Ahat out of sync
-        w .= updatew(solver, x, z, w)
+        penaltyupdate!(solver, r, s)
+
+        solver.x_prev .= x
+        solver.z_prev .= z
+        solver.w_prev .= w
 
     end
     tsolve = (time_ns() - tstart) / 1e9
