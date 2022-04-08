@@ -289,7 +289,7 @@ function penaltyupdate!(solver::BilinearADMM, r, s)
     setpenalty!(solver, ρ_new)
 end
 
-function get_primal_tolerance(solver::BilinearADMM, x, z, w)
+function get_primal_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solver.w)
     ϵ_abs = solver.opts.ϵ_abs_primal
     ϵ_rel = solver.opts.ϵ_rel_primal
     p = length(w)
@@ -300,7 +300,7 @@ function get_primal_tolerance(solver::BilinearADMM, x, z, w)
     √p*ϵ_abs + ϵ_rel * max(norm(Ahat * x), norm(Bhat * z), norm(solver.d))
 end
 
-function get_dual_tolerance(solver::BilinearADMM, x, z, w)
+function get_dual_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solver.w)
     ρ = getpenalty(solver)
     ϵ_abs = solver.opts.ϵ_abs_dual
     ϵ_rel = solver.opts.ϵ_rel_dual

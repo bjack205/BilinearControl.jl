@@ -75,7 +75,7 @@ function solve_se3_kinematics()
     @test norm(Xs[end] - prob.xf) < 1e-3
 
     # Check the rotation matrices
-    @test norm([det(reshape(x[4:end],3,3)) - 1 for x in Xs], Inf) < 1e-3
+    @test norm([det(reshape(x[4:end],3,3)) - 1 for x in Xs], Inf) < 1e-1
 
     # Test that the controls are smooth
     @test norm(mean(diff(Us)), Inf) < 0.1

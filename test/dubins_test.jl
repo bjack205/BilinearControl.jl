@@ -95,12 +95,12 @@ n,m = RD.dims(prob.model[1])
 # Make sure it made it to the goal
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-@test abs(xtraj[end] - prob.xf[1]) < 1e-4
-@test abs(ytraj[end] - prob.xf[1]) < 1e-4
+@test abs(xtraj[end] - prob.xf[1]) < BilinearControl.get_primal_tolerance(admm) 
+@test abs(ytraj[end] - prob.xf[2]) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check the terminal heading
 zterm = Xsol[end-1:end]
-@test abs(zterm'*[0,1] - 1.0) < 1e-4
+@test abs(zterm'*[0,1] - 1.0) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check that the norm is preserved
 normerr = maximum([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))])
@@ -130,12 +130,12 @@ Xsol, Usol = BilinearControl.solve(admm,X,U, max_iters=100)
 n,m = RD.dims(prob.model[1])
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-@test abs(xtraj[end] - prob.xf[1]) < 1e-3
-@test abs(ytraj[end] - prob.xf[1]) < 1e-3
+@test abs(xtraj[end] - prob.xf[1]) < BilinearControl.get_primal_tolerance(admm) 
+@test abs(ytraj[end] - prob.xf[2]) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check the terminal heading
 zterm = Xsol[end-1:end]
-@test abs(zterm'*[0,1] - 1.0) < 1e-3
+@test abs(zterm'*[0,1] - 1.0) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check that the norm is preserved
 normerr = maximum([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))])
@@ -174,18 +174,18 @@ v,ω = collect(eachrow(reshape(Usol, m, :)))
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
 
-@test norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf) < 1e-3
+@test norm([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))], Inf) < 1e-2 
 
 # Make sure it made it to the goal
 n,m = RD.dims(prob.model[1])
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
-@test abs(xtraj[end] - prob.xf[1]) < 5e-3
-@test abs(ytraj[end] - prob.xf[2]) < 5e-3
+@test abs(xtraj[end] - prob.xf[1]) < BilinearControl.get_primal_tolerance(admm) 
+@test abs(ytraj[end] - prob.xf[2]) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check the terminal heading
 zterm = Xsol[end-1:end]
-@test abs(zterm'*[1,0] - 1.0) < 1e-3
+@test abs(zterm'*[1,0] - 1.0) < BilinearControl.get_primal_tolerance(admm) 
 
 # Check that the norm is preserved
 normerr = maximum([norm(x[3:4]) - 1 for x in eachcol(reshape(Xsol,n,:))])
@@ -197,5 +197,5 @@ Us = reshape(Usol, m, :)
 
 # Check maximum control
 umax = norm(Us,Inf)
-@test umax - ubnd < 1e-3
+@test umax - ubnd < BilinearControl.get_primal_tolerance(admm) 
 end
