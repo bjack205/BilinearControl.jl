@@ -9,6 +9,18 @@ Base.@kwdef mutable struct ADMMOptions
     τ_incr::Float64 = 2.0
     τ_decr::Float64 = 2.0
     penalty_threshold::Float64 = 10.0
+    ϵ_cor::Float64 = 1e-2  # safeguarding threshold for AADMM
+    Tf::Int = 2            # AADMM update rate
+end
+
+Base.@kwdef mutable struct ADMMStats
+    iterations::Int = 0
+    ϵ_primal::Float64 = 0.0  # actual primal tolerance
+    ϵ_dual::Float64 = 0.0    # actual dual tolerance
+    αhat::Float64 = 0.0
+    βhat::Float64 = 0.0
+    α_cor::Float64 = 0.0
+    β_cor::Float64 = 0.0
 end
 
 struct BilinearADMM{M}
@@ -48,6 +60,7 @@ struct BilinearADMM{M}
     w_prev::Vector{Float64}
 
     opts::ADMMOptions
+    stats::ADMMStats
 end
 
 boundvector(v::Real, n) = fill(v, n)
@@ -96,9 +109,11 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
         getnzindsB(Bhat, C[i], i)
     end
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
+
     BilinearADMM{M}(
         Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
-        ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, opts
+        ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
+        opts, ADMMStats() 
     )
 end
 
@@ -233,7 +248,7 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
     a = geta(solver, z)
     n = size(Ahat,2) 
 
-    if hasstateconstraints(solver) || true
+    if hasstateconstraints(solver)
         model = OSQP.Model()
         P̂ = solver.Q + ρ * Ahat'Ahat
         q̂ = solver.q + ρ * Ahat'w
@@ -249,7 +264,7 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
     return x
 end
 
-function solvez(solver::BilinearADMM, x, w)
+function solvez(solver::BilinearADMM{M}, x, w) where M
     R = solver.R
     ρ = getpenalty(solver)
     Bhat = updateBhat!(solver, solver.Bhat, x)
@@ -260,11 +275,15 @@ function solvez(solver::BilinearADMM, x, w)
 
     # Solve with OSQP
     m = length(g)
-    model = OSQP.Model()
-    OSQP.setup!(model, P=H, q=vec(g), A=sparse(I,m,m), l=solver.ulo, u=solver.uhi, verbose=0)
-    res = OSQP.solve!(model)
-    z = res.x
-    # z = -(H\g)
+    if M <: AbstractSparseMatrix
+        model = OSQP.Model()
+        OSQP.setup!(model, P=H, q=vec(g), A=sparse(I,m,m), l=solver.ulo, u=solver.uhi, verbose=0)
+        res = OSQP.solve!(model)
+        z = res.x
+    else
+        @assert !hascontrolconstraints(solver) "Control constraints not supported for dense systems."
+        z = -(H\g)
+    end
     return z
 end
 

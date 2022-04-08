@@ -18,7 +18,12 @@ using Main.RandomLinearModels
 
 include("dynamics_tests.jl")
 
+@testset "Random Systems" begin
+    include("randomsystems_test.jl")
+end
+
 @testset "Dubins Example" begin
+    Random.seed!(2)
     include("dubins_test.jl")
 end
 

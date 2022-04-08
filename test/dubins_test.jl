@@ -115,7 +115,7 @@ end
 
 ## Check with constraints
 @testset "Dubins w/ Control Constraints" begin
-ubnd = 0.9
+ubnd = 0.8
 prob = builddubinsproblem(ubnd=ubnd)
 admm = BilinearADMM(prob)
 @test admm.ulo == fill(-ubnd, length(admm.z))
