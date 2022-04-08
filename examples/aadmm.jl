@@ -24,7 +24,7 @@ end
 
 eval_f(prob::ADMMProblem, x) = 0.5 * dot(x, prob.Q, x) + dot(prob.q, x)
 eval_g(prob::ADMMProblem, z) = 0.5 * dot(z, prob.R, z) + dot(prob.r, z)
-eval_c(prob::ADMMProblem, x, z) = prob.A0*x + prob.B0*z + sum(z[i]*prob.C[i]*x for i in eachindex(z)) - prob.b
+eval_c(prob::ADMMProblem, x, z) = prob.A0*x + prob.B0*z + sum(z[i]*prob.C[i]*x for i in eachindex(z)) + prob.b
 
 function auglag(prob::ADMMProblem, x, z, λ, ρ)
     r = prob.b - prob.A*x - prob.B*z + λ / ρ
@@ -33,13 +33,13 @@ end
 
 function solvex(prob::ADMMProblem, x, z, λ, ρ)
     H = prob.Q + ρ * prob.A'prob.A
-    b = prob.q + ρ * prob.A'*(prob.B0*z - prob.b + λ)
+    b = prob.q + ρ * prob.A'*(prob.B0*z + prob.b + λ)
     return -(H\b)
 end
 
 function solvez(prob::ADMMProblem, x, z, λ, ρ)
     H = prob.R + ρ * prob.B'prob.B
-    b = prob.r + ρ * prob.B'*(prob.A0*x - prob.b + λ)
+    b = prob.r + ρ * prob.B'*(prob.A0*x + prob.b + λ)
     return -(H\b)
 end
 
@@ -102,7 +102,7 @@ function solve(prob, x0, z0, λ0, ρ;
 
         r = eval_c(prob, xn, zn) 
         s = ρ * A'B*(zn - z)
-        J = eval_f(prob, x) + eval_g(prob, z)
+        J = eval_f(prob, xn) + eval_g(prob, zn)
         @printf(
             "%8d %10.2g %10.2g %10.2g %10.2g\n", 
             iter, J, norm(r), norm(s), ρ
@@ -119,8 +119,10 @@ function solve(prob, x0, z0, λ0, ρ;
             α, α_cor = calcstep(ΔH, Δλhat)
 
             Δλ = (λn - λ0) * ρ
+            # @show Δλ
             ΔG = B*(zn - z0)
             β, β_cor = calcstep(ΔG, Δλ)
+            @printf("  α = %8g β = %8g\n", α_cor, β_cor)
 
             if α_cor > ϵ_cor && β_cor > ϵ_cor
                 ρ = sqrt(α*β)
@@ -131,7 +133,8 @@ function solve(prob, x0, z0, λ0, ρ;
             end
             x0 .= xn
             z0 .= zn
-            λhat0 .= λn
+            λ0 .= λn
+            λhat0 .= λhat
         end
 
         # Set variables for next iteration
@@ -156,12 +159,25 @@ prob = ADMMProblem(
     [randn(p,n)*1 for i = 1:m],
     randn(p)
 )
-x = randn(n)
-z = randn(m)
-λ = zeros(p)
+x_ = randn(n)
+z_ = randn(m)
+λ_ = zeros(p)
 ρ = 0.1
+
+eval_f(prob, x_)
+eval_g(prob, z_)
+updateA!(prob, z_)
+updateB!(prob, x_)
+xn_ = solvex(prob, x_, z_, λ_, ρ)
+updateB!(prob, xn_)
+zn_ = solvez(prob, xn_, z_, λ_, ρ)
+updateA!(prob, zn_)
+λn_ = dualupdate(prob, xn_, zn_, λ_, ρ)
+eval_f(prob, xn_) + eval_g(prob, zn_)
+
+#
 # solve(prob, x, z, λ, ρ, max_iters=4000, Tf=typemax(Int))
-x,z,λ = solve(prob, x, z, λ, ρ, max_iters=4000, ϵ_cor=0.8, Tf=2)
+x,z,λ = solve(prob, x_, z_, λ_, ρ, max_iters=10, ϵ_cor=0.5, Tf=2)
 
 ##
 ρ = 0.01 

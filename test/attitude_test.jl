@@ -205,6 +205,7 @@ function testattitudeproblem(Nu)
     Us = reshape(Usol, m, :)
     @test all(x->x< 2e-2, mean(diff(Us, dims=2), dims=2))
 end
+testattitudeproblem(Val(2))
 
 function testso3problem(Nu)
     prob = buildso3problem(Nu)

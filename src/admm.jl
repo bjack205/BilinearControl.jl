@@ -274,10 +274,13 @@ function solvex(solver::BilinearADMM, z, w; updateA=true)
         res = OSQP.solve!(model)
         return res.x
     else
-        H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
-        g = [solver.q; a + w]
-        δ = -(H\g)
-        x = δ[1:n]
+        # H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
+        # g = [solver.q; a + w]
+        # δ = -(H\g)
+        # x = δ[1:n]
+        H = solver.Q + ρ*Ahat'Ahat
+        g = solver.q + ρ * Ahat'*(vec(a) + w)
+        x = -(H\g)
     end
     return x
 end
@@ -290,7 +293,7 @@ function solvez(solver::BilinearADMM{M}, x, w) where M
     Bhat = solver.Bhat
     b = getb(solver, x)
     H = R + ρ * Bhat'Bhat
-    g = solver.r + ρ * Bhat'*(b + w)
+    g = solver.r + ρ * Bhat'*(vec(b) + w)
 
     # Solve with OSQP
     m = length(g)
@@ -351,6 +354,18 @@ function get_dual_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solv
     √n*ϵ_abs + ϵ_rel * norm(ρ*Ahat'w)
 end
 
+function calcstep(H, y)
+    α_sd = dot(y, y) / dot(H, y)
+    α_mg = dot(H, y) / dot(H, H)
+    if 2α_mg > α_sd
+        α =  α_mg
+    else
+        α =  α_sd - α_mg / 2
+    end
+    α_cor = dot(H, y) / (norm(H) * norm(y))
+    return α, α_cor
+end
+
 function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
         max_iters=100,
         verbose::Bool=false
@@ -363,8 +378,10 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     w .= w0
 
     x0 = copy(x0)
-    z0 = copy(x0)
+    z0 = copy(z0)
     w0 = copy(w0)
+    ŵ0 = copy(w0)
+    ϵ_cor = solver.opts.ϵ_cor
 
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= z 
@@ -394,6 +411,33 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         end
 
         penaltyupdate!(solver, r, s)
+
+        if solver.opts.penalty_update == :aadmm && iter % solver.opts.Tf == 0
+            ŵ = w + eval_c(solver, xn, z) 
+            Δŷ = (ŵ - ŵ0) * ρ
+            ΔH = solver.Ahat*(xn - x0)
+            α, α_cor = calcstep(ΔH, Δŷ)
+
+            Δy = (wn - w0) * ρ
+            # @show Δy
+            ΔG = solver.Bhat*(zn - z0)
+            β, β_cor = calcstep(ΔG, Δy)
+
+            if α_cor > ϵ_cor && β_cor > ϵ_cor
+                ρ = sqrt(α*β)
+            elseif α_cor > ϵ_cor && β_cor <= ϵ_cor
+                ρ = α
+            elseif α_cor <= ϵ_cor && β_cor > ϵ_cor
+                ρ = β
+            else
+                # println("Not Updating penalty!")
+            end
+            setpenalty!(solver, ρ)
+            x0 .= xn
+            z0 .= zn
+            w0 .= wn
+            ŵ0 .= ŵ
+        end
 
         # Set variables for next iteration
         x .= xn

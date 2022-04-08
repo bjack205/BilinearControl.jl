@@ -10,7 +10,7 @@ Random.seed!(1)
 function gendense()
     n,m = 10,5
     A,B = RandomLinearModels.gencontrollable(n, m)
-    C = [randn(n,n) for k = 1:m]
+    C = [randn(n,n)*0 for k = 1:m]
     d = randn(n,1)
     return A,B,C,d
 end
@@ -24,7 +24,7 @@ function gensparse()
     return A,B,C,d
 end
 
-function testadmmsolve(genmats)
+function testadmmsolve(genmats; penaltyupdate=:threshold)
     
     # Constraint
     A,B,C,d = genmats()
@@ -51,7 +51,13 @@ function testadmmsolve(genmats)
     
     BilinearControl.setpenalty!(solver, 10000.)
     solver.opts.penalty_threshold = 1e3
+    solver.opts.penalty_update = penaltyupdate
     x,z,w = BilinearControl.solve(solver, x0, z0, max_iters=2000)
+
+    # Check that the output is cached in the solver
+    @test x === solver.x
+    @test z === solver.z
+    @test w === solver.w
     
     # Test optimality conditions
     perr = norm(A*x + B*z + sum(z[i] * C[i] * x for i = 1:m) + d, Inf)
