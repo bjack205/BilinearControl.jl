@@ -112,7 +112,6 @@ Us = reshape(Usol, m, :)
 
 global umax0 = norm(Us,Inf)
 end
-umax0
 
 ## Check with constraints
 @testset "Dubins w/ Control Constraints" begin
@@ -155,6 +154,7 @@ umax = norm(Us,Inf)
 end
 
 @testset "Dubins (parallel park)" begin
+Random.seed!(1)
 ubnd = 1.15
 prob = builddubinsproblem(scenario=:parallelpark, ubnd=ubnd)
 rollout!(prob)
@@ -166,7 +166,7 @@ U = extractcontrolvec(prob)
 admm.opts.ϵ_abs_primal = 1e-4
 admm.opts.penalty_threshold = 1e2
 BilinearControl.setpenalty!(admm, 1e2)
-Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=200)
+Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=400)
 v,ω = collect(eachrow(reshape(Usol, m, :)))
 xtraj = reshape(Xsol,n,:)[1,:]
 ytraj = reshape(Xsol,n,:)[2,:]
