@@ -33,18 +33,18 @@ end
 
 function solvex(prob::ADMMProblem, x, z, λ, ρ)
     H = prob.Q + ρ * prob.A'prob.A
-    b = prob.q + ρ * prob.A'*(prob.B0*z - prob.b + λ/ρ)
+    b = prob.q + ρ * prob.A'*(prob.B0*z - prob.b + λ)
     return -(H\b)
 end
 
 function solvez(prob::ADMMProblem, x, z, λ, ρ)
     H = prob.R + ρ * prob.B'prob.B
-    b = prob.r + ρ * prob.B'*(prob.A0*x - prob.b + λ/ρ)
+    b = prob.r + ρ * prob.B'*(prob.A0*x - prob.b + λ)
     return -(H\b)
 end
 
 function dualupdate(prob::ADMMProblem, x, z, λ, ρ)
-    λ + ρ * eval_c(prob, x, z) 
+    λ + eval_c(prob, x, z) 
 end
 
 function updateA!(prob::ADMMProblem, z)
@@ -113,12 +113,12 @@ function solve(prob, x0, z0, λ0, ρ;
 
         # Penalty update
         if iter % Tf == 0
-            λhat = λ + ρ * eval_c(prob, xn, z) 
-            Δλhat = λhat - λhat0
+            λhat = λ + eval_c(prob, xn, z) 
+            Δλhat = (λhat - λhat0) * ρ
             ΔH = A*(xn - x0)
             α, α_cor = calcstep(ΔH, Δλhat)
 
-            Δλ = λn - λ0
+            Δλ = (λn - λ0) * ρ
             ΔG = B*(zn - z0)
             β, β_cor = calcstep(ΔG, Δλ)
 
@@ -144,7 +144,7 @@ end
 
 
 ##
-Random.seed!(2)
+Random.seed!(1)
 n,m,p = 10,5,5
 prob = ADMMProblem(
     Diagonal(fill(1.0, n)), 
@@ -159,6 +159,18 @@ prob = ADMMProblem(
 x = randn(n)
 z = randn(m)
 λ = zeros(p)
-ρ = 1.0
+ρ = 0.1
 # solve(prob, x, z, λ, ρ, max_iters=4000, Tf=typemax(Int))
-solve(prob, x, z, λ, ρ, max_iters=4000, ϵ_cor=0.2, Tf=5)
+x,z,λ = solve(prob, x, z, λ, ρ, max_iters=4000, ϵ_cor=0.8, Tf=2)
+
+##
+ρ = 0.01 
+solve(prob, x, z, λ, ρ, max_iters=4000, ϵ_cor=0.3, Tf=6)
+
+# Seed 1:
+# Linear
+# - 28 iterations
+# - 16 iterations
+# Bilinear:
+# - 1982 iterations
+# - 44 iterations
