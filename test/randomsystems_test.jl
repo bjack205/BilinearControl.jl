@@ -52,7 +52,7 @@ function testadmmsolve(genmats; penaltyupdate=:threshold)
     BilinearControl.setpenalty!(solver, 10000.)
     solver.opts.penalty_threshold = 1e3
     solver.opts.penalty_update = penaltyupdate
-    x,z,w = BilinearControl.solve(solver, x0, z0, max_iters=2000)
+    x,z,w = BilinearControl.solve(solver, x0, z0, max_iters=200)
 
     # Check that the output is cached in the solver
     @test x === solver.x
@@ -116,6 +116,8 @@ end
     Random.seed!(1)
     testadmmsolve(gendense)
 end
+Random.seed!(1)
+testadmmsolve(gendense, penaltyupdate=:brian)
 
 @testset "Sparse Solve test" begin
     Random.seed!(1)

@@ -387,7 +387,10 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     solver.z_prev .= z 
     tstart = time_ns()
     updateBhat!(solver, solver.Bhat, x)
+    r_prev = Inf
+    s_prev = Inf
     s = NaN
+    hashitprimalfeasibility = false
     for iter = 1:max_iters
         updateAhat!(solver, solver.Ahat, z)
         xn .= solvex(solver, z, w)                 # Bhat out of sync
@@ -396,21 +399,36 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         updateAhat!(solver, solver.Ahat, zn)
         wn .= updatew(solver, xn, zn, w)
 
-        r = primal_residual(solver, xn, zn)
-        s = dual_residual(solver, xn, zn, updatemats=false)
+        r = norm(primal_residual(solver, xn, zn))
+        s = norm(dual_residual(solver, xn, zn, updatemats=false))
         J = eval_f(solver, xn) + eval_g(solver, zn) + solver.c
         dz = norm(zn - z)
         ϵ_primal = get_primal_tolerance(solver, xn, zn, wn)
         ϵ_dual = get_dual_tolerance(solver, xn, zn, wn)
         ρ = getpenalty(solver)
         @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", 
-            iter, J, norm(r), norm(s), ρ, norm(dz)
+            iter, J, r, s, ρ, norm(dz)
         )
-        if norm(r) < ϵ_primal && norm(s) < ϵ_dual
+        if r < ϵ_primal && s < ϵ_dual
             break
         end
 
         penaltyupdate!(solver, r, s)
+
+        if solver.opts.penalty_update == :brian
+            if !hashitprimalfeasibility && r < ϵ_primal^2
+                hashitprimalfeasibility = true
+                println("Hit primal feasibility")
+            end
+            if hashitprimalfeasibility
+                if r < ϵ_primal
+                    ρ /= 2
+                end
+            elseif ρ < 1e8 / 2
+                ρ *= 2 
+            end
+            setpenalty!(solver, ρ)
+        end
 
         if solver.opts.penalty_update == :aadmm && iter % solver.opts.Tf == 0
             ŵ = w + eval_c(solver, xn, z) 
@@ -443,6 +461,9 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         x .= xn
         z .= zn
         w .= wn
+
+        r_prev = r
+        s_prev = s
     end
     tsolve = (time_ns() - tstart) / 1e9
     println("Solve took $tsolve seconds.")
