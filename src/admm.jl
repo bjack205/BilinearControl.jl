@@ -263,15 +263,15 @@ function solvex(solver::BilinearADMM, z, w)
     iters = solver.stats.x_solve_iters
     local x
     # Primal methods
+    if hasstateconstraints(solver) && method != :osqp
+        @warn "Can't use $method method with state constraints.\n" * 
+                "Switching to using OSQP."
+        solver.opts.x_solver = :osqp
+        method = :osqp
+    end
     if method == :cholesky || method == :osqp || method == :cg
         P̂ = solver.Q + ρ * Ahat'Ahat
         q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
-        if hascontrolconstraints(solver) && method != :osqp
-            @warn "Can't use $method method with state constraints.\n" * 
-                  "Switching to using OSQP."
-            solver.x_solver = :osqp
-            method = :osqp
-        end
 
         if method == :cholesky
             F = cholesky(Symmetric(P̂))
@@ -414,7 +414,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
 
     reset!(solver.stats)
 
-    @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
+    verbose && @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= z 
     tstart = time_ns()
     updateAhat!(solver, solver.Ahat, z)
@@ -433,7 +433,7 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
             s = NaN
         end
         ρ = getpenalty(solver)
-        @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
+        verbose && @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
         if norm(r) < ϵ_primal && norm(s) < ϵ_dual
             break
         end
@@ -447,6 +447,6 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
 
     end
     tsolve = (time_ns() - tstart) / 1e9
-    println("Solve took $tsolve seconds.")
+    verbose && println("Solve took $tsolve seconds.")
     return x,z,w
 end

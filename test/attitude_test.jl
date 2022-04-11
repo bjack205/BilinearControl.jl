@@ -206,7 +206,7 @@ function testattitudeproblem(Nu)
     @test all(x->x< 2e-2, mean(diff(Us, dims=2), dims=2))
 end
 
-function testso3problem(Nu)
+function testso3problem(Nu; x_solver=:ldl, z_solver=:cholesky)
     prob = buildso3problem(Nu)
     rollout!(prob)
     admm = BilinearADMM(prob)
@@ -216,6 +216,8 @@ function testso3problem(Nu)
     admm.opts.ϵ_rel_primal = 1e-5
     admm.opts.ϵ_abs_dual = 1e-4
     admm.opts.ϵ_rel_dual = 1e-4
+    admm.opts.x_solver = x_solver
+    admm.opts.z_solver = z_solver
     Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=50)
 
     n,m = RD.dims(prob.model[1])
@@ -234,7 +236,7 @@ function testso3problem(Nu)
     # Check that the control signals are smooth 
     Us = reshape(Usol, m, :)
     @test all(x->x< 2e-2, mean(diff(Us, dims=2), dims=2))
-    Xsol, Usol
+    Xsol, Usol, admm
 end
 
 
@@ -242,7 +244,33 @@ end
     testattitudeproblem(Val(Nu))
 end
 
-@testset "SO(3) with $Nu controls" for Nu in (3,2)
-    testso3problem(Val(Nu))
+@testset "SO(3) with $Nu controls" for Nu in (2,)
+    Xsol, Usol, admm = testso3problem(Val(Nu))
+    if Nu == 2
+        @testset "Cholesky" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:cholesky, z_solver=:cholesky)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+        @testset "OSQP" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:osqp, z_solver=:osqp)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+        @testset "CG" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:cg, z_solver=:cg)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+        @testset "MINRES/CG" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:minres, z_solver=:cg)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+    end
 end
 

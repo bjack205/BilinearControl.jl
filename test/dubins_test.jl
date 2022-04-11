@@ -121,6 +121,7 @@ admm = BilinearADMM(prob)
 @test admm.ulo == fill(-ubnd, length(admm.z))
 @test admm.uhi == fill(+ubnd, length(admm.z))
 admm.opts.penalty_threshold = 1e2
+admm.opts.z_solver = :osqp
 BilinearControl.setpenalty!(admm, 1e3)
 X = extractstatevec(prob)
 U = extractcontrolvec(prob)
@@ -168,7 +169,18 @@ admm.opts.ϵ_rel_primal = 1e-5
 admm.opts.ϵ_abs_dual = 1e-3
 admm.opts.ϵ_rel_dual = 1e-3
 admm.opts.penalty_threshold = Inf 
+admm.opts.x_solver = :ldl
+admm.opts.z_solver = :cholesky
 BilinearControl.setpenalty!(admm, 1e3)
+
+# Test the constrained solver warnings
+Y = admm.w
+@test_logs (:warn, r"Can't use ldl") BilinearControl.solvex(admm, U, Y)
+admm.opts.x_solver = :osqp
+@test_logs (:warn, r"Cannot solve with control bounds") BilinearControl.solvez(admm, X, Y)
+admm.opts.z_solver = :osqp
+
+# Solve problem w/ OSQP
 Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=400)
 v,ω = collect(eachrow(reshape(Usol, m, :)))
 xtraj = reshape(Xsol,n,:)[1,:]
