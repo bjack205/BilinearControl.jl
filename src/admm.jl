@@ -9,6 +9,8 @@ Base.@kwdef mutable struct ADMMOptions
     τ_incr::Float64 = 2.0
     τ_decr::Float64 = 2.0
     penalty_threshold::Float64 = 10.0
+    x_solver::Symbol = :ldl
+    z_solver::Symbol = :cholesky
 end
 
 struct BilinearADMM{M}
@@ -224,47 +226,89 @@ end
 #     ρ*Ahat'Bhat*(z - solver.z_prev)
 # end
 
-function solvex(solver::BilinearADMM, z, w; updateA=true)
+function solvex(solver::BilinearADMM, z, w)
     ρ = getpenalty(solver)
     p = length(w)
     Ahat = solver.Ahat
-    updateA && updateAhat!(solver, solver.Ahat, z)
+    # updateA && updateAhat!(solver, solver.Ahat, z)
     # Ahat = getAhat(solver, z)
     a = geta(solver, z)
     n = size(Ahat,2) 
 
-    if hasstateconstraints(solver) || true
-        model = OSQP.Model()
+    method = solver.opts.x_solver
+    local x
+    # Primal methods
+    if method == :cholesky || method == :osqp || method == :cg
         P̂ = solver.Q + ρ * Ahat'Ahat
-        q̂ = solver.q + ρ * Ahat'w
-        OSQP.setup!(model, P=P̂, q=q̂, A=sparse(I,n,n), l=solver.xlo, u=solver.xhi, verbose=false)
-        res = OSQP.solve!(model)
-        return res.x
+        q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
+        if hascontrolconstraints(solver) && method != :osqp
+            @warn "Can't use $method method with state constraints.\n" * 
+                  "Switching to using OSQP."
+            solver.x_solver = :osqp
+            method = :osqp
+        end
+
+        if method == :cholesky
+            F = cholesky(Symmetric(P̂))
+            x = F\(-q̂)
+        elseif method == :cg
+            x = IterativeSolvers.cg!(solver.x, P̂, -q̂)
+        elseif method == :osqp
+            model = OSQP.Model()
+            P̂ = solver.Q + ρ * Ahat'Ahat
+            q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
+            OSQP.setup!(model, P=P̂, q=q̂, A=sparse(I,n,n), l=solver.xlo, u=solver.xhi, verbose=false)
+            res = OSQP.solve!(model)
+            x = res.x
+        end
+    # Primal-dual methods
     else
         H = [solver.Q Ahat'; Ahat -I(p)*inv(ρ)]
         g = [solver.q; a + w]
-        δ = -(H\g)
+
+        # TODO: add option to use QDLDL
+        if method == :ldl
+            δ = -(H\g)
+        elseif method == :minres
+            δ = IterativeSolvers.minres(H, -g)
+        end
         x = δ[1:n]
     end
+
     return x
 end
 
 function solvez(solver::BilinearADMM, x, w)
     R = solver.R
     ρ = getpenalty(solver)
-    Bhat = updateBhat!(solver, solver.Bhat, x)
+    # Bhat = updateBhat!(solver, solver.Bhat, x)
     # Bhat = getBhat(solver, x)
+    Bhat = solver.Bhat
     b = getb(solver, x)
     H = R + ρ * Bhat'Bhat
     g = solver.r + ρ * Bhat'*(b + w)
 
-    # Solve with OSQP
-    m = length(g)
-    model = OSQP.Model()
-    OSQP.setup!(model, P=H, q=vec(g), A=sparse(I,m,m), l=solver.ulo, u=solver.uhi, verbose=0)
-    res = OSQP.solve!(model)
-    z = res.x
-    # z = -(H\g)
+    method = solver.opts.z_solver
+    if hascontrolconstraints(solver) && method != :osqp
+        @warn "Cannot solve with control bounds with $method method.\n" * 
+              "Switching to OSQP."
+        solver.opts.z_solver = :osqp
+        method = :osqp
+    end
+    local z
+    if method == :cholesky
+        F = cholesky(H)
+        z = F \ (-g)
+    elseif method == :cg
+        z = IterativeSolvers.cg!(solver.z, H, -g)
+    elseif method == :osqp
+        # Solve with OSQP
+        m = length(g)
+        model = OSQP.Model()
+        OSQP.setup!(model, P=H, q=vec(g), A=sparse(I,m,m), l=solver.ulo, u=solver.uhi, verbose=0)
+        res = OSQP.solve!(model)
+        z = res.x
+    end
     return z
 end
 
@@ -317,12 +361,16 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     x .= x0
     z .= z0
     w .= w0
+    solver.x_prev .= x
+    solver.z_prev .= z
+    solver.w_prev .= w
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= z 
     tstart = time_ns()
+    updateAhat!(solver, solver.Ahat, z)
     updateBhat!(solver, solver.Bhat, x)
     for iter = 1:max_iters
-        updateAhat!(solver, solver.Ahat, z)  # updates Ahat
+        # updateAhat!(solver, solver.Ahat, z)  # updates Ahat
         r = primal_residual(solver, x, z)
         s = dual_residual(solver, x, z, updatemats=false)
         J = eval_f(solver, x) + eval_g(solver, z) + solver.c
@@ -341,8 +389,10 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         end
         solver.z_prev .= z
 
-        x .= solvex(solver, z, w, updateA=false)  # Bhat out of sync
-        z .= solvez(solver, x, w)                 # Bhat updated, Ahat out of sync
+        x .= solvex(solver, z, w)
+        updateBhat!(solver, solver.Bhat, x)
+        z .= solvez(solver, x, w)
+        updateAhat!(solver, solver.Ahat, z)
         w .= updatew(solver, x, z, w)
 
     end
