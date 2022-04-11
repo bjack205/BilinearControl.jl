@@ -2,9 +2,11 @@ using TrajectoryOptimization
 using LinearAlgebra
 using RobotZoo
 using StaticArrays
+using Rotations
 
 model_dir = joinpath(@__DIR__, "..", "test", "models")
 include(joinpath(model_dir, "dubins_model.jl"))
+include(joinpath(model_dir, "se3_models.jl"))
 
 function builddubinsproblem(model=RobotZoo.DubinsCar(); 
         scenario=:turn90, N=101, ubnd=1.5
@@ -61,4 +63,39 @@ function builddubinsproblem(model=RobotZoo.DubinsCar();
     rollout!(prob)
 
     return prob
+end
+
+function buildse3problem()
+    # Model
+    model = SE3Kinematics()
+    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+
+    # Discretization
+    tf = 3.0
+    N = 301
+
+    # Dimensions
+    nx = RD.state_dim(model)
+    nu = RD.control_dim(model)
+
+    # Initial and final conditions
+    x0 = [zeros(3); vec(I(3))]
+    xf = [5; 0; 1; vec(RotZ(deg2rad(90)) * RotX(deg2rad(90)))]
+
+    # Objective
+    Q = Diagonal([fill(1e-1, 3); fill(1e-2, 9)])
+    R = Diagonal([fill(1e-2, 3); fill(1e-2, 3)])
+    Qf = Q*10
+    obj = LQRObjective(Q,R,Qf,xf,N)
+
+    # Goal state
+    cons = ConstraintList(nx, nu, N)
+    goalcon = GoalConstraint(xf)
+    add_constraint!(cons, goalcon, N)
+
+    # Initial Guess
+    U0 = [fill(0.1,nu) for k = 1:N-1] 
+
+    # Build the problem
+    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
 end

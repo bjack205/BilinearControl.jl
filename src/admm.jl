@@ -11,6 +11,26 @@ Base.@kwdef mutable struct ADMMOptions
     penalty_threshold::Float64 = 10.0
     x_solver::Symbol = :ldl
     z_solver::Symbol = :cholesky
+    calc_x_residual::Bool = false
+    calc_z_residual::Bool = false
+end
+
+Base.@kwdef mutable struct ADMMStats
+    iterations::Int = 0
+    cost::Vector{Float64} = sizehint!(Float64[], 1000)
+    x_solve_residual::Vector{Float64} = sizehint!(Float64[], 1000)
+    z_solve_residual::Vector{Float64} = sizehint!(Float64[], 1000)
+    x_solve_iters::Vector{Int} = sizehint!(Int[], 1000)
+    z_solve_iters::Vector{Int} = sizehint!(Int[], 1000)
+end
+
+function reset!(stats::ADMMStats)
+    empty!(stats.cost)
+    empty!(stats.x_solve_residual)
+    empty!(stats.z_solve_residual)
+    empty!(stats.x_solve_iters)
+    empty!(stats.z_solve_iters)
+    stats
 end
 
 struct BilinearADMM{M}
@@ -50,6 +70,7 @@ struct BilinearADMM{M}
     w_prev::Vector{Float64}
 
     opts::ADMMOptions
+    stats::ADMMStats
 end
 
 boundvector(v::Real, n) = fill(v, n)
@@ -100,7 +121,8 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
     BilinearADMM{M}(
         Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
-        ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, opts
+        ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
+        opts, ADMMStats()
     )
 end
 
@@ -236,6 +258,9 @@ function solvex(solver::BilinearADMM, z, w)
     n = size(Ahat,2) 
 
     method = solver.opts.x_solver
+    docalcres = solver.opts.calc_x_residual
+    res = solver.stats.x_solve_residual
+    iters = solver.stats.x_solve_iters
     local x
     # Primal methods
     if method == :cholesky || method == :osqp || method == :cg
@@ -251,15 +276,23 @@ function solvex(solver::BilinearADMM, z, w)
         if method == :cholesky
             F = cholesky(Symmetric(P̂))
             x = F\(-q̂)
+            docalcres && push!(res, norm(P̂*x + q̂))
+            push!(iters, 1)
         elseif method == :cg
-            x = IterativeSolvers.cg!(solver.x, P̂, -q̂)
+            # x,ch = IterativeSolvers.cg!(solver.x, P̂, -q̂, log=true)
+            x,ch = IterativeSolvers.cg(P̂, -q̂, log=true)
+            push!(iters, IterativeSolvers.niters(ch))
+            push!(res, ch[:resnorm][end])
         elseif method == :osqp
             model = OSQP.Model()
             P̂ = solver.Q + ρ * Ahat'Ahat
             q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
             OSQP.setup!(model, P=P̂, q=q̂, A=sparse(I,n,n), l=solver.xlo, u=solver.xhi, verbose=false)
-            res = OSQP.solve!(model)
-            x = res.x
+            OSQP.warm_start_x!(model, solver.x)
+            res_osqp = OSQP.solve!(model)
+            x = res_osqp.x
+            docalcres && push!(res, norm(P̂*x + q̂))
+            push!(iters, res_osqp.info.iter)
         end
     # Primal-dual methods
     else
@@ -269,8 +302,12 @@ function solvex(solver::BilinearADMM, z, w)
         # TODO: add option to use QDLDL
         if method == :ldl
             δ = -(H\g)
+            docalcres && push!(res, norm(H*δ + g))
+            push!(iters, 1)
         elseif method == :minres
-            δ = IterativeSolvers.minres(H, -g)
+            δ,ch = IterativeSolvers.minres(H, -g, log=true)
+            push!(solver.stats.x_solve_iters, IterativeSolvers.niters(ch))
+            push!(res, ch[:resnorm][end])
         end
         x = δ[1:n]
     end
@@ -289,6 +326,9 @@ function solvez(solver::BilinearADMM, x, w)
     g = solver.r + ρ * Bhat'*(b + w)
 
     method = solver.opts.z_solver
+    docalcres = solver.opts.calc_z_residual
+    res = solver.stats.z_solve_residual
+    iters = solver.stats.z_solve_iters
     if hascontrolconstraints(solver) && method != :osqp
         @warn "Cannot solve with control bounds with $method method.\n" * 
               "Switching to OSQP."
@@ -297,17 +337,24 @@ function solvez(solver::BilinearADMM, x, w)
     end
     local z
     if method == :cholesky
-        F = cholesky(H)
+        F = cholesky(Symmetric(H))
         z = F \ (-g)
+        docalcres && push!(res, norm(H*z + g))
+        push!(iters, 1)
     elseif method == :cg
-        z = IterativeSolvers.cg!(solver.z, H, -g)
+        z,ch = IterativeSolvers.cg!(solver.z, H, -g, log=true)
+        push!(iters, IterativeSolvers.niters(ch))
+        push!(res, ch[:resnorm][end])
     elseif method == :osqp
         # Solve with OSQP
         m = length(g)
         model = OSQP.Model()
         OSQP.setup!(model, P=H, q=vec(g), A=sparse(I,m,m), l=solver.ulo, u=solver.uhi, verbose=0)
-        res = OSQP.solve!(model)
-        z = res.x
+        OSQP.warm_start_x!(model, solver.z)
+        res_osqp = OSQP.solve!(model)
+        z = res_osqp.x
+        docalcres && push!(res, norm(H*z + g))
+        push!(iters, res_osqp.info.iter)
     end
     return z
 end
@@ -364,6 +411,9 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     solver.x_prev .= x
     solver.z_prev .= z
     solver.w_prev .= w
+
+    reset!(solver.stats)
+
     @printf("%8s %10s %10s %10s, %10s %10s\n", "iter", "cost", "||r||", "||s||", "ρ", "dz")
     solver.z_prev .= z 
     tstart = time_ns()

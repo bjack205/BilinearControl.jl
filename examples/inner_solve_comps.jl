@@ -17,7 +17,9 @@ include("problems.jl")
 
 ## Build Solver
 ubnd = Inf
-prob = builddubinsproblem(BilinearDubins(), scenario=:turn90, ubnd=ubnd)
+# prob = builddubinsproblem(BilinearDubins(), scenario=:turn90, ubnd=ubnd)
+prob = buildse3problem()
+rollout!(prob)
 admm = BilinearADMM(prob)
 
 ## Solve with different methods
@@ -25,18 +27,29 @@ X = extractstatevec(prob)
 U = extractcontrolvec(prob)
 norm(X)
 norm(U)
+# admm.opts.x_solver = :cholesky
 admm.opts.x_solver = :cholesky
-admm.opts.z_solver = :cg
+admm.opts.z_solver = :cholesky
+admm.opts.calc_x_residual = true
+admm.opts.calc_z_residual = true
 BilinearControl.setpenalty!(admm, 1e2)
 # admm.Ahat .= 0
 # admm.Bhat .= 0
+
 Xsol, Usol = BilinearControl.solve(admm, X, U)
+admm.stats.x_solve_iters
+admm.stats.x_solve_residual
+admm.stats.z_solve_iters
+admm.stats.z_solve_residual
 
 ## Solve for states 
 using OSQP
 using IterativeSolvers
 Ahat = admm.Ahat
 Bhat = admm.Bhat
+X = extractstatevec(prob)
+U = extractcontrolvec(prob)
+Y = admm.w
 a = BilinearControl.geta(admm, U)
 b = BilinearControl.getb(admm, X)
 BilinearControl.updateAhat!(admm, Ahat, U)
@@ -63,6 +76,7 @@ x_osqp = osqp_res.x
 
 # CG
 x_cg,ch = cg(Hp, -gp, log=true, abstol=1e-6)
+ch
 
 # MINRES
 z_minres,ch = minres(Hd, -gd, log=true)
