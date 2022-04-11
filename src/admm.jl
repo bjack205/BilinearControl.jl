@@ -404,13 +404,12 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         max_iters=100,
         verbose::Bool=false
     )
-    x, z, w = solver.x, solver.z, solver.w
+
+    xn, zn, wn = solver.x, solver.z, solver.w
+    x, z, w = solver.x_prev, solver.z_prev, solver.w_prev
     x .= x0
     z .= z0
     w .= w0
-    solver.x_prev .= x
-    solver.z_prev .= z
-    solver.w_prev .= w
 
     reset!(solver.stats)
 
@@ -420,13 +419,19 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
     updateAhat!(solver, solver.Ahat, z)
     updateBhat!(solver, solver.Bhat, x)
     for iter = 1:max_iters
+        xn .= solvex(solver, z, w)
+        updateBhat!(solver, solver.Bhat, xn)
+        zn .= solvez(solver, xn, w)
+        updateAhat!(solver, solver.Ahat, zn)
+        wn .= updatew(solver, xn, zn, w)
+
         # updateAhat!(solver, solver.Ahat, z)  # updates Ahat
-        r = primal_residual(solver, x, z)
-        s = dual_residual(solver, x, z, updatemats=false)
-        J = eval_f(solver, x) + eval_g(solver, z) + solver.c
-        dz = norm(z - solver.z_prev)
-        ϵ_primal = get_primal_tolerance(solver, x, z, w)
-        ϵ_dual = get_dual_tolerance(solver, x, z, w)
+        r = primal_residual(solver, xn, zn)
+        s = dual_residual(solver, xn, zn, updatemats=false)
+        J = eval_f(solver, xn) + eval_g(solver, zn) + solver.c
+        dz = norm(zn - z)
+        ϵ_primal = get_primal_tolerance(solver, xn, zn, wn)
+        ϵ_dual = get_dual_tolerance(solver, xn, zn, wn)
         if iter > 1
             penaltyupdate!(solver, r, s)
         else
@@ -439,11 +444,10 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         end
         solver.z_prev .= z
 
-        x .= solvex(solver, z, w)
-        updateBhat!(solver, solver.Bhat, x)
-        z .= solvez(solver, x, w)
-        updateAhat!(solver, solver.Ahat, z)
-        w .= updatew(solver, x, z, w)
+        # Set variables for next iteration
+        x .= xn
+        z .= zn
+        w .= wn
 
     end
     tsolve = (time_ns() - tstart) / 1e9
