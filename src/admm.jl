@@ -18,6 +18,8 @@ end
 Base.@kwdef mutable struct ADMMStats
     iterations::Int = 0
     cost::Vector{Float64} = sizehint!(Float64[], 1000)
+    primal_residual::Vector{Float64} = sizehint!(Float64[], 1000)
+    dual_residual::Vector{Float64} = sizehint!(Float64[], 1000)
     x_solve_residual::Vector{Float64} = sizehint!(Float64[], 1000)
     z_solve_residual::Vector{Float64} = sizehint!(Float64[], 1000)
     x_solve_iters::Vector{Int} = sizehint!(Int[], 1000)
@@ -33,7 +35,7 @@ function reset!(stats::ADMMStats)
     stats
 end
 
-struct BilinearADMM{M}
+struct BilinearADMM{M,A}
     # Objective
     Q::Diagonal{Float64, Vector{Float64}}
     q::Vector{Float64}
@@ -69,6 +71,10 @@ struct BilinearADMM{M}
     z_prev::Vector{Float64}
     w_prev::Vector{Float64}
 
+    # Acceleration
+    aa::A
+    zw::Vector{Vector{Float64}}  # storage for acceleration
+
     opts::ADMMOptions
     stats::ADMMStats
 end
@@ -82,7 +88,8 @@ end
 function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, 
         xmin=-Inf, xmax=Inf,
         umin=-Inf, umax=Inf,
-    )
+        acceleration::AA = COSMOAccelerators.EmptyAccelerator()
+    ) where {AA<:COSMOAccelerators.AbstractAccelerator}
     n = size(A,2)
     m = size(B,2)
     p = length(d)
@@ -119,9 +126,14 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
         getnzindsB(Bhat, C[i], i)
     end
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
-    BilinearADMM{M}(
+
+    # Acceleration
+    zw = [zeros(m+p) for _ = 1:2]
+
+    BilinearADMM{M,AA}(
         Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
         ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
+        acceleration, zw,
         opts, ADMMStats()
     )
 end
@@ -400,16 +412,19 @@ function get_dual_tolerance(solver::BilinearADMM, x=solver.x, z=solver.z, w=solv
     √n*ϵ_abs + ϵ_rel * norm(ρ*Ahat'w)
 end
 
-function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
+function solve(solver::BilinearADMM{<:Any,AA}, x0=solver.x, z0=solver.z, w0=zero(solver.w); 
         max_iters=100,
         verbose::Bool=false
-    )
+    ) where AA
 
     xn, zn, wn = solver.x, solver.z, solver.w
     x, z, w = solver.x_prev, solver.z_prev, solver.w_prev
     x .= x0
     z .= z0
     w .= w0
+    n = length(x)
+    m = length(z)
+    p = length(w)
 
     reset!(solver.stats)
 
@@ -426,8 +441,8 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
         wn .= updatew(solver, xn, zn, w)
 
         # updateAhat!(solver, solver.Ahat, z)  # updates Ahat
-        r = primal_residual(solver, xn, zn)
-        s = dual_residual(solver, xn, zn, updatemats=false)
+        r = norm(primal_residual(solver, xn, zn))
+        s = norm(dual_residual(solver, xn, zn, updatemats=false))
         J = eval_f(solver, xn) + eval_g(solver, zn) + solver.c
         dz = norm(zn - z)
         ϵ_primal = get_primal_tolerance(solver, xn, zn, wn)
@@ -438,18 +453,34 @@ function solve(solver::BilinearADMM, x0=solver.x, z0=solver.z, w0=zero(solver.w)
             s = NaN
         end
         ρ = getpenalty(solver)
-        verbose && @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, norm(r), norm(s), ρ, norm(dz))
-        if norm(r) < ϵ_primal && norm(s) < ϵ_dual
+
+        # Record stats
+        push!(solver.stats.cost, J)
+        push!(solver.stats.primal_residual, r)
+        push!(solver.stats.dual_residual, s)
+
+        verbose && @printf("%8d %10.2g %10.2g %10.2g %10.2g %10.2g\n", iter, J, r, s, ρ, norm(dz))
+        if r < ϵ_primal && s < ϵ_dual
             break
         end
         solver.z_prev .= z
+
+        # Acceleration
+        solver.zw[1] .= [zn; wn]
+        COSMOAccelerators.update!(solver.aa, solver.zw[1], solver.zw[2], iter)
+        COSMOAccelerators.accelerate!(solver.zw[1], solver.zw[2], solver.aa, iter)
+        # TODO: add safeguarding on acceleration
+        zn .= solver.zw[1][1:m]
+        wn .= solver.zw[1][m+1:end]
 
         # Set variables for next iteration
         x .= xn
         z .= zn
         w .= wn
+        solver.zw[2] .= solver.zw[1]
 
     end
+    solver.stats.iterations = length(solver.stats.cost)
     tsolve = (time_ns() - tstart) / 1e9
     verbose && println("Solve took $tsolve seconds.")
     return x,z,w

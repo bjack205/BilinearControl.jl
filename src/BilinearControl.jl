@@ -10,6 +10,7 @@ using OSQP
 import IterativeSolvers 
 import RobotDynamics as RD
 import TrajectoryOptimization as TO
+import COSMOAccelerators
 
 import TrajectoryOptimization: state_dim, control_dim
 
