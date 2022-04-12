@@ -4,8 +4,7 @@ using BilinearControl
 using COSMOAccelerators
 import RobotDynamics as RD
 import TrajectoryOptimization as TO
-BilinearControl.loadexamples()
-import BilinearControl.Problems
+using BilinearControl.Problems
 include("visualization/visualization.jl")
 
 ## Initialize Visualization
@@ -28,8 +27,10 @@ BilinearControl.setpenalty!(admm, 1e4)
 Xsol, Usol, Ysol = BilinearControl.solve(admm, X, U, verbose=true)
 
 ## Solve with bound constraints
+#    Uses previous solution as the initial guess
 prob = Problems.SO3Problem(Val(2), Rf=RotZ(deg2rad(180)), ubnd=1.5)
 admm = BilinearADMM(prob, acceleration=aa)
+admm.w
 admm.opts.penalty_threshold = 1e4
 admm.opts.z_solver = :osqp
 BilinearControl.setpenalty!(admm, 1e3)
@@ -43,8 +44,11 @@ visualize!(vis, prob.model[1].continuous_dynamics, TO.get_final_time(prob), Xs)
 
 # Plots 
 using Plots, LaTeXStrings
-plot(
+pyplot()
+p = plot(
     times[1:end-1], Us', 
     label=[L"\omega_x" L"\omega_y"], legend=:top, 
     xlabel="time (s)", ylabel="angular velociy (rad/s)"
 )
+savefig(p, "satellite.eps")
+
