@@ -1,5 +1,4 @@
 include("se3_angvel_dynamics.jl")
-include("rotation_utils.jl")
 
 #############################################
 # Rigid Body with Angular velocity control

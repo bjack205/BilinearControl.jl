@@ -3,7 +3,6 @@ using ForwardDiff
 using FiniteDiff    
 const RD = RobotDynamics
 
-include("rotation_utils.jl")
 include("se3_bilinear_dynamics.jl")
 
 #############################################
