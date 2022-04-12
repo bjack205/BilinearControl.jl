@@ -1,6 +1,4 @@
 using BilinearControl
-BilinearControl.loadexamples()
-using BilinearControl.Problems
 import BilinearControl.TO
 import BilinearControl.RD
 using BilinearControl.TO
@@ -12,6 +10,9 @@ using StaticArrays
 using Test
 using Statistics
 using Rotations
+
+BilinearControl.loadexamples()
+using BilinearControl.Problems
 
 include("gen_controllable.jl")
 using Main.RandomLinearModels
