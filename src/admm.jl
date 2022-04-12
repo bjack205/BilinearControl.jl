@@ -486,5 +486,5 @@ function solve(solver::BilinearADMM{<:Any,AA}, x0=solver.x, z0=solver.z, w0=zero
     solver.stats.iterations = length(solver.stats.cost)
     tsolve = (time_ns() - tstart) / 1e9
     verbose && println("Solve took $tsolve seconds.")
-    return x,z,w
+    return xn,zn,wn
 end

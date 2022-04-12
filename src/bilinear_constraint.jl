@@ -10,9 +10,11 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     C = getC(model)  # continuous dynamics C
     D = getD(model)  # continuous dynamics D
 
+    usetermcon = all(isfinite, xf)
+
     # Get sizes
     n,m = size(B)
-    Nc = (N+1)*n
+    Nc = N*n + usetermcon * n
     Nx = N*n
     Nu = (N-1)*m
 
@@ -50,8 +52,10 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     end
 
     # Goal constraint
-    Abar[ic, ix1] .= -I(n)
-    Dbar[ic] .= xf
+    if usetermcon
+        Abar[ic, ix1] .= -I(n)
+        Dbar[ic] .= xf
+    end
 
     return Abar, Bbar, Cbar, Dbar
 end
@@ -65,9 +69,11 @@ function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
     C = getC(model)  # continuous dynamics C
     D = getD(model)  # continuous dynamics D
 
+    usetermcon = all(isfinite, xf)
+
     # Get sizes
     n,m = size(B)
-    Nc = (N+1)*n
+    Nc = N*n + usetermcon * n
     Nx = N*n
     Nu = (N-1)*m
 
@@ -99,7 +105,9 @@ function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
     end
 
     # Goal constraint
-    c[ic] .= xf - Z[ix1]
+    if usetermcon
+        c[ic] .= xf - Z[ix1]
+    end
 
     return c
 end
