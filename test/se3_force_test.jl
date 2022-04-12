@@ -1,4 +1,3 @@
-include("models/se3_force_model.jl")
 
 using BilinearControl: getA, getB, getC, getD
 function test_se3_force_dynamics()
@@ -36,50 +35,9 @@ function test_se3_force_dynamics()
     @test Jfd ≈ J
 end
 
-function buildse3forceproblem()
-    # Model
-    mass = 2.9
-    model = Se3ForceDynamics(mass)
-    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
-
-    # Discretization
-    tf = 3.0
-    N = 101
-
-    # Dimensions
-    nx = RD.state_dim(model)
-    nu = RD.control_dim(model)
-    nb = base_state_dim(model)
-    ns = nx - nb 
-
-    # Initial and final conditions
-    x0_ = [0;0;0; vec(RotZ(deg2rad(0))); zeros(3)]
-    xf_ = [3;0;1; vec(RotZ(deg2rad(90)) * RotX(deg2rad(150))); zeros(3)]
-    x0 = expandstate(model, x0_)
-    xf = expandstate(model, xf_)
-
-    # Objective
-    Q = Diagonal([fill(1e-1, 3); fill(1e-2, 9); fill(1e-2, 3); fill(0.0, ns)])
-    R = Diagonal([fill(1e-2, 3); fill(1e-2, 3)])
-    Qf = 100 * Q 
-    obj = LQRObjective(Q,R,Qf,xf,N)
-
-    # Goal state
-    cons = ConstraintList(nx, nu, N)
-    goalcon = GoalConstraint(xf, 1:nb)  # only constraint the original states
-    add_constraint!(cons, goalcon, N)
-
-    # Initial Guess
-    U0 = [fill(0.1,nu) for k = 1:N-1] 
-
-    # Build the problem
-    prob = Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
-    rollout!(prob)
-    prob
-end
-
 function testse3forceproblem()
-    prob = buildse3forceproblem()
+    # prob = buildse3forceproblem()
+    prob = Problems.SE3ForceProblem()
     admm = BilinearADMM(prob)
     X = extractstatevec(prob)
     U = extractcontrolvec(prob)

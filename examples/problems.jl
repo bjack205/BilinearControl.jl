@@ -1,15 +1,5 @@
-using TrajectoryOptimization
-using LinearAlgebra
-using RobotZoo
-using StaticArrays
-using Rotations
 
-model_dir = joinpath(@__DIR__, "..", "test", "models")
-include(joinpath(model_dir, "dubins_model.jl"))
-include(joinpath(model_dir, "se3_models.jl"))
-include(joinpath(model_dir, "attitude_model.jl"))
-
-function builddubinsproblem(model=RobotZoo.DubinsCar(); 
+function DubinsProblem(model=BilinearDubins(); 
         scenario=:turn90, N=101, ubnd=1.5
     )
     # model
@@ -66,7 +56,7 @@ function builddubinsproblem(model=RobotZoo.DubinsCar();
     return prob
 end
 
-function buildse3problem()
+function SE3Problem()
     # Model
     model = SE3Kinematics()
     dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
@@ -101,7 +91,7 @@ function buildse3problem()
     Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
 end
 
-function buildattitudeproblem(::Val{Nu}) where Nu
+function AttitudeProblem(::Val{Nu}) where Nu
     # Model
     model = AttitudeDynamics{Nu}()  # i.e. quaternion
     dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
@@ -140,7 +130,7 @@ function buildattitudeproblem(::Val{Nu}) where Nu
     Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
 end
 
-function buildso3problem(::Val{Nu}) where Nu
+function SO3Problem(::Val{Nu}) where Nu
     # Model
     model = SO3Dynamics{Nu}()
     dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
@@ -179,4 +169,46 @@ function buildso3problem(::Val{Nu}) where Nu
 
     # Build the problem
     Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+end
+
+function SE3ForceProblem()
+    # Model
+    mass = 2.9
+    model = Se3ForceDynamics(mass)
+    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+
+    # Discretization
+    tf = 3.0
+    N = 101
+
+    # Dimensions
+    nx = RD.state_dim(model)
+    nu = RD.control_dim(model)
+    nb = base_state_dim(model)
+    ns = nx - nb 
+
+    # Initial and final conditions
+    x0_ = [0;0;0; vec(RotZ(deg2rad(0))); zeros(3)]
+    xf_ = [3;0;1; vec(RotZ(deg2rad(90)) * RotX(deg2rad(150))); zeros(3)]
+    x0 = expandstate(model, x0_)
+    xf = expandstate(model, xf_)
+
+    # Objective
+    Q = Diagonal([fill(1e-1, 3); fill(1e-2, 9); fill(1e-2, 3); fill(0.0, ns)])
+    R = Diagonal([fill(1e-2, 3); fill(1e-2, 3)])
+    Qf = 100 * Q 
+    obj = LQRObjective(Q,R,Qf,xf,N)
+
+    # Goal state
+    cons = ConstraintList(nx, nu, N)
+    goalcon = GoalConstraint(xf, 1:nb)  # only constraint the original states
+    add_constraint!(cons, goalcon, N)
+
+    # Initial Guess
+    U0 = [fill(0.1,nu) for k = 1:N-1] 
+
+    # Build the problem
+    prob = Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
+    rollout!(prob)
+    prob
 end

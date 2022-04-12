@@ -9,10 +9,12 @@ using Random
 using StaticArrays
 using Test
 using Statistics
+using Rotations
 
-include("models/dubins_model.jl")
-include("models/attitude_model.jl")
-include("models/se3_models.jl")
+# Add the problems module
+include(joinpath(@__DIR__, "..", "examples", "Problems.jl"))
+using .Problems
+
 include("gen_controllable.jl")
 using Main.RandomLinearModels
 

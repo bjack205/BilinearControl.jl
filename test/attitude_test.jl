@@ -7,7 +7,6 @@ using FiniteDiff
 using LinearAlgebra
 using Statistics
 import BilinearControl.RD
-include("models/attitude_model.jl")
 
 using BilinearControl: getA, getB, getC, getD
 const Nu = 2
@@ -85,89 +84,10 @@ function so3_dynamics_test(::Val{Nu}) where Nu
     @test Jfd ≈ J
 end
 
-function buildattitudeproblem(::Val{Nu}) where Nu
-    # Model
-    model = AttitudeDynamics{Nu}()
-    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
-
-    # Discretization
-    tf = 3.0
-    N = 301
-
-    # Dimensions
-    nx = RD.state_dim(model)
-    nu = RD.control_dim(model)
-
-    # Initial and final conditions
-    x0 = [1,0,0,0]
-    if Nu == 3
-        xf = [0.382683, 0.412759, 0.825518, 0.0412759]
-    else
-        xf = normalize([1,0,0,1.0])  # flip 90° around unactuated axis
-    end
-
-    # Objective
-    Q = Diagonal(fill(1e-1, nx))
-    R = Diagonal(fill(2e-2, nu))
-    Qf = Diagonal(fill(100.0, nx))
-    obj = LQRObjective(Q,R,Qf,xf,N)
-
-    # Goal state
-    cons = ConstraintList(nx, nu, N)
-    goalcon = GoalConstraint(xf)  # only constraint the original states
-    add_constraint!(cons, goalcon, N)
-
-    # Initial Guess
-    U0 = [fill(0.1,Nu) for k = 1:N-1] 
-
-    # Build the problem
-    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
-end
-
-function buildso3problem(::Val{Nu}) where Nu
-    # Model
-    model = SO3Dynamics{Nu}()
-    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
-
-    # Discretization
-    tf = 3.0
-    N = 301
-
-    # Dimensions
-    nx = RD.state_dim(model)
-    nu = RD.control_dim(model)
-
-    # Initial and final conditions
-    x0 = vec(I(3))
-    xf = vec(RotZ(deg2rad(90)))
-
-    # Objective
-    Q = Diagonal(fill(0.0, nx))
-    R = Diagonal(fill(2e-2, nu))
-    Qf = Diagonal(fill(100.0, nx))
-    # costs = map(1:N) do k
-    #     q = -xf  # tr(Rf'R)
-    #     r = zeros(nu)
-    #     TO.DiagonalCost(Q,R,q,r,0.0)
-    # end
-    # obj = TO.Objective(costs)
-    obj = LQRObjective(Q,R,Qf,xf,N)
-
-    # Goal state
-    cons = ConstraintList(nx, nu, N)
-    goalcon = GoalConstraint(xf)
-    add_constraint!(cons, goalcon, N)
-
-    # Initial Guess
-    U0 = [fill(0.1,nu) for k = 1:N-1] 
-
-    # Build the problem
-    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
-end
-
 function testattitudeproblem(Nu)
     attitude_dynamics_test(Nu)
-    prob = buildattitudeproblem(Nu)
+    # prob = buildattitudeproblem(Nu)
+    prob = Problems.AttitudeProblem(Nu)
     rollout!(prob)
 
     A,B,C,D = BilinearControl.buildbilinearconstraintmatrices(
@@ -207,7 +127,8 @@ function testattitudeproblem(Nu)
 end
 
 function testso3problem(Nu; x_solver=:ldl, z_solver=:cholesky)
-    prob = buildso3problem(Nu)
+    # prob = buildso3problem(Nu)
+    prob = Problems.SO3Problem(Nu)
     rollout!(prob)
     admm = BilinearADMM(prob)
     X = extractstatevec(prob)
@@ -244,7 +165,7 @@ end
     testattitudeproblem(Val(Nu))
 end
 
-@testset "SO(3) with $Nu controls" for Nu in (2,)
+@testset "SO(3) with $Nu controls" for Nu in (2,3)
     Xsol, Usol, admm = testso3problem(Val(Nu))
     if Nu == 2
         @testset "Cholesky" begin
