@@ -1,6 +1,5 @@
 using StaticArrays
 using Rotations
-include("rotation_utils.jl")
 
 struct AttitudeDynamics{Nu} <: RD.ContinuousDynamics end
 AttitudeDynamics() = AttitudeDynamics{3}()

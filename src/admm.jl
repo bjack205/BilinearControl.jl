@@ -88,7 +88,7 @@ end
 function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, 
         xmin=-Inf, xmax=Inf,
         umin=-Inf, umax=Inf,
-        acceleration::AA = COSMOAccelerators.EmptyAccelerator()
+        acceleration::Type{AA} = COSMOAccelerators.EmptyAccelerator
     ) where {AA<:COSMOAccelerators.AbstractAccelerator}
     n = size(A,2)
     m = size(B,2)
@@ -128,12 +128,13 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
 
     # Acceleration
+    aa = acceleration(n+p)
     zw = [zeros(m+p) for _ = 1:2]
 
     BilinearADMM{M,AA}(
         Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
         ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
-        acceleration, zw,
+        aa, zw,
         opts, ADMMStats()
     )
 end

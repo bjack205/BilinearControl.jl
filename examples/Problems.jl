@@ -10,8 +10,10 @@ using BilinearControl
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
+
 # Include models
 model_dir = joinpath(@__DIR__, "models")
+include(joinpath(model_dir, "rotation_utils.jl"))
 include(joinpath(model_dir, "dubins_model.jl"))
 include(joinpath(model_dir, "se3_models.jl"))
 include(joinpath(model_dir, "attitude_model.jl"))

@@ -2,7 +2,6 @@ using ForwardDiff
 using FiniteDiff    
 using SparseArrays
 
-include("rotation_utils.jl")
 include("se3_bilinear_dynamics.jl")
 include("se3_angvel_dynamics.jl")
 
