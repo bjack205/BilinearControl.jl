@@ -631,9 +631,9 @@ version = "0.4.5"
 
 [[deps.RobotZoo]]
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RobotDynamics", "Rotations", "StaticArrays"]
-git-tree-sha1 = "fc12d87d978e1fa94259ced0a54fec2265794468"
+git-tree-sha1 = "e0b5ddc4451c38ab470ac3e5089939824beb89fb"
 uuid = "74be38bb-dcc2-4b9e-baf3-d6373cd95f10"
-version = "0.3.0"
+version = "0.3.1"
 
 [[deps.Rotations]]
 deps = ["LinearAlgebra", "Random", "StaticArrays", "Statistics"]

@@ -1,4 +1,6 @@
 using BilinearControl
+BilinearControl.loadexamples()
+using BilinearControl.Problems
 import BilinearControl.TO
 import BilinearControl.RD
 using BilinearControl.TO
@@ -10,10 +12,6 @@ using StaticArrays
 using Test
 using Statistics
 using Rotations
-
-# Add the problems module
-include(joinpath(@__DIR__, "..", "examples", "Problems.jl"))
-using Main.Problems
 
 include("gen_controllable.jl")
 using Main.RandomLinearModels

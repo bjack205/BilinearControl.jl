@@ -21,4 +21,8 @@ include("problem.jl")
 include("admm.jl")
 include("trajopt_interface.jl")
 
+function loadexamples()
+    @eval include(joinpath(@__DIR__,"..","examples","Problems.jl"))
+end
+
 end # module
