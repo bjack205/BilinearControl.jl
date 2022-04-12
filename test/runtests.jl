@@ -20,6 +20,7 @@ include("dynamics_tests.jl")
 
 @testset "Dubins Example" begin
     include("dubins_test.jl")
+    include("mpc_test.jl")
 end
 
 @testset "Attitude Example" begin

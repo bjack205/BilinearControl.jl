@@ -56,6 +56,26 @@ function DubinsProblem(model=BilinearDubins();
     return prob
 end
 
+function DubinsMPCProblem(Zref; N=51, tf=2.0, kstart=1)
+    model = BilinearDubins()
+    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+    nx,nu = RD.dims(model)
+
+    x0 = RD.state(Zref[1])
+    dt = tf / (N-1)
+
+    # cost
+    Q = Diagonal(SA[1.0, 1.0, 1e-2, 1e-2])
+    R = Diagonal(@SVector fill(1e-4, nu))
+    Z = RD.SampledTrajectory(Zref[kstart - 1 .+ (1:N)])
+    Z[end].dt = 0.0
+    obj = TO.TrackingObjective(Q, R, Z)
+
+    prob = TO.Problem(dmodel, obj, x0, tf)
+    TO.initial_trajectory!(prob, Z)
+    prob
+end
+
 function SE3Problem()
     # Model
     model = SE3Kinematics()
