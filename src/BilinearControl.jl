@@ -1,11 +1,12 @@
 module BilinearControl
 
-export BilinearADMM
+export BilinearADMM, Problems
 
 export extractstatevec, extractcontrolvec
 
 using LinearAlgebra
 using SparseArrays
+using StaticArrays
 using OSQP
 import IterativeSolvers 
 import RobotDynamics as RD
@@ -20,5 +21,7 @@ include("bilinear_model.jl")
 include("problem.jl")
 include("admm.jl")
 include("trajopt_interface.jl")
+
+include(joinpath(@__DIR__,"..","examples","Problems.jl"))
 
 end # module

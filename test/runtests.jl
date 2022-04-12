@@ -9,12 +9,11 @@ using Random
 using StaticArrays
 using Test
 using Statistics
+using Rotations
 
-include("models/dubins_model.jl")
-include("models/attitude_model.jl")
-include("models/se3_models.jl")
 include("gen_controllable.jl")
 using Main.RandomLinearModels
+using BilinearControl.Problems
 
 ##
 include("dynamics_tests.jl")
