@@ -1,6 +1,6 @@
 module BilinearControl
 
-export BilinearADMM
+export BilinearADMM, Problems
 
 export extractstatevec, extractcontrolvec
 
@@ -22,8 +22,6 @@ include("problem.jl")
 include("admm.jl")
 include("trajopt_interface.jl")
 
-function loadexamples()
-    @eval include(joinpath(@__DIR__,"..","examples","Problems.jl"))
-end
+include(joinpath(@__DIR__,"..","examples","Problems.jl"))
 
 end # module

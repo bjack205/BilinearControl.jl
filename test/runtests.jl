@@ -11,12 +11,9 @@ using Test
 using Statistics
 using Rotations
 
-BilinearControl.loadexamples()
-import BilinearControl.Problems
-using BilinearControl.Problems
-
 include("gen_controllable.jl")
 using Main.RandomLinearModels
+using BilinearControl.Problems
 
 ##
 include("dynamics_tests.jl")
