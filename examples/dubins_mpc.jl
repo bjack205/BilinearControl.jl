@@ -112,10 +112,8 @@ Xs = collect(eachrow(reshape(Xsol2, 4, :)))
 RD.traj2!(Xs[1], Xs[2], xlim=xlims(p), ylim=ylims(p))
 
 ## MPC step 
-function mpc_step!(admm::BilinearADMM, Zref, k; doplot=true)
-    Xsol, Usol = BilinearControl.solve(admm, verbose=true)
-    BilinearControl.updatetrajectory!(admm, Zref, Q, k+1)
-    BilinearControl.shiftfill!(admm, 4, 2)
+function mpc_step!(admm::BilinearADMM, Zref, k; doplot=true, verbose=false)
+    Xsol, Usol = BilinearControl.solve(admm, verbose=verbose)
     if doplot
         Xs = collect(eachrow(reshape(Xsol, 4, :))) 
         p = plot(Tuple.(scotty), aspect_ratio=:equal)
@@ -132,15 +130,18 @@ X = [zeros(n) for _ = 1:Nref]
 X[1] .= prob.x0
 iters = Int[]
 model = prob.model[1] 
-for k = 1:length(Zref) - prob.N - 1
-    Xsol, Usol = mpc_step!(admm, Zref, k, doplot=false)
+for k = 1:length(Zref)-1
+    Xsol, Usol = mpc_step!(admm, Zref, k, doplot=true)
     push!(iters, admm.stats.iterations)
+    println("time step $k took $(iters[end]) iterations")
     u = Usol[1:m]
     RD.discrete_dynamics!(model, X[k+1], X[k], u, 0.0, dt)
+    BilinearControl.updatetrajectory!(admm, Zref, Q, k+1)
+    BilinearControl.shiftfill!(admm, 4, 2)
     BilinearControl.setinitialstate!(admm, X[k+1])
 end
-px = [x[1] for x in X[1:Nref-prob.N-1]]
-py = [x[2] for x in X[1:Nref-prob.N-1]]
+px = [x[1] for x in X]
+py = [x[2] for x in X]
 p = plot(Tuple.(scotty), aspect_ratio=:equal, label="reference")
 RD.traj2!(px, py, label="mpc", legend=:topleft)
 

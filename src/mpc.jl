@@ -3,8 +3,9 @@ function updatetrajectory!(solver::BilinearADMM, Zref, Q, kstart=1)
     q = reshape(solver.q, nx, :)
     N = size(q,2)
     c = 0.0
+    Nref = length(Zref)
     for k = 1:N
-        x = RD.state(Zref[kstart - 1 + k])
+        x = RD.state(Zref[min(kstart - 1 + k, Nref)])
         q[:,k] .= -Q*x
         c += 0.5 * dot(x, Q, x)
     end
