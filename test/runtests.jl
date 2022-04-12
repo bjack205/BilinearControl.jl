@@ -12,7 +12,7 @@ using Statistics
 using Rotations
 
 BilinearControl.loadexamples()
-using BilinearControl.Problems
+import BilinearControl.Problems
 
 include("gen_controllable.jl")
 using Main.RandomLinearModels
