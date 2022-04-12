@@ -13,7 +13,7 @@ using Rotations
 
 # Add the problems module
 include(joinpath(@__DIR__, "..", "examples", "Problems.jl"))
-using .Problems
+using Main.Problems
 
 include("gen_controllable.jl")
 using Main.RandomLinearModels
