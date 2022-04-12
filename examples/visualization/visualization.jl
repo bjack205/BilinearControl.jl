@@ -1,4 +1,8 @@
-using GeometryBasics, CoordinateTransformations
+using GeometryBasics, CoordinateTransformations, Rotations
+using LinearAlgebra
+using StaticArrays
+import RobotDynamics as RD
+import BilinearControl.Problems: orientation, translation
 
 """
     setbackgroundimage(vis, imagefile, [d])
@@ -9,12 +13,12 @@ Set an image as a pseudo-background image by placing an image on planes located 
 function setbackgroundimage(vis, imagefile, d=50)
 
     # Create planes at a distance d from the origin
-    px = Rect3D(Vec(+d,-d,-d), Vec(0.1,2d,2d))
-    nx = Rect3D(Vec(-d,-d,-d), Vec(0.1,2d,2d))
-    py = Rect3D(Vec(-d,+d,-d), Vec(2d,0.1,2d))
-    ny = Rect3D(Vec(-d,-d,-d), Vec(2d,0.1,2d))
-    pz = Rect3D(Vec(-d,-d,+d), Vec(2d,2d,0.1))
-    nz = Rect3D(Vec(-d,-d,-d), Vec(2d,2d,0.1))
+    px = Rect3(Vec(+d,-d,-d), Vec(0.1,2d,2d))
+    nx = Rect3(Vec(-d,-d,-d), Vec(0.1,2d,2d))
+    py = Rect3(Vec(-d,+d,-d), Vec(2d,0.1,2d))
+    ny = Rect3(Vec(-d,-d,-d), Vec(2d,0.1,2d))
+    pz = Rect3(Vec(-d,-d,+d), Vec(2d,2d,0.1))
+    nz = Rect3(Vec(-d,-d,-d), Vec(2d,2d,0.1))
 
     # Create a material from the image
     img = PngImage(imagefile)
@@ -33,6 +37,7 @@ end
 function setendurance!(vis; scale=1/3)
     meshfile = joinpath(@__DIR__, "Endurance and ranger.obj")
     obj = MeshFileObject(meshfile)
+    setbackgroundimage(vis, joinpath(@__DIR__, "stars.jpg"), 30)
     setobject!(vis["robot"]["geometry"], obj)
     settransform!(vis["robot"]["geometry"], compose(Translation((5.05, 6.38, 1) .* scale), LinearMap(I*scale * RotZ(deg2rad(140)))))
 end
@@ -60,3 +65,6 @@ visualize!(vis, r::AbstractVector, q::Rotation{3}) = settransform!(vis["robot"],
 
 translation(model, x) = SA[x[1], x[2], x[3]]
 orientation(model, x) = UnitQuaternion(x[4], x[5], x[6], x[7])
+
+translation(model::RD.DiscretizedDynamics, x) = translation(model.continuous_dynamics, x)
+orientation(model::RD.DiscretizedDynamics, x) = orientation(model.continuous_dynamics, x)

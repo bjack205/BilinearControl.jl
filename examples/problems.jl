@@ -130,7 +130,7 @@ function AttitudeProblem(::Val{Nu}) where Nu
     Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
 end
 
-function SO3Problem(::Val{Nu}) where Nu
+function SO3Problem(::Val{Nu}; Rf::Rotation{3}=RotZ(deg2rad(90)), ubnd=Inf) where Nu
     # Model
     model = SO3Dynamics{Nu}()
     dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
@@ -145,7 +145,7 @@ function SO3Problem(::Val{Nu}) where Nu
 
     # Initial and final conditions
     x0 = vec(I(3))
-    xf = vec(RotZ(deg2rad(90)))
+    xf = vec(Rf)
 
     # Objective
     Q = Diagonal(fill(0.0, nx))
@@ -163,6 +163,9 @@ function SO3Problem(::Val{Nu}) where Nu
     cons = ConstraintList(nx, nu, N)
     goalcon = GoalConstraint(xf)
     add_constraint!(cons, goalcon, N)
+
+    # Control bound constraints
+    add_constraint!(cons, BoundConstraint(nx,nu, u_min=-ubnd, u_max=ubnd), 1:N-1)
 
     # Initial Guess
     U0 = [fill(0.1,nu) for k = 1:N-1] 
