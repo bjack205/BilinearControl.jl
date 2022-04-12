@@ -21,6 +21,7 @@ include("bilinear_model.jl")
 include("problem.jl")
 include("admm.jl")
 include("trajopt_interface.jl")
+include("mpc.jl")
 
 include(joinpath(@__DIR__,"..","examples","Problems.jl"))
 

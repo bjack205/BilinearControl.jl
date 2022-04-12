@@ -27,10 +27,8 @@ BilinearControl.setpenalty!(admm, 1e4)
 Xsol, Usol, Ysol = BilinearControl.solve(admm, X, U, verbose=true)
 
 ## Solve with bound constraints
-#    Uses previous solution as the initial guess
 prob = Problems.SO3Problem(Val(2), Rf=RotZ(deg2rad(180)), ubnd=1.5)
 admm = BilinearADMM(prob, acceleration=aa)
-admm.w
 admm.opts.penalty_threshold = 1e4
 admm.opts.z_solver = :osqp
 BilinearControl.setpenalty!(admm, 1e3)

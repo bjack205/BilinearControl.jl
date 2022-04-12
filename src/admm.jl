@@ -41,7 +41,7 @@ struct BilinearADMM{M,A}
     q::Vector{Float64}
     R::Diagonal{Float64, Vector{Float64}}
     r::Vector{Float64}
-    c::Float64
+    c::Ref{Float64}
 
     # Bilinear Constraints
     A::M
@@ -128,11 +128,11 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
 
     # Acceleration
-    aa = acceleration(n+p)
+    aa = AA(m+p)
     zw = [zeros(m+p) for _ = 1:2]
 
     BilinearADMM{M,AA}(
-        Q, q, R, r, c, A, B, C, d, xlo, xhi, ulo, uhi, 
+        Q, q, R, r, Ref(c), A, B, C, d, xlo, xhi, ulo, uhi, 
         ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
         aa, zw,
         opts, ADMMStats()
@@ -144,6 +144,7 @@ getpenalty(solver::BilinearADMM) = solver.ρ[]
 
 eval_f(solver::BilinearADMM, x) = 0.5 * dot(x, solver.Q, x) + dot(solver.q, x)
 eval_g(solver::BilinearADMM, z) = 0.5 * dot(z, solver.R, z) + dot(solver.r, z)
+cost(solver::BilinearADMM, x, z) = eval_f(solver, x) + eval_g(solver, z) + solver.c[]
 
 getA(solver::BilinearADMM) = solver.A
 getB(solver::BilinearADMM) = solver.B
@@ -444,7 +445,8 @@ function solve(solver::BilinearADMM{<:Any,AA}, x0=solver.x, z0=solver.z, w0=zero
         # updateAhat!(solver, solver.Ahat, z)  # updates Ahat
         r = norm(primal_residual(solver, xn, zn))
         s = norm(dual_residual(solver, xn, zn, updatemats=false))
-        J = eval_f(solver, xn) + eval_g(solver, zn) + solver.c
+        # J = eval_f(solver, xn) + eval_g(solver, zn) + solver.c
+        J = cost(solver, x, z)
         dz = norm(zn - z)
         ϵ_primal = get_primal_tolerance(solver, xn, zn, wn)
         ϵ_dual = get_dual_tolerance(solver, xn, zn, wn)
@@ -484,5 +486,5 @@ function solve(solver::BilinearADMM{<:Any,AA}, x0=solver.x, z0=solver.z, w0=zero
     solver.stats.iterations = length(solver.stats.cost)
     tsolve = (time_ns() - tstart) / 1e9
     verbose && println("Solve took $tsolve seconds.")
-    return x,z,w
+    return xn,zn,wn
 end
