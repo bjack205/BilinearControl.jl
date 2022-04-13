@@ -24,18 +24,21 @@ X = extractstatevec(prob)
 U = extractcontrolvec(prob)
 admm.opts.penalty_threshold = 1e2
 BilinearControl.setpenalty!(admm, 1e4)
-Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=true, max_iters=400)
+Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=true)
 
 Xs = collect(eachcol(reshape(Xsol, RD.state_dim(model), :)))
 visualize!(vis, model, TO.get_final_time(prob), Xs)
 
 using Plots
+Us = collect(eachrow(reshape(Usol, RD.control_dim(model), :)))
 times = TO.gettimes(prob)
-plot(times[1:end-1], Us[1], label="ω₁", ylabel="angular rates (rad/s)", xlabel="time (s)")
+p1 = plot(times[1:end-1], Us[1], label="ω₁", ylabel="angular rates (rad/s)", xlabel="time (s)")
 plot!(times[1:end-1], Us[2], label="ω₂")
 plot!(times[1:end-1], Us[3], label="ω₃")
+savefig(p1, "quadrotor_angular_rates.png")
 
-plot(times[1:end-1], Us[4], label="", ylabel="Thrust", xlabel="times (s)")
+p2 = plot(times[1:end-1], Us[4], label="", ylabel="Thrust", xlabel="times (s)")
+savefig(p2, "quadrotor_force.png")
 
 
 
