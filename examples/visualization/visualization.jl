@@ -43,10 +43,10 @@ function setendurance!(vis; scale=1/3)
     settransform!(vis["robot"]["geometry"], compose(Translation((5.05, 6.38, 1) .* scale), LinearMap(I*scale * RotZ(deg2rad(140)))))
 end
 
-function setquadrotor!(vis;scale=1/8)
+function setquadrotor!(vis;scale=1/8, color=colorant"black")
     meshfile = joinpath(@__DIR__, "AR_Drone.obj")
     obj = MeshFileGeometry(meshfile)
-    mat = MeshPhongMaterial(color=colorant"black")
+    mat = MeshPhongMaterial(color=color)
     setobject!(vis["robot"]["geometry"], obj, mat)
     settransform!(vis["robot"]["geometry"], compose(
         Translation(0,0,-10*scale), 

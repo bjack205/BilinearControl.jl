@@ -31,3 +31,7 @@ end
     include("se3_kinematics_test.jl")
     include("se3_force_test.jl")
 end
+
+@testset "Quadrotor Example" begin
+    include("quadrotor_test.jl")
+end
