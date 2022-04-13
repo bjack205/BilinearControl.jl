@@ -18,6 +18,7 @@ include(joinpath(model_dir, "dubins_model.jl"))
 include(joinpath(model_dir, "se3_models.jl"))
 include(joinpath(model_dir, "attitude_model.jl"))
 include(joinpath(model_dir, "se3_force_model.jl"))
+include(joinpath(model_dir, "quadrotor_model.jl"))
 
 # Problem constructors
 include("problems.jl")
@@ -28,6 +29,7 @@ export
     AttitudeDynamics,
     SO3Dynamics,
     SE3Kinematics,
-    Se3ForceDynamics
+    Se3ForceDynamics,
+    QuadrotorSE23
 
 end

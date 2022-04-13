@@ -1,6 +1,7 @@
 using GeometryBasics, CoordinateTransformations, Rotations
 using LinearAlgebra
 using StaticArrays
+using Colors
 import RobotDynamics as RD
 import BilinearControl.Problems: orientation, translation
 
@@ -40,6 +41,17 @@ function setendurance!(vis; scale=1/3)
     setbackgroundimage(vis, joinpath(@__DIR__, "stars.jpg"), 30)
     setobject!(vis["robot"]["geometry"], obj)
     settransform!(vis["robot"]["geometry"], compose(Translation((5.05, 6.38, 1) .* scale), LinearMap(I*scale * RotZ(deg2rad(140)))))
+end
+
+function setquadrotor!(vis;scale=1/8)
+    meshfile = joinpath(@__DIR__, "AR_Drone.obj")
+    obj = MeshFileGeometry(meshfile)
+    mat = MeshPhongMaterial(color=colorant"black")
+    setobject!(vis["robot"]["geometry"], obj, mat)
+    settransform!(vis["robot"]["geometry"], compose(
+        Translation(0,0,-10*scale), 
+        LinearMap(scale*RotZ(-pi/2)*RotX(pi/2))
+    ))
 end
 
 function visualize!(vis, model, tf, X)
