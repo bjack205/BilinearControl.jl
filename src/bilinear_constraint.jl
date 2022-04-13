@@ -61,6 +61,57 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
 end
 
 """
+Builds the bilinear matrices for a discrete dynamics model.
+Assumes that `getA`, `getB`, `getC`, and `getD` return the matrices for evaluating
+the dynamics error between two consecutive time steps (so that implicit dynamics
+are fully supported).
+"""
+function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
+    # get sizes
+    n,m = RD.dims(model) 
+    Nx = N*n 
+    Nu = N*m
+    Nc = N*n + n
+
+    # Build matrices
+    Abar = spzeros(Nc, Nx)
+    Bbar = spzeros(Nc, Nu)
+    Cbar = [spzeros(Nc, Nx) for i = 1:Nu]
+    Dbar = spzeros(Nc)
+
+    # Initialize some useful ranges
+    ic = 1:n
+    ix12 = 1:2n
+    iu12 = 1:2m
+
+    # Initial conditio
+    Abar[ic, 1:n] .= -I(n)
+    Dbar[ic] .= x0
+    ic = ic .+ n
+
+    # Dynamics
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    for k = 1:N-1
+        Abar[ic, ix12] .+= A
+        Bbar[ic, iu12] .+= B
+        for (i,j) in enumerate(iu12)
+            Cbar[j][ic,ix12] .= C[i]
+        end
+        Dbar[ic] .+= D
+
+        ix12 = ix12 .+ n
+        iu12 = iu12 .+ m
+        ic = ic .+ n
+    end
+
+    # Terminal constraint
+    Abar[ic, ix12[1:n]] .= -I(n)
+    Dbar[ic] .= xf
+
+    return Abar, Bbar, Cbar, Dbar
+end
+
+"""
 Evaluates the bilinear constraint. Useful for verification of the bilinear matrices.
 """
 function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
@@ -161,3 +212,4 @@ function evaluatebilinearconstraint(prob::TO.Problem)
 
     return c
 end
+

@@ -250,7 +250,7 @@ function QuadrotorProblem()
 
     # Initial and final state
     x0 = [0; 0; 1.0; vec(I(3)); zeros(3)]
-    xf = [5; 0; 1.0; vec(RotZ(deg2rad(90))); zeros(3)]
+    xf = [5; 0; 2.0; vec(RotZ(deg2rad(90))); zeros(3)]
 
     # Objective
     Q = Diagonal([fill(1e-2, 3); fill(1e-2, 9); fill(1e-2, 3)])
@@ -269,4 +269,44 @@ function QuadrotorProblem()
     prob = Problem(dmodel, obj, x0, tf, constraints=cons, U0=U0, xf=xf)
     rollout!(prob)
     prob
+end
+
+function QuadrotorRateLimitedSolver()
+    model = QuadrotorRateLimited()
+
+    # Discretization
+    tf = 3.0
+    N = 101
+    h = tf / (N-1)
+
+    # Initial and Final states
+    x0 = [0; 0; 1.0; vec(I(3)); zeros(3); zeros(3)]
+    xf = [5; 0; 2.0; vec(RotZ(deg2rad(90))); zeros(3); zeros(3)]
+    uhover = [0,0,0,model.mass*model.gravity]
+
+    # Build bilinear constraint matrices
+    Abar,Bbar,Cbar,Dbar = BilinearControl.buildbilinearconstraintmatrices(
+        model, x0, xf, h, N
+    )
+
+    # Build cost
+    Q = Diagonal([fill(1e-2, 3); fill(1e-2, 9); fill(1e-2, 3); fill(1e-1, 3)])
+    Qf = Q*(N-1)
+    R = Diagonal([fill(1e-2,3); 1e-2])
+    Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
+    Qbar = Diagonal([diag(Qbar); diag(Qf)])
+    Rbar = Diagonal(vcat([diag(R) for i = 1:N]...))
+    q = repeat(-Q*xf, N)
+    r = repeat(-R*uhover, N)
+    c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 
+        0.5*sum(dot(uhover,R,uhover) for k = 1:N)
+
+    X = repeat(x0, N)
+    U = repeat(uhover, N)
+    admm = BilinearADMM(Abar,Bbar,Cbar,Dbar, Qbar,q,Rbar,r,c)
+    admm.x .= X
+    admm.z .= U
+    admm.opts.penalty_threshold = 1e2
+    BilinearControl.setpenalty!(admm, 1e4)
+    admm
 end

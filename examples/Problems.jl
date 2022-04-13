@@ -30,6 +30,7 @@ export
     SO3Dynamics,
     SE3Kinematics,
     Se3ForceDynamics,
-    QuadrotorSE23
+    QuadrotorSE23,
+    QuadrotorRateLimited
 
 end
