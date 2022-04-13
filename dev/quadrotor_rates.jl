@@ -1,4 +1,5 @@
 using BilinearControl.Problems: qrot, skew
+using SparseArrays
 
 Base.@kwdef struct QuadrotorRateLimited <: RD.DiscreteDynamics
     mass::Float64 = 2.0
@@ -138,3 +139,96 @@ x12 = [x1;x2]
 u12 = [u1;u2]
 err2 = A*x12 + B*u12 + sum(u12[i]*C[i]*x12 for i = 1:length(u12)) + D
 err ≈ err2
+A1 = A[:,1:n]
+A2 = A[:,n+1:end]
+A*x12 ≈ A1*x1 + A2*x2
+
+function eval_dynamics_constraint(model, x0, X, U, h)
+    n,m = RD.dims(model)
+    Xs = reshape(X, n, :)
+    Us = reshape(U, m, :)
+    N = size(Xs,2)
+
+    # Initialize some useful ranges
+    ic = 1:n
+    ix12 = 1:2n
+    iu12 = 1:2m
+
+    # Initialize
+    c = zeros(n*N)
+
+    # Initial condition
+    c[ic] = x0 - Xs[:,1] 
+    ic = ic .+ n
+
+    # Dynamics
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    for k = 1:N-1
+        x12 = X[ix12]
+        u12 = U[iu12]
+        c[ic] .= A*x12 + B*u12 + sum(u12[i] * C[i] * x12 for i = 1:2m) + D
+
+        ix12 = ix12 .+ n
+        iu12 = iu12 .+ m
+        ic = ic .+ n
+    end
+
+    c
+end
+
+function build_bilinear_matrices(model, x0, h, N)
+    # Get sizes
+    n,m = RD.dims(model) 
+    Nx = N*n 
+    Nu = N*m
+    Nc = N*n
+
+    # Build matrices
+    Abar = spzeros(Nc, Nx)
+    Bbar = spzeros(Nc, Nu)
+    Cbar = [spzeros(Nc, Nx) for i = 1:Nu]
+    Dbar = spzeros(Nc)
+
+    # Initialize some useful ranges
+    ic = 1:n
+    ix12 = 1:2n
+    iu12 = 1:2m
+
+    # Initial conditio
+    Abar[ic, 1:n] .= -I(n)
+    Dbar[ic] .= x0
+    ic = ic .+ n
+
+    # Dynamics
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    for k = 1:N-1
+        Abar[ic, ix12] .+= A
+        Bbar[ic, iu12] .+= B
+        for (i,j) in enumerate(iu12)
+            Cbar[j][ic,ix12] .= C[i]
+        end
+        Dbar[ic] .+= D
+
+        ix12 = ix12 .+ n
+        iu12 = iu12 .+ m
+        ic = ic .+ n
+    end
+
+    return Abar, Bbar, Cbar, Dbar
+end
+
+N = 11
+Xs = [rand(model)[1] for k = 1:N]
+Us = [rand(model)[2] for k = 1:N]
+X = vcat(Vector.(Xs)...)
+U = vcat(Vector.(Us)...)
+x0 = [zeros(3); vec(I(3)); zeros(6)]
+c1 = eval_dynamics_constraint(model, x0, X, U, h)
+c1[n+1:2n] ≈ A*[Xs[1]; Xs[2]] + B* [Us[1]; Us[2]] + 
+    sum([Us[1]; Us[2]][i] * C[i]*[Xs[1]; Xs[2]] for i = 1:2m) + D
+c1[2n+1:3n] ≈ A*[Xs[2]; Xs[3]] + B* [Us[2]; Us[3]] + 
+    sum([Us[2]; Us[3]][i] * C[i]*[Xs[2]; Xs[3]] for i = 1:2m) + D
+
+Abar,Bbar,Cbar,Dbar = build_bilinear_matrices(model, x0, h, N)
+c2 = Abar*X + Bbar*U + sum(U[i] * Cbar[i]*X for i = 1:length(U)) + Dbar
+c1 ≈ c2
