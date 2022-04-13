@@ -56,9 +56,137 @@ function test_quadrotor_solve()
     @test norm(diff(Us[2]), Inf) < 1.0
     @test norm(diff(Us[3]), Inf) < 1.0
     @test norm(diff(Us[4]), Inf) < 1.0
+
+    Us
+end
+
+# Function to test the formation of the rate-limited bilinear constraint
+function eval_dynamics_constraint(model, x0,xf,h,  X, U)
+    n,m = RD.dims(model)
+    Xs = reshape(X, n, :)
+    Us = reshape(U, m, :)
+    N = size(Xs,2)
+
+    # Initialize some useful ranges
+    ic = 1:n
+    ix12 = 1:2n
+    iu12 = 1:2m
+
+    # Initialize
+    c = zeros(n*(N+1))
+
+    # Initial condition
+    c[ic] = x0 - Xs[:,1] 
+    ic = ic .+ n
+
+    # Dynamics
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    for k = 1:N-1
+        x12 = X[ix12]
+        u12 = U[iu12]
+        c[ic] .= A*x12 + B*u12 + sum(u12[i] * C[i] * x12 for i = 1:2m) + D
+
+        ix12 = ix12 .+ n
+        iu12 = iu12 .+ m
+        ic = ic .+ n
+    end
+
+    # Terminal constraint
+    c[ic] .= xf .- Xs[:,end]
+
+    c
+end
+
+function test_rate_limited_dynamics()
+    model = QuadrotorRateLimited()
+    n,m = RD.dims(model)
+    r1,r2 = randn(3), randn(3) 
+    R1,R2 = qrot(normalize(randn(4))), qrot(normalize(randn(4)))
+    v1,v2 = randn(3), randn(3) 
+    α1,α2 = randn(3), randn(3) 
+    ω1,ω2 = randn(3), randn(3) 
+    F1,F2 = rand(), rand()
+
+    x1 = [r1; vec(R1); v1; α1]
+    x2 = [r2; vec(R2); v2; α2]
+    u1 = [ω1; F1]
+    u2 = [ω2; F2]
+
+    h = 0.1
+    z1 = RD.KnotPoint{n,m}(n,m,[x1;u1],0.0,h)
+    z2 = RD.KnotPoint{n,m}(n,m,[x2;u2],h,h)
+    err = RD.dynamics_error(model, z2, z1)
+
+    @test err[1:3] ≈ h * (v1 + v2) / 2 + r1 - r2
+    @test err[4:12] ≈ vec(h * (R1 + R2) /2 * skew(ω1) + R1 - R2)
+    @test err[13:15] ≈ h*( (R1 + R2) /2 * [0,0,F1]) / model.mass - 
+        h*[0,0,model.gravity] + v1 - v2
+    @test err[16:18] ≈ h*α2 - (ω2 - ω1)
+
+    # Test dynamics match bilinear dynamics
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    x12 = [x1;x2]
+    u12 = [u1;u2]
+    err2 = A*x12 + B*u12 + sum(u12[i]*C[i]*x12 for i = 1:length(u12)) + D
+    @test err ≈ err2
+
+    ## Test the formation of the entire bilinear constraint
+    tf = 3.0
+    N = 51
+    h = tf / (N-1)
+    x0 = [0; 0; 1.0; vec(I(3)); zeros(3); zeros(3)]
+    xf = [5; 0; 2.0; vec(RotZ(deg2rad(90))); zeros(3); zeros(3)]
+    
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    Xs = [rand(model)[1] for k = 1:N]
+    Us = [rand(model)[2] for k = 1:N]
+    X = vcat(Vector.(Xs)...)
+    U = vcat(Vector.(Us)...)
+    x0 = [zeros(3); vec(I(3)); zeros(6)]
+    c1 = eval_dynamics_constraint(model, x0,xf,h, X, U)
+    @test c1[1:n] ≈ x0 - Xs[1]
+    @test c1[n+1:2n] ≈ A*[Xs[1]; Xs[2]] + B* [Us[1]; Us[2]] + 
+        sum([Us[1]; Us[2]][i] * C[i]*[Xs[1]; Xs[2]] for i = 1:2m) + D
+    @test c1[2n+1:3n] ≈ A*[Xs[2]; Xs[3]] + B* [Us[2]; Us[3]] + 
+        sum([Us[2]; Us[3]][i] * C[i]*[Xs[2]; Xs[3]] for i = 1:2m) + D
+    @test c1[end-n+1:end] ≈ xf - Xs[end]
+    
+    
+    Abar,Bbar,Cbar,Dbar = BilinearControl.buildbilinearconstraintmatrices(model, x0, xf, h, N) 
+    c2 = Abar*X + Bbar*U + sum(U[i] * Cbar[i]*X for i = 1:length(U)) + Dbar
+    @test c1 ≈ c2
+
+end
+
+function test_rate_limited_solve(U0s)
+    model = QuadrotorRateLimited()
+    n,m = RD.dims(model)
+    admm = Problems.QuadrotorRateLimitedSolver()
+    BilinearControl.setpenalty!(admm, 1e4)
+    Xsol, Usol = BilinearControl.solve(admm, verbose=false, max_iters=100)
+    xf = admm.d[end-n+1:end]
+    @test admm.stats.iterations < 100
+
+    Xs = collect(eachcol(reshape(Xsol, RD.state_dim(model), :)))
+    norm(Xs[end] - xf) < BilinearControl.get_primal_tolerance(admm)
+    deterr = norm([det(reshape(x[4:12],3,3))-1 for x in Xs], Inf)
+    @test deterr < 0.1
+    
+    Us = collect(eachrow(reshape(Usol, RD.control_dim(model), :)))
+    @test norm(diff(Us[1]), Inf) < norm(diff(U0s[1]), Inf)
+    @test norm(diff(Us[2]), Inf) < norm(diff(U0s[2]), Inf)
+    @test norm(diff(Us[3]), Inf) < norm(diff(U0s[3]), Inf)
+
 end
 
 @testset "Quadrotor" begin
-    test_quadrotor_dynamics()
-    test_quadrotor_solve()
+    Us = Vector{Float64}[]
+    @testset "SE2(3)" begin
+        test_quadrotor_dynamics()
+        Us = test_quadrotor_solve()
+    end
+    @testset "Rate-limited" begin
+        test_rate_limited_dynamics()
+        test_rate_limited_solve(Us)
+    end
 end

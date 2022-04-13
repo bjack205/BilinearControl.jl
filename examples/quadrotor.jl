@@ -46,7 +46,6 @@ savefig(p2, "quadrotor_force.png")
 model2 = QuadrotorRateLimited()
 admm = Problems.QuadrotorRateLimitedSolver()
 BilinearControl.setpenalty!(admm, 1e4)
-admm.z
 Xsol2, Usol2 = BilinearControl.solve(admm, verbose=true, max_iters=200)
 
 X2s = collect(eachcol(reshape(Xsol2, RD.state_dim(model2), :)))
