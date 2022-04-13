@@ -1,6 +1,7 @@
 using GeometryBasics, CoordinateTransformations, Rotations
 using LinearAlgebra
 using StaticArrays
+using Colors
 import RobotDynamics as RD
 import BilinearControl.Problems: orientation, translation
 

@@ -235,3 +235,38 @@ function SE3ForceProblem()
     rollout!(prob)
     prob
 end
+
+function QuadrotorProblem()
+    model = QuadrotorSE23()
+    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
+
+    # Discretization
+    tf = 3.0
+    N = 101
+
+    # Dimensions
+    nx = RD.state_dim(model)
+    nu = RD.control_dim(model)
+
+    # Initial and final state
+    x0 = [0; 0; 1.0; vec(I(3)); zeros(3)]
+    xf = [5; 0; 1.0; vec(RotZ(deg2rad(90))); zeros(3)]
+
+    # Objective
+    Q = Diagonal([fill(1e-2, 3); fill(1e-2, 9); fill(1e-2, 3)])
+    R = Diagonal([fill(1e-2,3); 1e-2])
+    Qf = (N-1)*Q
+    uhover = SA[0,0,0,model.mass*model.gravity]
+    obj = LQRObjective(Q,R,Qf,xf,N, uf=uhover)
+
+    # Goal state
+    cons = ConstraintList(nx, nu, N)
+    goalcon = GoalConstraint(xf)
+
+    # Initial Guess
+    U0 = [copy(uhover) for i = 1:N-1]
+
+    prob = Problem(dmodel, obj, x0, tf, constraints=cons, U0=U0, xf=xf)
+    rollout!(prob)
+    prob
+end
