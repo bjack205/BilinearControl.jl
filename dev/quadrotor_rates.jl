@@ -143,7 +143,7 @@ A1 = A[:,1:n]
 A2 = A[:,n+1:end]
 A*x12 ≈ A1*x1 + A2*x2
 
-function eval_dynamics_constraint(model, x0, X, U, h)
+function eval_dynamics_constraint(model, x0,xf,h,  X, U)
     n,m = RD.dims(model)
     Xs = reshape(X, n, :)
     Us = reshape(U, m, :)
@@ -155,7 +155,7 @@ function eval_dynamics_constraint(model, x0, X, U, h)
     iu12 = 1:2m
 
     # Initialize
-    c = zeros(n*N)
+    c = zeros(n*(N+1))
 
     # Initial condition
     c[ic] = x0 - Xs[:,1] 
@@ -173,15 +173,18 @@ function eval_dynamics_constraint(model, x0, X, U, h)
         ic = ic .+ n
     end
 
+    # Terminal constraint
+    c[ic] .= xf .- Xs[:,end]
+
     c
 end
 
-function build_bilinear_matrices(model, x0, h, N)
+function build_bilinear_matrices(model, x0,xf,h, N)
     # Get sizes
     n,m = RD.dims(model) 
     Nx = N*n 
     Nu = N*m
-    Nc = N*n
+    Nc = N*n + n
 
     # Build matrices
     Abar = spzeros(Nc, Nx)
@@ -214,21 +217,78 @@ function build_bilinear_matrices(model, x0, h, N)
         ic = ic .+ n
     end
 
+    # Terminal constraint
+    Abar[ic, ix12[1:n]] .= -I(n)
+    Dbar[ic] .= xf
+
     return Abar, Bbar, Cbar, Dbar
 end
 
-N = 11
+## Visualization 
+using MeshCat
+vis = Visualizer()
+open(vis)
+visdir = joinpath(@__DIR__, "../examples/visualization")
+include(joinpath(visdir, "visualization.jl"))
+setquadrotor!(vis)
+
+tf = 3.0
+N = 51
+h = tf / (N-1)
+x0 = [0; 0; 1.0; vec(I(3)); zeros(3); zeros(3)]
+xf = [5; 0; 2.0; vec(RotZ(deg2rad(90))); zeros(3); zeros(3)]
+
+A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
 Xs = [rand(model)[1] for k = 1:N]
 Us = [rand(model)[2] for k = 1:N]
 X = vcat(Vector.(Xs)...)
 U = vcat(Vector.(Us)...)
 x0 = [zeros(3); vec(I(3)); zeros(6)]
-c1 = eval_dynamics_constraint(model, x0, X, U, h)
+c1 = eval_dynamics_constraint(model, x0,xf,h, X, U)
+c1[1:n] ≈ x0 - Xs[1]
 c1[n+1:2n] ≈ A*[Xs[1]; Xs[2]] + B* [Us[1]; Us[2]] + 
     sum([Us[1]; Us[2]][i] * C[i]*[Xs[1]; Xs[2]] for i = 1:2m) + D
 c1[2n+1:3n] ≈ A*[Xs[2]; Xs[3]] + B* [Us[2]; Us[3]] + 
     sum([Us[2]; Us[3]][i] * C[i]*[Xs[2]; Xs[3]] for i = 1:2m) + D
+c1[end-n+1:end] ≈ xf - Xs[end]
 
-Abar,Bbar,Cbar,Dbar = build_bilinear_matrices(model, x0, h, N)
+
+Abar,Bbar,Cbar,Dbar = build_bilinear_matrices(model, x0, xf, h, N)
 c2 = Abar*X + Bbar*U + sum(U[i] * Cbar[i]*X for i = 1:length(U)) + Dbar
 c1 ≈ c2
+
+
+# Build cost
+u0 = [0,0,0,model.mass*model.gravity]
+Q = Diagonal([fill(1e-2, 3); fill(1e-2, 9); fill(1e-2, 3); fill(1e-1, 3)])
+Qf = Q*(N-1)
+R = Diagonal([fill(1e-2,3); 1e-2])
+Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
+Qbar = Diagonal([diag(Qbar); diag(Qf)])
+Rbar = Diagonal(vcat([diag(R) for i = 1:N]...))
+q = repeat(-Q*xf, N)
+r = repeat(-R*u0, N)
+c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 0.5*sum(dot(u0,R,u0) for k = 1:N)
+
+# Build Solver
+admm = BilinearADMM(Abar,Bbar,Cbar,Dbar, Qbar,q,Rbar,r,c)
+X = repeat(x0, N)
+U = repeat(u0, N)
+admm.opts.penalty_threshold = 1e2
+BilinearControl.setpenalty!(admm, 1e4)
+Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=true, max_iters=200)
+
+Xs = collect(eachcol(reshape(Xsol, RD.state_dim(model), :)))
+visualize!(vis, model, TO.get_final_time(prob), Xs)
+
+# Plot controls
+using Plots
+Us = collect(eachrow(reshape(Usol, RD.control_dim(model), :)))
+times = range(0,tf, length=N)
+p1 = plot(times, Us[1], label="ω₁", ylabel="angular rates (rad/s)", xlabel="time (s)")
+plot!(times, Us[2], label="ω₂")
+plot!(times, Us[3], label="ω₃")
+# savefig(p1, "quadrotor_angular_rates.png")
+
+p2 = plot(times, Us[4], label="", ylabel="Thrust", xlabel="times (s)")
+# savefig(p2, "quadrotor_force.png")
