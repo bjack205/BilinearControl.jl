@@ -7,6 +7,7 @@ using StaticArrays
 using RobotDynamics
 using Rotations
 using BilinearControl
+using COSMO
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 

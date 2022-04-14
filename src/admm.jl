@@ -283,12 +283,13 @@ function solvex(solver::BilinearADMM, z, w)
     local x
     # Primal methods
     if hasstateconstraints(solver) && method ∉ (:osqp, :cosmo)
+        method_prev = method
         if !isempty(solver.constraints)
             method = :cosmo
         else
             method = :osqp
         end
-        @warn "Can't use $method method with state constraints.\n" * 
+        @warn "Can't use $method_prev method with state constraints.\n" * 
               "Switching to using $(uppercase(string(method)))."
         solver.opts.x_solver = method 
     end
