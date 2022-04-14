@@ -310,3 +310,62 @@ function QuadrotorRateLimitedSolver()
     BilinearControl.setpenalty!(admm, 1e4)
     admm
 end
+
+function QuadrotorLanding(; tf=3.0, N=101, θ_glideslope=NaN)
+    model = QuadrotorRateLimited()
+    n = RD.state_dim(model)
+
+    # Discretization
+    h = tf / (N-1)
+
+    # Initial and Final states
+    x0 = [3; 3; 5.0; vec(I(3)); 0; 0; -3; zeros(3)]
+    xf = [0; 0; 0.0; vec(I(3)); zeros(3); zeros(3)]
+    uhover = [0,0,0,model.mass*model.gravity]
+
+    # Build bilinear constraint matrices
+    Abar,Bbar,Cbar,Dbar = BilinearControl.buildbilinearconstraintmatrices(
+        model, x0, xf, h, N
+    )
+
+    # Build cost
+    Q = Diagonal([fill(1e-2, 3); fill(1e-2, 9); fill(1e-2, 3); fill(1e-1, 3)])
+    Qf = Q*(N-1)
+    R = Diagonal([fill(1e-2,3); 1e-2])
+    Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
+    Qbar = Diagonal([diag(Qbar); diag(Qf)])
+    Rbar = Diagonal(vcat([diag(R) for i = 1:N]...))
+    q = repeat(-Q*xf, N)
+    r = repeat(-R*uhover, N)
+    c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 
+        0.5*sum(dot(uhover,R,uhover) for k = 1:N)
+
+    # Initial guess
+    X = repeat(x0, N)
+    U = repeat(uhover, N)
+
+    # Constraints
+    Nx = length(X)
+    if !isnan(θ_glideslope)
+        α = tan(θ_glideslope)
+        b = zeros(3)
+        constraints = map(1:N-1) do k
+            A = spzeros(3, Nx)
+            for i = 1:3
+                A[1,(k-1)*n + 3] = α
+                A[2,(k-1)*n + 1] = 1.0
+                A[3,(k-1)*n + 1] = 1.0
+            end
+            COSMO.Constraint(A, b, COSMO.SecondOrderCone)
+        end
+    else
+        constraints = COSMO.Constraint{Float64}[]
+    end
+
+    admm = BilinearADMM(Abar,Bbar,Cbar,Dbar, Qbar,q,Rbar,r,c, constraints=constraints)
+    admm.x .= X
+    admm.z .= U
+    admm.opts.penalty_threshold = 1e2
+    BilinearControl.setpenalty!(admm, 1e4)
+    admm
+end
