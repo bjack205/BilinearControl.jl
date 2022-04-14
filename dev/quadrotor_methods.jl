@@ -131,9 +131,9 @@ Aty!(x12, y, h) ≈ A'y
 Bty!(u12, y, h) ≈ B'y
 y = randn(n)
 x12 = [x1; x2]
-Ctuy!(x12, u12, y, h, mass) ≈ sum(u12[i] * C[i]'y for i = 1:2m)
+Ctuy!(x12, u12, y, h, mass) ≈ sum(u12[i] * C[i]'y for i = 1:2m)   # Ahat
 u12 = [u1; u2]
-Ctxy!(u12, x12, y, h, mass) ≈ hcat([C[i]*x12 for i = 1:2m]...)'y
+Ctxy!(u12, x12, y, h, mass) ≈ hcat([C[i]*x12 for i = 1:2m]...)'y  # Bhat
 
 @btime Ax!($y, $x1, $x2, $h)
 @btime mul!($y, $A, $x12)
@@ -168,6 +168,23 @@ function Abarx!(y, x, h, n, N)
     y
 end
 
+function Abarty!(x, xtmp, y, h, n, N)
+    x[1:n] .= 0.0
+    for k = 1:N-1 
+        yk = view(y, k*n .+ (1:n))
+        x1 = view(x, (k-1)*n .+ (1:n))
+        x2 = view(x, k*n .+ (1:n))
+        Aty!(xtmp, yk, h)
+        x1 .+= view(xtmp, 1:n)
+        x2 .= view(xtmp, n+1:2n)
+    end
+    for i = 1:n
+        x[i] += -y[i]
+        x[(N-1)*n + i] += -y[N*n + i]
+    end
+    x
+end
+
 function Bbaru!(y, u, h, n, m, N)
     for i = 1:n
         y[i] = 0.0
@@ -182,6 +199,19 @@ function Bbaru!(y, u, h, n, m, N)
         y[N*n + i] = 0.0
     end
     y
+end
+
+function Bbarty!(u, utmp, y, h, n, m, N)
+    u[1:n] .= 0
+    for k = 1:N-1
+        yk = view(y, k*n .+ (1:n))
+        u1 = view(u, (k-1)*m .+ (1:m))
+        u2 = view(u, k*m .+ (1:m))
+        Bty!(utmp, yk, h)  # fine since uk isn't used
+        u1 .+= view(utmp, 1:m)
+        u2 .= view(utmp, m+1:2m)
+    end
+    u
 end
 
 function Cbarxu!(y, x, u, h, n, m, N, mass)
@@ -202,6 +232,33 @@ function Cbarxu!(y, x, u, h, n, m, N, mass)
     y
 end
 
+function Cbartxy!(u, x, y, h, n, m, N, mass)
+    for k = 1:N-1
+        uk = view(u, (k-1)*m .+ (1:2m))
+        xk = view(x, (k-1)*n .+ (1:2n)) 
+        yk = view(y, k*n .+ (1:n))
+        Ctxy!(uk, xk, yk, h, mass)
+    end
+    u
+end
+
+function Cbartuy!(x, xtmp, u, y, h, n, m, N, mass)
+    x[1:n] .= 0
+    for k = 1:N-1
+        x1 = view(x, (k-1)*n .+ (1:n)) 
+        x2 = view(x, k*n .+ (1:n)) 
+        uk = view(u, (k-1)*m .+ (1:2m))
+        yk = view(y, k*n .+ (1:n))
+        Ctuy!(xtmp, uk, yk, h, mass)
+        x1 .+= view(xtmp, 1:n)
+        x2 .= view(xtmp, n+1:2n)
+        # xk[n+1:2n] .= view(xtmp, n+1:2n)
+        # xk .+= xtmp
+    end
+    x
+end
+
+
 function Ahatx!(y, ytmp, x, u, h, n, m, N, mass)
     Abarx!(y, x, h, n, N)
     Cbarxu!(ytmp, x, u, h, n, m, N, mass)
@@ -214,6 +271,48 @@ function Bhatu!(y, ytmp, x, u, h, n, m, N, mass)
     Cbarxu!(ytmp, x, u, h, n, m, N, mass)
     y .+= ytmp
     y
+end
+
+function Ahatty!(x, xtmp1, xtmp2, u, y, h, n, m, N, mass)
+    Abarty!(x, xtmp2, y, h, n, N)
+    Cbartuy!(xtmp1, xtmp2, u, y, h, n, m, N, mass)
+    x .+= xtmp1
+    x
+end
+
+function Bhatty!(u, utmp1, utmp2, x, y, h, n, m, N, mass)
+    Bbarty!(u, utmp2, y, h, n, m, N)
+    Cbartxy!(utmp1, x, y, h, n, m, N, mass)
+    u .+= utmp1
+    u
+end
+
+function AtAx!(xout, xtmp1, xtmp2, y, ytmp, x, u, h, n, m, N, mass)
+    Ahatx!(y, ytmp, x, u, h, n, m, N, mass)
+    Ahatty!(xout, xtmp1, xtmp2, u, y, h, n, m, N, mass)
+end
+
+function BtBu!(uout, utmp1, utmp2, y, ytmp, x, u, h, n, m, N, mass)
+    Bhatu!(y, ytmp, x, u, h, n, m, N, mass)
+    Bhatty!(uout, utmp1, utmp2, x, y, h, n, m, N, mass)
+end
+
+function Qhatmul!(Q, ρ, xout, xtmp1, xtmp2, y, ytmp, x, u, h, n, m, N, mass)
+    AtAx!(xout, xtmp1, xtmp2, y, ytmp, x, u, h, n, m, N, mass)
+    mul!(xtmp1, Q, x)
+    for i = 1:length(x)
+        xout[i] = xout[i] * ρ + xtmp1[i]
+    end
+    xout
+end
+
+function Rhatmul!(R, ρ, uout, utmp1, utmp2, y, ytmp, x, u, h, n, m, N, mass)
+    BtBu!(uout, utmp1, utmp2, y, ytmp, x, u, h, n, m, N, mass)
+    mul!(utmp1, R, u)
+    for i = 1:length(u)
+        uout[i] = uout[i] * ρ + utmp1[i]
+    end
+    uout
 end
 
 
@@ -241,6 +340,18 @@ Abarx!(y, X, h, n, N) ≈ Abar*X
 Bbaru!(y, U, h, n, m, N) ≈ Bbar*U
 Cbarxu!(y, X, U, h, n, m, N, mass) ≈ sum(U[i] * Cbar[i] *X for i = 1:length(U))
 
+xtmp = zeros(2n)
+utmp = zeros(2m)
+y = randn(size(Abar,1))
+Abarty!(X, xtmp, y, h, n, N) ≈ Abar'y
+Bbarty!(U, utmp, y, h, n, m, N) ≈ Bbar'y
+
+Cbartuy!(X, xtmp,  U, y, h, n, m, N, mass) ≈ 
+    sum(U[i] * Cbar[i] for i = 1:length(U))'y
+
+Cbartxy!(U, X, y, h, n, m, N, mass) ≈ 
+    hcat([Cbar[i] * X for i = 1:length(U)]...)'y
+
 Ahat = admm.Ahat
 BilinearControl.updateAhat!(admm, Ahat, U)
 Ahatx!(y, ytmp, X, U, h, n, m, N, mass) ≈ Ahat*X
@@ -248,6 +359,42 @@ Ahatx!(y, ytmp, X, U, h, n, m, N, mass) ≈ Ahat*X
 Bhat = admm.Bhat
 BilinearControl.updateBhat!(admm, Bhat, X)
 Bhatu!(y, ytmp, X, U, h, n, m, N, mass) ≈ Bhat*U
+
+xtmp1 = zero(X)
+xtmp2 = zeros(2n)
+BilinearControl.updateAhat!(admm, Ahat, U)
+Ahatty!(X, xtmp1, xtmp2, U, y, h, n, m, N, mass) ≈ Ahat'y
+
+utmp1 = zero(U)
+utmp2 = zeros(2m)
+BilinearControl.updateBhat!(admm, Bhat, X)
+Bhatty!(U, utmp1, utmp2, X, y, h, n, m, N, mass) ≈ Bhat'y
+
+xout = zero(X)
+X = vcat([Vector(RD.rand(model)[1]) for k = 1:N]...)
+X0 = copy(X)
+U = vcat([Vector(RD.rand(model)[2]) for k = 1:N]...)
+BilinearControl.updateAhat!(admm, Ahat, U)
+AtAx!(xout, xtmp1, xtmp2, y, ytmp, X, U, h, n, m, N, mass) ≈ Ahat'Ahat*X
+
+uout = zero(U)
+X = vcat([Vector(RD.rand(model)[1]) for k = 1:N]...)
+U = vcat([Vector(RD.rand(model)[2]) for k = 1:N]...)
+BilinearControl.updateBhat!(admm, Bhat, X)
+BtBu!(uout, utmp1, utmp2, y, ytmp, X, U, h, n, m, N, mass) ≈ Bhat'Bhat*U
+
+Q = Diagonal(fill(1.0, length(X)))
+ρ = 10.0
+BilinearControl.updateAhat!(admm, Ahat, U)
+Qhatmul!(Q, ρ, xout, xtmp1, xtmp2, y, ytmp, X, U, h, n, m, N, mass) ≈ 
+    (Q + ρ*Ahat'Ahat)*X
+
+R = Diagonal(fill(1.0, length(U)))
+ρ = 10.0
+BilinearControl.updateBhat!(admm, Bhat, X)
+Rhatmul!(R, ρ, uout, utmp1, utmp2, y, ytmp, X, U, h, n, m, N, mass) ≈ 
+    (R + ρ*Bhat'Bhat)*U
+
 
 @btime Abarx!($y, $X, $h, $n, $N)
 @btime mul!($y, $Abar, $X)
@@ -267,4 +414,19 @@ end
 @btime begin
     BilinearControl.updateBhat!($admm, $Bhat, $X) 
     mul!($y,$Bhat,$U)
+end
+
+@btime Cbartxy!($U, $X, $y, $h, $n, $m, $N, $mass)
+@btime Cbartuy!($X, $xtmp, $U, $y, $h, $n, $m, $N, $mass)
+
+@btime Ahatty!($X, $xtmp1, $xtmp2, $U, $y, $h, $n, $m, $N, $mass)
+@btime begin
+    BilinearControl.updateAhat!($admm, $Ahat, $U)
+    mul!($X, $(Ahat'), $y)
+end
+
+@btime Bhatty!($U, $utmp1, $utmp2, $X, $y, $h, $n, $m, $N, $mass)
+@btime begin
+    BilinearControl.updateBhat!($admm, $Bhat, $X)
+    mul!($U, $(Bhat'), $y)
 end
