@@ -149,3 +149,122 @@ Ctxy!(u12, x12, y, h, mass) ≈ hcat([C[i]*x12 for i = 1:2m]...)'y
 @btime Ctxy!($u12, $x12, $y, $h, $mass)
 Cbar_x = hcat([C[i] * x12 for i = 1:2m]...)
 @btime mul!($u12, $(Cbar_x'), $y)
+
+
+## Bilinear Constraint functions
+function Abarx!(y, x, h, n, N)
+    for i = 1:n 
+        y[i] = -x[i]
+    end
+    for k = 1:N-1
+        yk = view(y, k*n .+ (1:n))
+        x1 = view(x, (k-1)*n .+ (1:n))
+        x2 = view(x, k*n .+ (1:n))
+        Ax!(yk, x1, x2, h)
+    end
+    for i = 1:n
+        y[N*n + i] = -x[(N-1)*n + i]
+    end
+    y
+end
+
+function Bbaru!(y, u, h, n, m, N)
+    for i = 1:n
+        y[i] = 0.0
+    end
+    for k = 1:N-1
+        yk = view(y, k*n .+ (1:n))
+        u1 = view(u, (k-1)*m .+ (1:m))
+        u2 = view(u, k*m .+ (1:m))
+        Bu!(yk, u1, u2, h)
+    end
+    for i = 1:n
+        y[N*n + i] = 0.0
+    end
+    y
+end
+
+function Cbarxu!(y, x, u, h, n, m, N, mass)
+    for i = 1:n
+        y[i] = 0.0
+    end
+    for k = 1:N-1
+        yk = view(y, k*n .+ (1:n))
+        x1 = view(x, (k-1)*n .+ (1:n))
+        x2 = view(x, k*n .+ (1:n))
+        u1 = view(u, (k-1)*m .+ (1:m))
+        u2 = view(u, k*m .+ (1:m))
+        Cxu!(yk, x1, u1, x2, u2, h, mass)
+    end
+    for i = 1:n
+        y[N*n + i] = 0.0
+    end
+    y
+end
+
+function Ahatx!(y, ytmp, x, u, h, n, m, N, mass)
+    Abarx!(y, x, h, n, N)
+    Cbarxu!(ytmp, x, u, h, n, m, N, mass)
+    y .+= ytmp
+    y
+end
+
+function Bhatu!(y, ytmp, x, u, h, n, m, N, mass)
+    Bbaru!(y, u, h, n, m, N)
+    Cbarxu!(ytmp, x, u, h, n, m, N, mass)
+    y .+= ytmp
+    y
+end
+
+
+N = 101
+tf = 3.0
+h = tf / (N-1)
+model = QuadrotorRateLimited()
+mass = model.mass
+n,m = RD.dims(model)
+admm = Problems.QuadrotorRateLimitedSolver(N=N, tf=tf)
+Abar = admm.A
+Bbar = admm.B
+Cbar = admm.C
+Dbar = admm.d
+
+BilinearControl.updateBhat!(admm, admm.Bhat, X)
+
+X = vcat([Vector(RD.rand(model)[1]) for k = 1:N]...)
+U = vcat([Vector(RD.rand(model)[2]) for k = 1:N]...)
+
+y = zeros(size(Abar,1))
+ytmp = zero(y)
+
+Abarx!(y, X, h, n, N) ≈ Abar*X
+Bbaru!(y, U, h, n, m, N) ≈ Bbar*U
+Cbarxu!(y, X, U, h, n, m, N, mass) ≈ sum(U[i] * Cbar[i] *X for i = 1:length(U))
+
+Ahat = admm.Ahat
+BilinearControl.updateAhat!(admm, Ahat, U)
+Ahatx!(y, ytmp, X, U, h, n, m, N, mass) ≈ Ahat*X
+
+Bhat = admm.Bhat
+BilinearControl.updateBhat!(admm, Bhat, X)
+Bhatu!(y, ytmp, X, U, h, n, m, N, mass) ≈ Bhat*U
+
+@btime Abarx!($y, $X, $h, $n, $N)
+@btime mul!($y, $Abar, $X)
+@btime Cbarxu!($y, $X, $U, $h, $n, $m, $N, $mass)
+@btime sum($U[i] * $Cbar[i] * $X for i = 1:length($U))
+@btime let x = $X, z = $U
+    for i in eachindex(z)
+        mul!($y, $Cbar[i], x, z[i], 1.0)
+    end
+end
+@btime Ahatx!($y, $ytmp, $X, $U, $h, $n, $m, $N, $mass)
+@btime begin
+    BilinearControl.updateAhat!($admm, $Ahat, $U) 
+    mul!($y,$Ahat,$X)
+end
+@btime Bhatu!($y, $ytmp, $X, $U, $h, $n, $m, $N, $mass)
+@btime begin
+    BilinearControl.updateBhat!($admm, $Bhat, $X) 
+    mul!($y,$Bhat,$U)
+end

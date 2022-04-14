@@ -271,12 +271,10 @@ function QuadrotorProblem()
     prob
 end
 
-function QuadrotorRateLimitedSolver()
+function QuadrotorRateLimitedSolver(; N=101, tf=3.0)
     model = QuadrotorRateLimited()
 
     # Discretization
-    tf = 3.0
-    N = 101
     h = tf / (N-1)
 
     # Initial and Final states
