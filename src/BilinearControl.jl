@@ -8,6 +8,7 @@ using LinearAlgebra
 using SparseArrays
 using StaticArrays
 using OSQP
+import COSMO
 import IterativeSolvers 
 import RobotDynamics as RD
 import TrajectoryOptimization as TO

@@ -4,6 +4,7 @@ authors = ["Brian Jackson <bjack205@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
 COSMOAccelerators = "bbd8fffe-5ad0-4d78-a55e-85575421b4ac"
 CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"

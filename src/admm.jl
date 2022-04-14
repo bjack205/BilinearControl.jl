@@ -71,6 +71,9 @@ struct BilinearADMM{M,A}
     z_prev::Vector{Float64}
     w_prev::Vector{Float64}
 
+    # Conic Constraints (using COSMO)
+    constraints::Vector{COSMO.Constraint{Float64}}
+
     # Acceleration
     aa::A
     zw::Vector{Vector{Float64}}  # storage for acceleration
@@ -88,7 +91,8 @@ end
 function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0, 
         xmin=-Inf, xmax=Inf,
         umin=-Inf, umax=Inf,
-        acceleration::Type{AA} = COSMOAccelerators.EmptyAccelerator
+        acceleration::Type{AA} = COSMOAccelerators.EmptyAccelerator,
+        constraints::Vector{COSMO.Constraint{Float64}} = COSMO.Constraint{Float64}[]
     ) where {AA<:COSMOAccelerators.AbstractAccelerator}
     n = size(A,2)
     m = size(B,2)
@@ -134,6 +138,7 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     BilinearADMM{M,AA}(
         Q, q, R, r, Ref(c), A, B, C, d, xlo, xhi, ulo, uhi, 
         ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
+        constraints,
         aa, zw,
         opts, ADMMStats()
     )
@@ -151,7 +156,7 @@ getB(solver::BilinearADMM) = solver.B
 getC(solver::BilinearADMM) = solver.C
 getD(solver::BilinearADMM) = solver.d
 
-hasstateconstraints(solver::BilinearADMM) = any(isfinite, solver.xlo) || any(isfinite, solver.xhi)
+hasstateconstraints(solver::BilinearADMM) = any(isfinite, solver.xlo) || any(isfinite, solver.xhi) || !isempty(solver.constraints)
 hascontrolconstraints(solver::BilinearADMM) = any(isfinite, solver.ulo) || any(isfinite, solver.uhi)
 
 function eval_c(solver::BilinearADMM, x, z)
@@ -277,13 +282,23 @@ function solvex(solver::BilinearADMM, z, w)
     iters = solver.stats.x_solve_iters
     local x
     # Primal methods
-    if hasstateconstraints(solver) && method != :osqp
+    if hasstateconstraints(solver) && method ∉ (:osqp, :cosmo)
+        if !isempty(solver.constraints)
+            method = :cosmo
+        else
+            method = :osqp
+        end
         @warn "Can't use $method method with state constraints.\n" * 
-                "Switching to using OSQP."
-        solver.opts.x_solver = :osqp
-        method = :osqp
+              "Switching to using $(uppercase(string(method)))."
+        solver.opts.x_solver = method 
     end
-    if method == :cholesky || method == :osqp || method == :cg
+    if method == :cosmo && isempty(solver.constraints)
+        method = :osqp
+        @warn "Can't use :cosmo method without specifying state constraints.\n" *
+              "Switching to $(uppercase(string(method)))."
+        solver.opts.x_solver = method
+    end
+    if method ∈ (:cholesky, :osqp, :cg, :cosmo)
         P̂ = solver.Q + ρ * Ahat'Ahat
         q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
 
@@ -307,6 +322,15 @@ function solvex(solver::BilinearADMM, z, w)
             x = res_osqp.x
             docalcres && push!(res, norm(P̂*x + q̂))
             push!(iters, res_osqp.info.iter)
+        elseif method == :cosmo
+            model = COSMO.Model()
+            opts = COSMO.Settings(eps_prim_inf=1e-8)
+            COSMO.assemble!(model, P̂, q̂, solver.constraints, settings=opts)
+            COSMO.warm_start_primal!(model, solver.x)
+            res_cosmo = COSMO.optimize!(model)
+            x = res_cosmo.x
+            push!(iters, res_cosmo.iter)
+            push!(res, res_cosmo.info.r_prim)
         end
     # Primal-dual methods
     else
@@ -322,6 +346,8 @@ function solvex(solver::BilinearADMM, z, w)
             δ,ch = IterativeSolvers.minres(H, -g, log=true)
             push!(solver.stats.x_solve_iters, IterativeSolvers.niters(ch))
             push!(res, ch[:resnorm][end])
+        else
+            error("Got unexpected method for x solve: $method.")
         end
         x = δ[1:n]
     end
