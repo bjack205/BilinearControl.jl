@@ -158,6 +158,40 @@ function test_rate_limited_dynamics()
 
 end
 
+function test_quadrotor_soc()
+    tf = 3.0
+    N = 101
+    model = QuadrotorRateLimited()
+    θ_glideslope = deg2rad(45.0)
+    admm = Problems.QuadrotorLanding(tf=tf, N=N, θ_glideslope=θ_glideslope*NaN)
+    BilinearControl.setpenalty!(admm, 1e4)
+    X = copy(admm.x)
+    U = copy(admm.z)
+    admm.opts.x_solver = :osqp
+    Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=true)
+    @test admm.stats.iterations < 100
+
+    # Solve with glideslope
+    admm2 = Problems.QuadrotorLanding(tf=tf, N=N, θ_glideslope=θ_glideslope)
+    @test length(admm2.constraints) == N-1
+    admm2.opts.x_solver = :cosmo
+    BilinearControl.setpenalty!(admm2, 1e4)
+    Xsol2, Usol2 = BilinearControl.solve(admm2, X, U, verbose=true)
+    @test admm2.stats.iterations < 100
+
+    Xs = collect(eachcol(reshape(Xsol, RD.state_dim(model), :)))
+    X2s = collect(eachcol(reshape(Xsol2, RD.state_dim(model), :)))
+    α = tan(θ_glideslope)
+    socerr = map(Xs) do x
+        norm(SA[x[1], x[2]]) - α*x[3]
+    end
+    @test maximum(socerr) > 0.1
+    socerr2 = map(X2s) do x
+        norm(SA[x[1], x[2]]) - α*x[3]
+    end
+    @test maximum(socerr2) < 0.1
+end
+
 function test_rate_limited_solve(U0s)
     model = QuadrotorRateLimited()
     n,m = RD.dims(model)
@@ -188,5 +222,8 @@ end
     @testset "Rate-limited" begin
         test_rate_limited_dynamics()
         test_rate_limited_solve(Us)
+    end
+    @testset "Second-Order Cone" begin
+        test_quadrotor_soc()
     end
 end
