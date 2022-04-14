@@ -168,7 +168,7 @@ function test_quadrotor_soc()
     X = copy(admm.x)
     U = copy(admm.z)
     admm.opts.x_solver = :osqp
-    Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=true)
+    Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=false)
     @test admm.stats.iterations < 100
 
     # Solve with glideslope
@@ -176,7 +176,7 @@ function test_quadrotor_soc()
     @test length(admm2.constraints) == N-1
     admm2.opts.x_solver = :cosmo
     BilinearControl.setpenalty!(admm2, 1e4)
-    Xsol2, Usol2 = BilinearControl.solve(admm2, X, U, verbose=true)
+    Xsol2, Usol2 = BilinearControl.solve(admm2, X, U, verbose=false)
     @test admm2.stats.iterations < 100
 
     Xs = collect(eachcol(reshape(Xsol, RD.state_dim(model), :)))
