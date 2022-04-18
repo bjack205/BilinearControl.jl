@@ -108,30 +108,6 @@ x0 .= 0
 y0 .= 0
 AtAcoo!(x0, y0, Acoo, x) ≈ A'A*x
 
-function findmatches(a,b)
-    ia = 1
-    ib = 1
-    matches = Tuple{Int,Int}[]
-    for i = 1:length(a) + length(b)
-        if ia > length(a) || ib > length(b)
-            break
-        end
-
-        if a[ia] == b[ib]
-            push!(matches, (ia,ib))
-            ia += 1
-            ib += 1
-        elseif a[ia] < b[ib]
-            ia += 1
-        elseif a[ia] > b[ib]
-            ib += 1
-        else
-            error("This shouldn't be reached!")
-        end
-    end
-    matches
-end
-
 
 # Normal multiplication
 n = 20
@@ -160,6 +136,30 @@ AtAcsc!(x0, y0, A, x) ≈ A'A*x
 
 # Calculating AtA
 using BilinearControl: getnzind
+function findmatches(a,b)
+    ia = 1
+    ib = 1
+    matches = Tuple{Int,Int}[]
+    for i = 1:length(a) + length(b)
+        if ia > length(a) || ib > length(b)
+            break
+        end
+
+        if a[ia] == b[ib]
+            push!(matches, (ia,ib))
+            ia += 1
+            ib += 1
+        elseif a[ia] < b[ib]
+            ia += 1
+        elseif a[ia] > b[ib]
+            ib += 1
+        else
+            error("This shouldn't be reached!")
+        end
+    end
+    matches
+end
+
 function AtAcache(A)
     m,n = size(A)
     rv = rowvals(A)
@@ -220,6 +220,7 @@ AtA!(B, A, cache) ≈ A'A
 @btime AtA!($B, $A, $cache)
 
 
+# Bilinear Term
 
 """
 Compute
@@ -240,7 +241,6 @@ function mulbicoo!(y,Acoo,x,z)
     end
     y
 end
-# Bilinear Term
 C = [sprandn(n,n,0.2) for i = 1:m]
 nnzC = sum(nnz, C)
 Ccoo = Tuple{Int,Int,Float64,Int}[]
