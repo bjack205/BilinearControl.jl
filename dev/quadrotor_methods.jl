@@ -395,6 +395,32 @@ BilinearControl.updateBhat!(admm, Bhat, X)
 Rhatmul!(R, ρ, uout, utmp1, utmp2, y, ytmp, X, U, h, n, m, N, mass) ≈ 
     (R + ρ*Bhat'Bhat)*U
 
+struct QhatOperator{M,T}
+    Q::M
+    ρ::Ref{T}
+    u::Vector{T}
+    xtmp1::Vector{T}
+    xtmp2::Vector{T}
+    y::Vector{T}
+    ytmp::Vector{T}
+    h::T
+    n::Int
+    m::Int
+    N::Int
+    mass::Int
+    function QhatOperator(Q::M, ρ, u::Vector{T}, Nc, h, n, m, N, mass) where {T,M} 
+        xtmp1 = zeros(T,N*n)
+        xtmp2 = zeros(T,2n)
+        y = zeros(T,Nc)
+        ytmp = zeros(T,Nc)
+        new{M,T}(Q, Ref(ρ), u, xtmp1, xtmp2, y, ytmp, h, n, m, N, mass)
+    end
+end
+
+function (f::QhatOperator)(xout, x)
+    Qhatmul!(f.Q, f.ρ[], xout, f.xtmp1, f.xtmp2, f.y, f.ytmp, x, f.u, f.h, f.n, f.m, f.N, f.mass)
+end
+
 
 @btime Abarx!($y, $X, $h, $n, $N)
 @btime mul!($y, $Abar, $X)

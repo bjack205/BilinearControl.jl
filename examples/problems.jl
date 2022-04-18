@@ -271,8 +271,9 @@ function QuadrotorProblem()
     prob
 end
 
-function QuadrotorRateLimitedSolver(; N=101, tf=3.0)
-    model = QuadrotorRateLimited()
+function QuadrotorRateLimitedSolver(O=1; N=101, tf=3.0)
+    model = QuadrotorRateLimited{O}()
+    n = RD.state_dim(model)
 
     # Discretization
     h = tf / (N-1)
@@ -282,15 +283,24 @@ function QuadrotorRateLimitedSolver(; N=101, tf=3.0)
     xf = [5; 0; 2.0; vec(RotZ(deg2rad(90))); zeros(3); zeros(3)]
     uhover = [0,0,0,model.mass*model.gravity]
 
+    if O == 2
+        x0 = [x0; zeros(3)]
+        xf = [xf; zeros(3)]
+    end
+
     # Build bilinear constraint matrices
     Abar,Bbar,Cbar,Dbar = BilinearControl.buildbilinearconstraintmatrices(
-        model, x0, xf, h, N
+        model, x0, xf[1:n-(O-0)*3], h, N
     )
 
     # Build cost
-    Q = Diagonal([fill(1e-2, 3); fill(1e-2, 9); fill(1e-2, 3); fill(1e-1, 3)])
+    Qd = [fill(1e-3, 3); fill(1e-3, 9); fill(1e-3, 3); fill(1e-1, 3)]
+    R = Diagonal([fill(1e-3,3); 1e-2])
+    if O == 2
+        append!(Qd, fill(1e-2,3)) 
+    end
+    Q = Diagonal(Qd)
     Qf = Q*(N-1)
-    R = Diagonal([fill(1e-2,3); 1e-2])
     Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
     Qbar = Diagonal([diag(Qbar); diag(Qf)])
     Rbar = Diagonal(vcat([diag(R) for i = 1:N]...))

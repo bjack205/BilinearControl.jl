@@ -99,29 +99,36 @@ function BilinearControl.getD(model::QuadrotorSE23)
     d
 end
 
-Base.@kwdef struct QuadrotorRateLimited <: RD.DiscreteDynamics
-    mass::Float64 = 2.0
-    gravity::Float64 = 9.81
+struct QuadrotorRateLimited{Order} <: RD.DiscreteDynamics
+    mass::Float64
+    gravity::Float64
+    function QuadrotorRateLimited{O}(; mass=2.0, gravity=9.81) where O
+        @assert O in (1,2) "Invalid parameter for quadrotor. Must be 1 or 2."
+        new{O}(mass, gravity)
+    end
 end
+QuadrotorRateLimited(;kwargs...) = QuadrotorRateLimited{1}(;kwargs...)
 
-RD.state_dim(::QuadrotorRateLimited) = 18
+RD.state_dim(::QuadrotorRateLimited{1}) = 18
+RD.state_dim(::QuadrotorRateLimited{2}) = 21 
 RD.control_dim(::QuadrotorRateLimited) = 4
 
 BilinearControl.Problems.translation(::QuadrotorRateLimited, x) = SVector{3}(x[1], x[2], x[3])
 BilinearControl.Problems.orientation(::QuadrotorRateLimited, x) = RotMatrix{3}(x[4:12]...)
 
-function Base.rand(::QuadrotorRateLimited)
+function Base.rand(::QuadrotorRateLimited{O}) where O
     x = [
             @SVector randn(3);
             vec(qrot(normalize(@SVector randn(4))));
-            @SVector randn(6)
+            @SVector randn(3 * (O+1))
     ]
     u = push((@SVector randn(3)), rand())
     x,u
 end
 
+
 # function RD.dynamics(model::QuadrotorRateLimited, x, u)
-function RD.dynamics_error(model::QuadrotorRateLimited, z2::RD.KnotPoint, z1::RD.KnotPoint)
+function RD.dynamics_error(model::QuadrotorRateLimited{O}, z2::RD.KnotPoint, z1::RD.KnotPoint) where O
     x1 = RD.state(z1)
     x2 = RD.state(z2)
     u1 = RD.control(z1)
@@ -147,13 +154,20 @@ function RD.dynamics_error(model::QuadrotorRateLimited, z2::RD.KnotPoint, z1::RD
         [rdot; vec(Rdot); vdot]
     end
     dx0 = x1[1:15] - x2[1:15]
-    α2 = SA[x2[16], x2[17], x2[18]]
     ω1 = SA[u1[1], u1[2], u1[3]]
-    ω2 = SA[u2[1], u2[2], u2[3]]
-    [h*xdot0 + dx0; h*α2 + ω1 - ω2]
+    α2 = SA[x2[16], x2[17], x2[18]]
+    if O == 1
+        ω2 = SA[u2[1], u2[2], u2[3]]
+        return [h*xdot0 + dx0; h*α2 + ω1 - ω2]
+    elseif O == 2
+        # α1 = SA[x1[16], x1[17], x1[18]]
+        ωp1 = SA[x1[19], x1[20], x1[21]]
+        ωp2 = SA[x2[19], x2[20], x2[21]]
+        return [h*xdot0 + dx0; h*α2 - (ωp2 - ωp1); ωp2 - ω1]
+    end
 end
 
-function BilinearControl.getA(::QuadrotorRateLimited, h)
+function BilinearControl.getA(::QuadrotorRateLimited{1}, h)
     n = 18 
     A = zeros(n, 2n)
     for i = 1:3
@@ -168,7 +182,25 @@ function BilinearControl.getA(::QuadrotorRateLimited, h)
     A
 end
 
-function BilinearControl.getB(::QuadrotorRateLimited, h)
+function BilinearControl.getA(::QuadrotorRateLimited{2}, h)
+    n =  21 
+    A = zeros(n, 2n)
+    for i = 1:3
+        A[i,12+i] = h/2
+        A[i,n+12+i] = h/2
+        A[15+i,15+i] = h     # α1
+        A[15+i,18+i] = 1.0     # ωp1
+        A[15+i,18+i+n] = -1.0  # ωp2
+        A[18+i,18+i+n] = 1.0   # ωp2
+    end
+    for i = 1:15
+        A[i,i] = 1.0
+        A[i,n+i] = -1.0
+    end
+    A
+end
+
+function BilinearControl.getB(::QuadrotorRateLimited{1}, h)
     n,m = 18,4
     B = zeros(n,2m)
     for i = 1:3
@@ -178,8 +210,18 @@ function BilinearControl.getB(::QuadrotorRateLimited, h)
     B
 end
 
+function BilinearControl.getB(::QuadrotorRateLimited{2}, h)
+    n,m = 21,4
+    B = zeros(n,2m)
+    for i = 1:3
+        # B[15+i,i] = -1.0
+        B[18+i,i] = -1.0
+    end
+    B
+end
+
 function BilinearControl.getC(model::QuadrotorRateLimited, h)
-    n,m = 18,4
+    n,m = RD.dims(model)
     C = [zeros(n,2n) for i = 1:2m]
     mass = model.mass
     for i = 1:3
@@ -198,7 +240,7 @@ end
 
 function BilinearControl.getD(model::QuadrotorRateLimited, h)
     g = model.gravity 
-    d = zeros(18)
+    d = zeros(RD.state_dim(model))
     d[15] = -g*h
     d
 end
