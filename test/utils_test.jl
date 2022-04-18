@@ -18,7 +18,7 @@ B = sparse([
     0 1 0 0
     0 0 0 1
 ])
-getnzindsA(A, B) == [1,3,4]
+@test getnzindsA(A, B) == [1,3,4]
 C = sparse([
     0 0 0 0
     0 1 0 0
@@ -59,4 +59,26 @@ for i = 1:2
         end
     end
 end
-B2 ≈ B
+@test B2 ≈ B
+
+# Methods for calculating AtA
+using SparseArrays
+a = [1,3,5,6]
+b = [1,2,3,6,9]
+@test BilinearControl.findmatches(a,b) == [(1,1), (2,3), (4,4)]
+
+n = 10
+N = 11 
+A1 = sprandn(n,n,0.1)
+A2 = sprandn(n,n,0.1)
+A = kron(spdiagm(N-1,N,0=>ones(N-1)), A2) + kron(spdiagm(N-1,N,1=>ones(N-1)), A2)
+
+cache = BilinearControl.AtAcache(A)
+C = similar(A'A)
+@test C ≉ A'A
+BilinearControl.AtA!(C, A, cache)
+@test C ≈ A'A
+
+testAtAallocs(C,A,cache) = @allocated BilinearControl.AtA!(C, A, cache)
+@test testAtAallocs(C,A,cache) == 0
+

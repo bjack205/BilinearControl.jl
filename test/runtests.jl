@@ -9,6 +9,7 @@ using Random
 using StaticArrays
 using Test
 using Statistics
+using SparseArrays
 using Rotations
 
 include("gen_controllable.jl")
@@ -34,4 +35,8 @@ end
 
 @testset "Quadrotor Example" begin
     include("quadrotor_test.jl")
+end
+
+@testset "Utils" begin
+    include("utils_test.jl")
 end

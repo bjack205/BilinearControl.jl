@@ -51,3 +51,103 @@ function getnzindsB(B, C::SparseMatrixCSC{<:Any,Ti}, col) where Ti
 end
 
 getnzindsB(B, C, col) = Vector{Int}[]
+
+"""
+    findmatches(a,b)
+
+Get the indices into the sorted `a` and `b` vectors for which the elements match. 
+
+# Example
+```
+a = [1,3,5,6]
+b = [1,2,3,6,9]
+findmatches(a,b) == [(1,1), (2,3), (4,4)]
+```
+"""
+function findmatches(a,b)
+    ia = 1
+    ib = 1
+    matches = Tuple{Int,Int}[]
+    for i = 1:length(a) + length(b)
+        if ia > length(a) || ib > length(b)
+            break
+        end
+
+        if a[ia] == b[ib]
+            push!(matches, (ia,ib))
+            ia += 1
+            ib += 1
+        elseif a[ia] < b[ib]
+            ia += 1
+        elseif a[ia] > b[ib]
+            ib += 1
+        else
+            error("This shouldn't be reached!")
+        end
+    end
+    matches
+end
+
+"""
+Creates a cache for computing `C = A'A` more efficiently, where `C` is a sparse 
+matrix already initialized with the correct sparsity structure.
+
+Returns a dictionary whose keys are the `(i,j)` tuples of nonzero entries in `C`, 
+with values equal to `(ij,ji,matches)` where `ij` and `ji` are the indices into the nonzeros 
+vector of `C` corresponding to `C[i,j]` and `C[j,i]`, respectively. The `matches`
+entry is a vector of `NTuple{2,Int}`, which provide the indices into the nonzero 
+vector of `A` for which column `i` and `j` have the same rows.
+"""
+function AtAcache(A)
+    m,n = size(A)
+    rv = rowvals(A)
+    cache = Dict{Tuple{Int,Int},Tuple{Int,Int,Vector{NTuple{2,Int}}}}()
+    AtA = A'A
+    for i = 1:n
+        rowi = view(rv, nzrange(A, i))
+        for j = i+1:n
+            ij = getnzind(AtA, i, j)
+            ji = getnzind(AtA, j, i)
+            if ij == 0 && ji == 0
+                continue
+            end
+
+            rowj = view(rv, nzrange(A, j))
+
+            # Find indices of entries with matching rows
+            matches = findmatches(rowi, rowj)
+
+            # Convert to nonzeros indices
+            nzinds = map(matches) do (ri,rj) 
+                (nzrange(A,i)[ri], nzrange(A,j)[rj])
+            end
+            cache[(i,j)] = (ij, ji, nzinds)
+        end
+        ii = getnzind(AtA, i, i)
+        if ii > 0
+            nzinds = map(i->(i,i), nzrange(A, i))
+            cache[(i,i)] = (ii,ii,nzinds)
+        end
+    end
+    cache
+end
+
+"""
+Calculates `B = A'A`, given a cache computed via [`AtAcache`](@ref), where 
+`A` is sparse.
+"""
+function AtA!(B, A, cache)
+    nzv = nonzeros(A)
+    nzvB = nonzeros(B)
+
+    for nz in values(cache)
+        tmp = 0.0
+        ij,ji,matches = nz 
+        for (ii,jj) in matches 
+            tmp += nzv[ii] * nzv[jj]
+        end
+        nzvB[ij] = tmp
+        nzvB[ji] = tmp
+    end
+    B
+end
