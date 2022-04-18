@@ -110,7 +110,7 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     M = typeof(A)
 
     # Build Ahat and Bhat
-    Ahat = A + sum(C)
+    Ahat = A + sum(rand() * c for c in C)
     Bhat = copy(B)
     x_ = randn(n)
     for i = 1:m
@@ -309,7 +309,9 @@ function solvex(solver::BilinearADMM, z, w)
         solver.opts.x_solver = method
     end
     if method ∈ (:cholesky, :osqp, :cg, :cosmo)
-        P̂ = solver.Q + ρ * Ahat'Ahat
+        solver.AtA .= 0
+        P̂ = copy(updatePhat!(solver))
+        # P̂ = solver.Q + ρ * Ahat'Ahat
         q̂ = solver.q + ρ * Ahat'*(vec(a) + w)
 
         if method == :cholesky

@@ -84,6 +84,4 @@ BilinearControl.QAtA!(C, Q, A, ρ, cache)
 
 testQAtAallocs(C,Q,A,ρ,cache) = @allocated BilinearControl.QAtA!(C, Q, A, ρ, cache)
 testQAtAallocs(C,Q,A,ρ,cache)
-testAtAallocs(C,A,cache) = @allocated BilinearControl.AtA!(C, A, cache)
-@test testAtAallocs(C,A,cache) == 0
 

@@ -34,7 +34,7 @@ function test_quadrotor_dynamics()
     @test xdot ≈ A*x + B*u + sum(u[i]*C[i]*x for i = 1:length(u)) + D
 end
 
-function test_quadrotor_solve()
+function test_quadrotor_solve(; x_solver=:ldl)
     ## Solve with ADMM 
     prob = Problems.QuadrotorProblem()
     model = prob.model[1].continuous_dynamics
@@ -42,6 +42,7 @@ function test_quadrotor_solve()
     X = extractstatevec(prob)
     U = extractcontrolvec(prob)
     admm.opts.penalty_threshold = 1e2
+    admm.opts.x_solver = x_solver
     BilinearControl.setpenalty!(admm, 1e4)
     Xsol, Usol = BilinearControl.solve(admm, X, U, verbose=false)
     @test admm.stats.iterations < 100
@@ -227,3 +228,4 @@ end
         test_quadrotor_soc()
     end
 end
+
