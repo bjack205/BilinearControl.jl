@@ -102,7 +102,7 @@ function AtAcache(A)
     m,n = size(A)
     rv = rowvals(A)
     cache = Dict{Tuple{Int,Int},Tuple{Int,Int,Vector{NTuple{2,Int}}}}()
-    AtA = A'A
+    AtA = A'A + I
     for i = 1:n
         rowi = view(rv, nzrange(A, i))
         for j = i+1:n
@@ -129,25 +129,30 @@ function AtAcache(A)
             cache[(i,i)] = (ii,ii,nzinds)
         end
     end
-    cache
+    cache, AtA
 end
 
 """
-Calculates `B = A'A`, given a cache computed via [`AtAcache`](@ref), where 
-`A` is sparse.
+Calculates `B = Q + ρ A'A`, given a cache computed via [`AtAcache`](@ref), where 
+`A` is sparse, `Q` is a diagonal matrix, and `ρ` is a scalar.
 """
-function AtA!(B, A, cache)
+function QAtA!(B, Q, A, ρ, cache)
     nzv = nonzeros(A)
     nzvB = nonzeros(B)
 
-    for nz in values(cache)
+    for (idx,nz) in pairs(cache)
+        i,j = idx
         tmp = 0.0
         ij,ji,matches = nz 
         for (ii,jj) in matches 
             tmp += nzv[ii] * nzv[jj]
         end
-        nzvB[ij] = tmp
-        nzvB[ji] = tmp
+        nzvB[ij] = ρ*tmp
+        if i == j
+            nzvB[ij] += Q[i,i]
+        else
+            nzvB[ji] = ρ*tmp
+        end
     end
     B
 end

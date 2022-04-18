@@ -73,12 +73,17 @@ A1 = sprandn(n,n,0.1)
 A2 = sprandn(n,n,0.1)
 A = kron(spdiagm(N-1,N,0=>ones(N-1)), A2) + kron(spdiagm(N-1,N,1=>ones(N-1)), A2)
 
-cache = BilinearControl.AtAcache(A)
-C = similar(A'A)
+cache,C = BilinearControl.AtAcache(A)
 @test C ≉ A'A
-BilinearControl.AtA!(C, A, cache)
-@test C ≈ A'A
+Q = Diagonal(rand(N*n))
+ρ = 2.0
+BilinearControl.QAtA!(C, Q, A, ρ, cache)
+@test C ≈ (Q + ρ*A'A)
+BilinearControl.QAtA!(C, Q, A, ρ, cache)
+@test C ≈ (Q + ρ*A'A)
 
+testQAtAallocs(C,Q,A,ρ,cache) = @allocated BilinearControl.QAtA!(C, Q, A, ρ, cache)
+testQAtAallocs(C,Q,A,ρ,cache)
 testAtAallocs(C,A,cache) = @allocated BilinearControl.AtA!(C, A, cache)
 @test testAtAallocs(C,A,cache) == 0
 

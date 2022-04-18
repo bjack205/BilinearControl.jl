@@ -56,13 +56,15 @@ struct BilinearADMM{M,A}
     uhi::Vector{Float64}  # upper control bound
 
     # Parameters
-    ρ::Ref{Float64}
+    ρ::Vector{Float64}
 
     # Storage
     Ahat::M
     Bhat::M
     nzindsA::Vector{Vector{Int}}
     nzindsB::Vector{Vector{Int}}
+    AtA::M
+    Acache::Dict{NTuple{2,Int},Tuple{Int,Int,Vector{NTuple{2,Int}}}}
     x::Vector{Float64}
     z::Vector{Float64}
     w::Vector{Float64}  # scaled duals
@@ -103,7 +105,7 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     x_prev = zero(x)
     z_prev = zero(z)
     w_prev = zero(w)
-    ρref = Ref(ρ)
+    ρref = [ρ]
     opts = ADMMOptions() 
     M = typeof(A)
 
@@ -131,21 +133,23 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     end
     pushfirst!(nzindsB, getnzindsA(Bhat, B))
 
+    cache, AtA = AtAcache(Ahat)
+
     # Acceleration
     aa = AA(m+p)
     zw = [zeros(m+p) for _ = 1:2]
 
     BilinearADMM{M,AA}(
         Q, q, R, r, Ref(c), A, B, C, d, xlo, xhi, ulo, uhi, 
-        ρref, Ahat, Bhat, nzindsA, nzindsB, x, z, w, x_prev, z_prev, w_prev, 
+        ρref, Ahat, Bhat, nzindsA, nzindsB, AtA, cache, x, z, w, x_prev, z_prev, w_prev, 
         constraints,
         aa, zw,
         opts, ADMMStats()
     )
 end
 
-setpenalty!(solver::BilinearADMM, rho) = solver.ρ[] = rho
-getpenalty(solver::BilinearADMM) = solver.ρ[]
+setpenalty!(solver::BilinearADMM, rho) = solver.ρ[1] = rho
+getpenalty(solver::BilinearADMM)::Float64 = solver.ρ[1]
 
 eval_f(solver::BilinearADMM, x) = 0.5 * dot(x, solver.Q, x) + dot(solver.q, x)
 eval_g(solver::BilinearADMM, z) = 0.5 * dot(z, solver.R, z) + dot(solver.r, z)
@@ -239,6 +243,11 @@ function updateBhat!(solver::BilinearADMM, Bhat, x)
         mul!(Bi, solver.C[i], x, 1.0, 1.0)
     end
     Bhat
+end
+
+function updatePhat!(solver::BilinearADMM)
+    ρ = getpenalty(solver)::Float64
+    QAtA!(solver.AtA, solver.Q, solver.Ahat, ρ, solver.Acache)
 end
 
 geta(solver::BilinearADMM, z) = solver.B*z + solver.d
