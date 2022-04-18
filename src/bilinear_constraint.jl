@@ -71,7 +71,7 @@ function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
     n,m = RD.dims(model) 
     Nx = N*n 
     Nu = N*m
-    Nc = N*n + n
+    Nc = N*n + length(xf) 
 
     # Build matrices
     Abar = spzeros(Nc, Nx)
@@ -105,8 +105,8 @@ function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
     end
 
     # Terminal constraint
-    Abar[ic, ix12[1:n]] .= -I(n)
-    Dbar[ic] .= xf
+    Abar[ic[1:length(xf)], ix12[1:length(xf)]] .= -I(length(xf))
+    Dbar[ic[1:length(xf)]] .= xf
 
     return Abar, Bbar, Cbar, Dbar
 end
