@@ -13,8 +13,9 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     usetermcon = all(isfinite, xf)
 
     # Get sizes
-    n,m = size(B)
-    Nc = N*n + usetermcon * n
+    n = size(A,2)
+    p,m = size(B)
+    Nc = N*p + usetermcon * n
     Nx = N*n
     Nu = (N-1)*m
 
@@ -25,14 +26,14 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     Dbar = spzeros(Nc)
 
     # Initialize some useful ranges
-    ic = 1:n
+    ic = 1:p
     ix1 = 1:n
     ix2 = ix1 .+ n 
     iu1 = 1:m
 
     # Initial condition
-    Abar[ic, ix1] .= -I(n)
-    Dbar[ic] .= x0
+    Abar[ix1, ix1] .= -I(n)
+    Dbar[ix1] .= x0
     ic = ic .+ n
 
     # Dynamics
@@ -52,6 +53,7 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     end
 
     # Goal constraint
+    ic = ic[1]:ic[1]+n-1
     if usetermcon
         Abar[ic, ix1] .= -I(n)
         Dbar[ic] .= xf
@@ -68,10 +70,10 @@ are fully supported).
 """
 function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
     # get sizes
-    n,m = RD.dims(model) 
+    n,m,p = RD.dims(model) 
     Nx = N*n 
     Nu = N*m
-    Nc = N*n + n
+    Nc = (N-1)*p + 2n
 
     # Build matrices
     Abar = spzeros(Nc, Nx)
@@ -87,7 +89,7 @@ function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
     # Initial conditio
     Abar[ic, 1:n] .= -I(n)
     Dbar[ic] .= x0
-    ic = ic .+ n
+    ic = (1:p) .+ n
 
     # Dynamics
     A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
@@ -101,10 +103,11 @@ function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
 
         ix12 = ix12 .+ n
         iu12 = iu12 .+ m
-        ic = ic .+ n
+        ic = ic .+ p
     end
 
     # Terminal constraint
+    ic = ic[1] - 1 .+ (1:n)
     Abar[ic, ix12[1:n]] .= -I(n)
     Dbar[ic] .= xf
 

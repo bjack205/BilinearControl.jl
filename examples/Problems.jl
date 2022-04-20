@@ -32,6 +32,8 @@ export
     SE3Kinematics,
     Se3ForceDynamics,
     QuadrotorSE23,
-    QuadrotorRateLimited
+    QuadrotorRateLimited,
+    FullAttitudeDynamics,
+    ConsensusDynamics
 
 end
