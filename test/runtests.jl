@@ -14,6 +14,7 @@ using Rotations
 include("gen_controllable.jl")
 using Main.RandomLinearModels
 using BilinearControl.Problems
+using BilinearControl.Problems: qrot, skew
 
 ##
 include("dynamics_tests.jl")
