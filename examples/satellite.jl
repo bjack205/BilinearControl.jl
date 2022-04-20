@@ -48,5 +48,29 @@ p = plot(
     label=[L"\omega_x" L"\omega_y"], legend=:top, 
     xlabel="time (s)", ylabel="angular velociy (rad/s)"
 )
-savefig(p, "satellite.eps")
+figdir = joinpath(@__DIR__, "..", "images")
+savefig(p, joinpath(figdir, "satellite.eps"))
 
+
+## With Torque inputs
+J = Diagonal(SA[1.0, 1.0, 3.0])
+model = FullAttitudeDynamics(J)
+n,m = RD.dims(model)
+N = 51
+tf = 3.0
+admm = Problems.SE3TorqueProblem(N=N, tf=tf)
+X = copy(admm.x)
+U = copy(admm.z)
+# admm.opts.ϵ_rel_dual = 1.0
+# admm.opts.ϵ_abs_dual = 1.0
+Xsol,Usol = BilinearControl.solve(admm, X, U, verbose=true, max_iters=1000)
+
+Xs = collect(eachcol(reshape(Xsol, n, :)))
+Us = reshape(Usol, m, :)
+times = range(0,tf,length=N)
+visualize!(vis, model, tf, Xs)
+
+p = plot(times[1:end-1], Us[1:3,1:end-1]', 
+    label=["τ₁" "τ₂" "τ₃"], xlabel="time (s)", ylabel="Torques (N⋅m)")
+savefig(p, joinpath(figdir, "satellite_torques.eps"))
+savefig(p, joinpath(figdir, "satellite_torques.png"))

@@ -103,43 +103,6 @@ vis = Visualizer()
 open(vis)
 setendurance!(vis)
 
-function SE3TorqueProblem(;N=11, tf=2.0, 
-    xf = [vec(RotX(deg2rad(45)) * RotZ(deg2rad(180))); zeros(3)]
-)
-    J = Diagonal(SA[1,2,1.])
-    dmodel = ConsensusDynamics(J)
-
-    x0 = [vec(I(3)); zeros(3)]
-    h = tf / (N-1)
-
-    # Build bilinear constraint
-    A,B,C,D = BilinearControl.buildbilinearconstraintmatrices(dmodel, x0, xf, h, N)
-
-    # Cost Objective
-    Q = Diagonal([fill(1e-1, 9); fill(1e-1, 3)])
-    Qf = Q*(N-1)
-    R = Diagonal([fill(1e-1,3); fill(1e-3,3)])
-    Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
-    Qbar = Diagonal([diag(Qbar); diag(Qf)])
-    Rbar = Diagonal(vcat([diag(R) for i = 1:N]...))
-    q = repeat(-Q*xf, N)
-    r = repeat(-R*u0, N)
-    c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 
-        0.5*sum(dot(u0,R,u0) for k = 1:N)
-
-    # Initial trajectory
-    X = repeat(x0, N)
-    U = repeat(u0, N)
-
-    # Solver
-    admm = BilinearADMM(A,B,C,D, Qbar,q,Rbar,r,c)
-    admm.x .= X
-    admm.z .= U
-    admm.opts.penalty_threshold = 1e2
-    BilinearControl.setpenalty!(admm, 1e4)
-
-    admm
-end
 
 admm = SE3TorqueProblem(N=51, tf=3.0)
 X = copy(admm.x)
