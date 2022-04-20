@@ -14,12 +14,12 @@ Set an image as a pseudo-background image by placing an image on planes located 
 function setbackgroundimage(vis, imagefile, d=50)
 
     # Create planes at a distance d from the origin
-    px = Rect3(Vec(+d,-d,-d), Vec(0.1,2d,2d))
-    nx = Rect3(Vec(-d,-d,-d), Vec(0.1,2d,2d))
-    py = Rect3(Vec(-d,+d,-d), Vec(2d,0.1,2d))
-    ny = Rect3(Vec(-d,-d,-d), Vec(2d,0.1,2d))
-    pz = Rect3(Vec(-d,-d,+d), Vec(2d,2d,0.1))
-    nz = Rect3(Vec(-d,-d,-d), Vec(2d,2d,0.1))
+    px = Rect3D(Vec(+d,-d,-d), Vec(0.1,2d,2d))
+    nx = Rect3D(Vec(-d,-d,-d), Vec(0.1,2d,2d))
+    py = Rect3D(Vec(-d,+d,-d), Vec(2d,0.1,2d))
+    ny = Rect3D(Vec(-d,-d,-d), Vec(2d,0.1,2d))
+    pz = Rect3D(Vec(-d,-d,+d), Vec(2d,2d,0.1))
+    nz = Rect3D(Vec(-d,-d,-d), Vec(2d,2d,0.1))
 
     # Create a material from the image
     img = PngImage(imagefile)
@@ -80,3 +80,4 @@ orientation(model, x) = UnitQuaternion(x[4], x[5], x[6], x[7])
 
 translation(model::RD.DiscretizedDynamics, x) = translation(model.continuous_dynamics, x)
 orientation(model::RD.DiscretizedDynamics, x) = orientation(model.continuous_dynamics, x)
+
