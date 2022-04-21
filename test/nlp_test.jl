@@ -45,9 +45,9 @@ rc = MOI.jacobian_structure(nlp)
 r = getindex.(rc, 1) 
 c = getindex.(rc, 2) 
 jvec = zeros(length(rc)) 
+MOI.eval_constraint_jacobian(nlp, jvec, z)
 J = sparse(r,c,jvec)
 
-MOI.eval_constraint_jacobian(nlp, jvec, z)
 Jfd = zeros(length(D), length(z))
 FiniteDiff.finite_difference_jacobian!(Jfd, (y,x)->MOI.eval_constraint(nlp, y, x), z)
 @test Jfd ≈ J

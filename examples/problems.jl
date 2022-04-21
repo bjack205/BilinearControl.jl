@@ -232,7 +232,7 @@ function SE3ForceProblem()
 
     # Build the problem
     prob = Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
-    rollout!(prob)
+    rollout!(RD.InPlace(), prob)
     prob
 end
 
