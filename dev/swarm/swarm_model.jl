@@ -74,14 +74,15 @@ end
 
 BilinearControl.getD(::SwarmSE2{P}) where P = zeros(4P)
 
-function buildformationconstraint(::SwarmSE2{P}, cons)
+function buildformationconstraint(::SwarmSE2{P}, cons) where P
     ncons = length(cons)
-    F = zeros(4ncons, 4P)
+    p = 2
+    F = zeros(p*ncons, 4P)
     for k = 1:ncons
         i,j = cons[k].i, cons[k].j
         x,y = cons[k].x, cons[k].y
         α,β = cons[k].α, cons[k].β
-        Fi = view(F, (k-1)*4 .+ (1:4), (i-1)*4 .+ (1:4))
+        Fi = view(F, (k-1)*p .+ (1:p), (i-1)*4 .+ (1:4))
         Fi[1,1] = 1
         Fi[2,2] = 1
         Fi[1,3] = x
@@ -89,9 +90,16 @@ function buildformationconstraint(::SwarmSE2{P}, cons)
         Fi[1,4] = -y
         Fi[2,3] = y
 
-        Gi = view(F, (k-1)*4 .+ (1:4), (j-1)*4 .+ (1:4))
+        # Fi[3,3] = α
+        # Fi[4,4] = α
+        # Fi[3,4] = -β
+        # Fi[4,3] = +β
+
+        Gi = view(F, (k-1)*p .+ (1:p), (j-1)*4 .+ (1:4))
         Gi[1,1] = -1
         Gi[2,2] = -1
+        # Gi[3,3] = -1
+        # Gi[4,4] = -1
         C[1 + (i-1)*2]
     end
     F
@@ -99,7 +107,7 @@ end
 
 function BilinearControl.buildbilinearconstraintmatrices(model::SwarmSE2{P}, x0, Af, bf, h, N; 
         relcons=[]
-    )
+    ) where P
     n,m = RD.dims(model)
     ncons = length(relcons)
     Nx = N*n
@@ -144,7 +152,6 @@ function BilinearControl.buildbilinearconstraintmatrices(model::SwarmSE2{P}, x0,
             ic2 = ic[end]+1:ic[end]
         end
 
-        @show ic
         ic = ic2.stop .+ (1:n)
         ix1 = ix1 .+ n
         ix2 = ix2 .+ n
@@ -152,7 +159,6 @@ function BilinearControl.buildbilinearconstraintmatrices(model::SwarmSE2{P}, x0,
     end
 
     # Terminal constraint
-    @show ic
     ic = ic[1] - 1 .+ (1:size(Af,1))
     Abar[ic, ix1] .= Af
     Dbar[ic] .= bf

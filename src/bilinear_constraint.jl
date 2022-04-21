@@ -183,7 +183,7 @@ function buildcostmatrices(Q,R,Qf,xf,N; u0=zeros(size(R,1)), uN = N-1)
     r = repeat(-R*u0, uN)
     c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 
         0.5*sum(dot(u0,R,u0) for k = 1:N)
-    Qbar,Rbar,q,r,c
+    Qbar,q,Rbar,r,c
 end
 
 function evaluatebilinearconstraint(prob::TO.Problem)
