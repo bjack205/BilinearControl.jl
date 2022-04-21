@@ -175,6 +175,17 @@ function buildcostmatrices(prob::TO.Problem)
     Q, q, R, r, c
 end
 
+function buildcostmatrices(Q,R,Qf,xf,N; u0=zeros(size(R,1)), uN = N-1)
+    Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
+    Qbar = Diagonal([diag(Qbar); diag(Qf)])
+    Rbar = Diagonal(vcat([diag(R) for i = 1:uN]...))
+    q = repeat(-Q*xf, N)
+    r = repeat(-R*u0, uN)
+    c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 
+        0.5*sum(dot(u0,R,u0) for k = 1:N)
+    Qbar,Rbar,q,r,c
+end
+
 function evaluatebilinearconstraint(prob::TO.Problem)
     model = prob.model[1]
     n,m = RD.dims(model)
