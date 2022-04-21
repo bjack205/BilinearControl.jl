@@ -158,3 +158,12 @@ solver2.opts.penalty_threshold = 1e2
 Xsol2, Usol2 = BilinearControl.solve(solver2, Xsol, Usol, verbose=true, max_iters=500)
 X2s = collect(eachcol(reshape(Xsol2, 4P, :)))
 visualize!(vis, model, tf, X2s)
+
+## Ipopt
+Qbar2 = Qbar0 + Fbar*1e3
+nlp = BilinearControl.BilinearMOI(Abar,Bbar,Cbar,Dbar, Qbar2,qbar,Rbar,rbar,cbar)
+z = [X; U]
+zsol, solver = BilinearControl.solve(nlp, z, verbose=5)
+
+Xmoi = collect(eachcol(reshape(zsol[1:length(X)], :, N)))
+visualize!(vis, model, tf, Xmoi)
