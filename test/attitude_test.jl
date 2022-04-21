@@ -112,7 +112,7 @@ function testattitudeproblem(Nu)
     n,m = RD.dims(prob.model[1])
     Xs = collect(eachcol(reshape(Xsol, n, :)))
     Us = collect(eachcol(reshape(Usol, m, :)))
-    Zsol = SampledTrajectory(Xs,Us, tf=prob.tf)
+    Zsol = SampledTrajectory(Xs,Us, tf=TO.get_final_time(prob))
 
     # Test that it got to the goal
     @test abs(Xs[end]'prob.xf - 1.0) < BilinearControl.get_primal_tolerance(admm)  

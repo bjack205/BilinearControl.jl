@@ -37,9 +37,9 @@ end
 
 struct BilinearADMM{M,A}
     # Objective
-    Q::Diagonal{Float64, Vector{Float64}}
+    Q::SparseMatrixCSC{Float64,Int}
     q::Vector{Float64}
-    R::Diagonal{Float64, Vector{Float64}}
+    R::SparseMatrixCSC{Float64,Int} 
     r::Vector{Float64}
     c::Ref{Float64}
 
@@ -108,11 +108,11 @@ function BilinearADMM(A,B,C,d, Q,q,R,r,c=0.0; ρ = 10.0,
     M = typeof(A)
 
     # Build Ahat and Bhat
-    Ahat = A + sum(C)
+    Ahat = A + sum(c*rand() for c in C)
     Bhat = copy(B)
     x_ = randn(n)
     for i = 1:m
-        Bhat[:,i] += C[i] * x_
+        Bhat[:,i] += C[i] * x_ * rand()
     end
 
     # Set bounds

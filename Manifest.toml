@@ -834,12 +834,10 @@ uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 version = "0.5.16"
 
 [[deps.TrajectoryOptimization]]
-deps = ["DocStringExtensions", "FiniteDiff", "ForwardDiff", "LinearAlgebra", "MathOptInterface", "RobotDynamics", "RobotZoo", "Rotations", "SparseArrays", "StaticArrays", "UnsafeArrays"]
-git-tree-sha1 = "8c86e712ee768792eccc8718ce812ee87d9dfcb3"
-repo-rev = "bilinear"
-repo-url = "https://github.com/RoboticExplorationLab/TrajectoryOptimization.jl.git"
+deps = ["DocStringExtensions", "FiniteDiff", "ForwardDiff", "LinearAlgebra", "RobotDynamics", "RobotZoo", "Rotations", "SparseArrays", "StaticArrays"]
+git-tree-sha1 = "1e449355d1a81f2bb54f7f5aba8ac33b69599130"
 uuid = "c79d492b-0548-5874-b488-5a62c1d9d0ca"
-version = "0.6.2"
+version = "0.7.0"
 
 [[deps.TranscodingStreams]]
 deps = ["Random", "Test"]
