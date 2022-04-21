@@ -50,7 +50,7 @@ RD.jacobian!(model, J, xdot, x, u)
 A,B,C,D = getA(model), getB(model), getC(model), getD(model)
 @test xdot ≈ A*x + B*u + sum(u[i]*C[i] * x for i = 1:length(u)) + D
 
-# Formation constraints
+## Formation constraints
 zmul(a,b) = [a[1]*b[1] - a[2]*b[2], a[1]*b[2] + a[2]*b[1]]
 θf = deg2rad(-50)
 df = [1.0,2]
@@ -84,11 +84,11 @@ norm(F*x0) < 1e-8
 norm(F*xf) < 1e-8
 
 # Bilinear Constraint (includes formation constraints)
-Af = [
-    Matrix(I,4, 4P);
-    F
-]
-bf = [-xf1; zeros(size(F,1))]
+# Af = [
+#     Matrix(I,4, 4P);
+#     F
+# ]
+# bf = [-xf1; zeros(size(F,1))]
 
 Af = Matrix(I,4P,4P)
 bf = -xf
@@ -138,6 +138,8 @@ U = zeros((N-1)*2P)
 
 # ADMM Solver
 solver = BilinearADMM(Abar, Bbar, Cbar, Dbar, Qbar, qbar, Rbar, rbar, cbar)
+solver.opts.x_solver = :cholesky
+solver.opts.z_solver = :cholesky
 BilinearControl.setpenalty!(solver, 1e4)
 solver.opts.penalty_threshold = 1e2
 Xsol, Usol = BilinearControl.solve(solver, X, U, verbose=true, max_iters=500)
@@ -149,6 +151,8 @@ visualize!(vis, model, tf, Xs)
 ## Solve again
 Qbar2 = Qbar0 + Fbar*1e1
 solver2 = BilinearADMM(Abar, Bbar, Cbar, Dbar, Qbar2, qbar, Rbar, rbar, cbar)
+solver2.opts.x_solver = :cholesky
+solver2.opts.z_solver = :cholesky
 BilinearControl.setpenalty!(solver2, 1e2)
 solver2.opts.penalty_threshold = 1e2
 Xsol2, Usol2 = BilinearControl.solve(solver2, Xsol, Usol, verbose=true, max_iters=500)

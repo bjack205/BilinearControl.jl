@@ -100,7 +100,6 @@ function buildformationconstraint(::SwarmSE2{P}, cons) where P
         Gi[2,2] = -1
         # Gi[3,3] = -1
         # Gi[4,4] = -1
-        C[1 + (i-1)*2]
     end
     F
 end
