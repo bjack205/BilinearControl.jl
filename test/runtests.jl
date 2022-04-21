@@ -36,3 +36,7 @@ end
 @testset "Quadrotor Example" begin
     include("quadrotor_test.jl")
 end
+
+@testset "MOI" begin
+    include("nlp_test.jl")
+end
