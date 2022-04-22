@@ -18,6 +18,14 @@ using BilinearControl.Problems: qrot, skew
 ##
 include("dynamics_tests.jl")
 
+@testset "LQR" begin
+    include("lqr_test.jl")
+end
+
+@testset "Linear ADMM" begin
+    include("linear_admm._test.jl")
+end
+
 @testset "Dubins Example" begin
     include("dubins_test.jl")
     include("mpc_test.jl")
@@ -38,8 +46,4 @@ end
 
 @testset "MOI" begin
     include("nlp_test.jl")
-end
-
-@testset "LQR" begin
-    include("lqr_test.jl")
 end
