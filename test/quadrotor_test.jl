@@ -27,7 +27,7 @@ function test_quadrotor_dynamics()
     FiniteDiff.finite_difference_jacobian!(
         Jfd, (y,z)->RD.dynamics!(model, y, z[1:15], z[16:end]), Vector([x;u])
     )
-    @test Jfd ≈ J
+    @test Jfd ≈ J rtol=1e-5
 
     # Test dynamics match bilinear dynamics
     A,B,C,D = getA(model), getB(model), getC(model), getD(model)

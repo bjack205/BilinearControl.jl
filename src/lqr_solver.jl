@@ -1,5 +1,5 @@
 struct RiccatiSolver{n,m,T}
-    data::LQRData{n,m,T}
+    data::TOQP{n,m,T}
     K::Vector{SizedMatrix{m,n,T,2,Matrix{T}}}
     d::Vector{SVector{m,T}}
     P::Vector{SizedMatrix{n,n,T,2,Matrix{T}}}
@@ -9,7 +9,7 @@ struct RiccatiSolver{n,m,T}
     λ::Vector{SVector{n,T}}
 end
 
-function RiccatiSolver(data::LQRData{n,m}) where {n,m}
+function RiccatiSolver(data::TOQP{n,m}) where {n,m}
     N = length(data.Q)
     K = [SizedMatrix{m,n}(zeros(m,n)) for k = 1:N-1]
     d = [@SVector zeros(m) for k = 1:N-1]

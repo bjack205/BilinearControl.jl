@@ -2,7 +2,7 @@ using BilinearControl
 using LinearAlgebra
 using Test
 
-data = rand(LQRData{10,5}, 11)
+data = rand(TOQP{10,5}, 11)
 lqrsolver = RiccatiSolver(data)
 BilinearControl.solve!(lqrsolver)
 lqrsolver.X

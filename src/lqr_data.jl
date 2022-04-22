@@ -1,4 +1,4 @@
-struct LQRData{n,m,T}
+struct TOQP{n,m,T}
     Q::Vector{Diagonal{T,SVector{n,T}}}
     R::Vector{Diagonal{T,SVector{m,T}}}
     q::Vector{SVector{n,T}}
@@ -12,7 +12,7 @@ struct LQRData{n,m,T}
     x0::SVector{n,T}
 end
 
-function Base.rand(::Type{<:LQRData{n,m}}, N::Integer; cond=1.0, implicit=false) where {n,m}
+function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) where {n,m}
     Nx,Nu = n,m
     Q = [Diagonal(@SVector rand(Nx)) * 10^cond for k = 1:N]
     R = [Diagonal(@SVector rand(Nu)) for k = 1:N-1]
@@ -37,13 +37,15 @@ function Base.rand(::Type{<:LQRData{n,m}}, N::Integer; cond=1.0, implicit=false)
     d = [@SVector randn(Nx) for k = 1:N-1]
     x0 = @SVector randn(Nx)
     c = randn(N) * 10
-    data = LQRData(Q,R,q,r,c,A,B,C,D,d,x0)
+    data = TOQP(Q,R,q,r,c,A,B,C,D,d,x0)
 end
-Base.size(data::LQRData{n,m}) where {n,m} = (n,m, length(data.Q))
-nhorizon(data::LQRData) = length(data.Q)
+Base.size(data::TOQP{n,m}) where {n,m} = (n,m, length(data.Q))
+nhorizon(data::TOQP) = length(data.Q)
+RD.state_dim(data::TOQP) = length(data.X[1])
+RD.control_dim(data::TOQP) = length(data.U[1])
 
-function Base.copy(data::LQRData)
-    LQRData(
+function Base.copy(data::TOQP)
+    TOQP(
         deepcopy(data.Q),
         deepcopy(data.R),
         deepcopy(data.q),
@@ -58,6 +60,45 @@ function Base.copy(data::LQRData)
     )
 end
 
+function unpackY(data::TOQP, Y)
+    n,m,N = size(data)
+    yinds = [(k-1)*(2n+m) .+ (1:n) for k = 1:N]
+    xinds = [(k-1)*(2n+m) + n .+ (1:n) for k = 1:N]
+    uinds = [(k-1)*(2n+m) + 2n .+ (1:m) for k = 1:N-1]
+    λ = [Y[yi] for yi in yinds]
+    X = [Y[xi] for xi in xinds]
+    U = [Y[ui] for ui in uinds]
+    X,U,λ
+end
+
+function primal_residual(data, X, U)
+    r = norm(data.x0 - X[1], Inf) 
+    N = nhorizon(data)
+    for k = 1:N-1
+        r = max(r, norm(
+            data.A[k] * X[k] + 
+            data.B[k]*U[k] + 
+            data.d[k] + 
+            data.C[k]*X[k+1]
+        ))
+    end
+    r
+end
+
+function dual_residual(data, X, U, λ)
+    r = norm(data.Q[1]*X[1] + data.q[1] + data.A[1]'λ[2] - λ[1], Inf)
+    for k = 1:nhorizon(data)-1
+        rx = norm(data.Q[k]*X[k] + data.q[k] + data.A[k]'λ[k+1] + data.C[k]'λ[k], Inf)
+        ru = norm(data.R[k]*U[k] + data.r[k] + data.B[k]'λ[k+1], Inf)
+        r = max(r, rx, ru)
+    end
+    r
+end
+
+#############################################
+# Methods to convert LQR problem to 
+#   Linear System of Equations
+#############################################
 function build_block_diagonal(blocks)
     n = 0
     m = 0
@@ -93,7 +134,7 @@ function stack_vectors(vectors)
     return b
 end
 
-function build_Ab(data::LQRData{n,m}; remove_x1::Bool=false, reg=0.0) where {n,m}
+function build_Ab(data::TOQP{n,m}; remove_x1::Bool=false, reg=0.0) where {n,m}
     N = length(data.Q)
     Q,R,q,r = data.Q, data.R, data.q, data.r
     A,B,d   = data.A, data.B, data.d
@@ -139,39 +180,4 @@ function build_Ab(data::LQRData{n,m}; remove_x1::Bool=false, reg=0.0) where {n,m
     b = Vector(stack_vectors(b))
     A = Ds + Is
     return A,-b
-end
-
-function unpackY(data::LQRData, Y)
-    n,m,N = size(data)
-    yinds = [(k-1)*(2n+m) .+ (1:n) for k = 1:N]
-    xinds = [(k-1)*(2n+m) + n .+ (1:n) for k = 1:N]
-    uinds = [(k-1)*(2n+m) + 2n .+ (1:m) for k = 1:N-1]
-    λ = [Y[yi] for yi in yinds]
-    X = [Y[xi] for xi in xinds]
-    U = [Y[ui] for ui in uinds]
-    X,U,λ
-end
-
-function primal_residual(data, X, U)
-    r = norm(data.x0 - X[1], Inf) 
-    N = nhorizon(data)
-    for k = 1:N-1
-        r = max(r, norm(
-            data.A[k] * X[k] + 
-            data.B[k]*U[k] + 
-            data.d[k] + 
-            data.C[k]*X[k+1]
-        ))
-    end
-    r
-end
-
-function dual_residual(data, X, U, λ)
-    r = norm(data.Q[1]*X[1] + data.q[1] + data.A[1]'λ[2] - λ[1], Inf)
-    for k = 1:nhorizon(data)-1
-        rx = norm(data.Q[k]*X[k] + data.q[k] + data.A[k]'λ[k+1] + data.C[k]'λ[k], Inf)
-        ru = norm(data.R[k]*U[k] + data.r[k] + data.B[k]'λ[k+1], Inf)
-        r = max(r, rx, ru)
-    end
-    r
 end

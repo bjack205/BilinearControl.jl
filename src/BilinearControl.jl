@@ -1,6 +1,6 @@
 module BilinearControl
 
-export BilinearADMM, Problems, RiccatiSolver, LQRData
+export BilinearADMM, Problems, RiccatiSolver, TOQP
 
 export extractstatevec, extractcontrolvec
 
