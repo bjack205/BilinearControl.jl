@@ -1,6 +1,6 @@
 module BilinearControl
 
-export BilinearADMM, Problems
+export BilinearADMM, Problems, RiccatiSolver, LQRData
 
 export extractstatevec, extractcontrolvec
 
@@ -28,6 +28,10 @@ include("mpc.jl")
 
 # include("sparseblocks.jl")
 include("moi.jl")
+
+include("gen_controllable.jl")
+include("lqr_data.jl")
+include("lqr_solver.jl")
 
 include(joinpath(@__DIR__,"..","examples","Problems.jl"))
 
