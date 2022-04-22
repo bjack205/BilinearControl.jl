@@ -24,11 +24,14 @@ getcontrols(solver::TrajOptADMM) = solver.U
 # getduals(solver::TrajOptADMM) = solver.λ
 getscaledduals(solver::TrajOptADMM) = solver.y
 
+num_primals(solver::TrajOptADMM) = sum(length, solver.x) + sum(length, solver.u)
+num_duals(solver::TrajOptADMM) = sum(length, solver.y)
+
 for method in (:nhorizon, :state_dim, :control_dim)
     @eval $method(solver::TrajOptADMM) = $method(solver.data)
 end
 
-function eval_f(solver::TrajOptADMM{Nx,Nu,T}, x=solver.data.X) where {Nx,Nu,T}
+function eval_f(solver::TrajOptADMM{Nx,Nu,T}, x=getstates(solver)) where {Nx,Nu,T}
     J = zero(T)
     Q = solver.data.Q
     q = solver.data.q
@@ -38,7 +41,7 @@ function eval_f(solver::TrajOptADMM{Nx,Nu,T}, x=solver.data.X) where {Nx,Nu,T}
     J
 end
 
-function eval_g(solver::TrajOptADMM{Nx,Nu,T}, u=solver.data.U) where {Nx,Nu,T}
+function eval_g(solver::TrajOptADMM{Nx,Nu,T}, u=getcontrols(solver)) where {Nx,Nu,T}
     J = zero(T)
     R = solver.data.R
     r = solver.data.r
@@ -46,6 +49,37 @@ function eval_g(solver::TrajOptADMM{Nx,Nu,T}, u=solver.data.U) where {Nx,Nu,T}
         J += dot(u[k], R[k], u[k]) / 2 + dot(r[k], u[k])
     end
     J
+end
+
+function eval_c!(solver::TrajOptADMM, c, x=getstates(solver), u=getcontrols(solver))
+    n = state_dim(solver)
+    m = control_dim(solver)
+    N = nhorizon(solver)
+    
+    Nc = N*n
+    Nx = N*n
+    Nu = (N-1)*m
+
+    Â = spzeros(Nc, Nx)
+    B̂ = spzeros(Nc, Nu)
+    ĉ = zeros(Nc)
+
+    # Extract data
+    A = solver.data.A
+    B = solver.data.B
+    C = solver.data.C
+    f = solver.data.d
+
+    # Initial condition
+    c[1:n] .= solver.data.x0 .- x[1]
+
+    # Dynamics constraints
+    ic = (1:n) .+ n
+    for k = 1:N-1
+        c[ic] .= A[k]*x[k] + B[k]*u[k] + f[k] + C[k]*x[k+1]
+        ic = ic .+ n
+    end
+    c
 end
 
 function cost(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver))
@@ -132,5 +166,94 @@ function buildcontrolsystem(solver::TrajOptADMM, x=getstates(solver),
     H,g
 end
 
-function solvex(solver::TrajOptADMM, U=getcontrols(solver), y=getscaledduals(solver))
+function solvex!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
+                 y=getscaledduals(solver))
+    n = state_dim(solver)
+    N = nhorizon(solver)
+    H,g = buildstatesystem(solver, u, y)
+    g .*= -1
+    F = cholesky(H)
+    Xn = F\g
+
+    xn = reshape(Xn, n, N)
+    for k = 1:N
+        x[k] .= @view xn[:,k]
+    end
+    x
+end
+
+function solveu!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
+                y=getscaledduals(solver))
+    m = control_dim(solver)
+    N = nhorizon(solver)
+    H,g = buildcontrolsystem(solver, x, y) 
+    g .*= -1
+    F = cholesky(H)
+    Un = F\g
+
+    un = reshape(Un, m, N-1)
+    for k = 1:N-1
+        u[k] .= @view un[:,k]
+    end
+    u
+end
+
+function updateduals!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
+                      y=getscaledduals(solver))
+    y[1] .+= solver.data.x0 - x[1]
+
+    A = solver.data.A
+    B = solver.data.B
+    C = solver.data.C
+    f = solver.data.d
+    for k = 1:nhorizon(solver)-1
+        y[k+1] .+= A[k]*x[k] + B[k]*u[k] + f[k] + C[k]*x[k+1]
+    end
+    y
+end
+
+function buildadmmconstraint(solver::TrajOptADMM)
+    n = state_dim(solver)
+    m = control_dim(solver)
+    N = nhorizon(solver)
+    
+    Nc = N*n
+    Nx = N*n
+    Nu = (N-1)*m
+
+    Â = spzeros(Nc, Nx)
+    B̂ = spzeros(Nc, Nu)
+    ĉ = zeros(Nc)
+
+    # Extract data
+    A = solver.data.A
+    B = solver.data.B
+    C = solver.data.C
+    f = solver.data.d
+
+    # Initial condition
+    Â[1:n,1:n] .= -I(n)
+    ĉ[1:n] .= .-solver.data.x0
+
+    # Dynamics constraints
+    ic = (1:n) .+ n
+    ix1 = 1:n
+    ix2 = ix1 .+ n 
+    iu = 1:m
+    for k = 1:N-1
+        Â[ic,ix1] .= A[k]
+        Â[ic,ix2] .= C[k]
+        B̂[ic,iu] .= B[k]
+        ĉ[ic] .= .-f[k]
+
+        ic = ic .+ n
+        ix1 = ix1 .+ n
+        ix2 = ix2 .+ n
+        iu = iu .+ m
+    end
+    Â,B̂,ĉ
+end
+
+function solve(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
+               y=getscaledduals(solver))
 end

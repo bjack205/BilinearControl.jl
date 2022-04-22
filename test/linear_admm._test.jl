@@ -55,3 +55,9 @@ A,b = BilinearControl.buildstatesystem(solver, u, y, ρ)
 
 A,b = BilinearControl.buildcontrolsystem(solver, x, y, ρ)
 @test A*U + b ≈ grad_u
+
+# Constraints
+c = zeros(BilinearControl.num_duals(solver))
+BilinearControl.eval_c!(solver, c, x, u)
+Â,B̂,ĉ = BilinearControl.buildadmmconstraint(solver)
+@test Â*X + B̂*U - ĉ ≈ c
