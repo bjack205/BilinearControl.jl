@@ -19,8 +19,8 @@ end
 
 getpenalty(solver::TrajOptADMM) = solver.rho[1]
 setpenalty!(solver::TrajOptADMM, rho) = solver.rho[1] = rho
-getstates(solver::TrajOptADMM) = solver.X
-getcontrols(solver::TrajOptADMM) = solver.U
+getstates(solver::TrajOptADMM) = solver.x
+getcontrols(solver::TrajOptADMM) = solver.u
 # getduals(solver::TrajOptADMM) = solver.λ
 getscaledduals(solver::TrajOptADMM) = solver.y
 
@@ -100,6 +100,35 @@ function auglag(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver),
         J -= ρ * normsquared(y[k+1]) / 2
     end
     J
+end
+
+function primal_residual(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver); p=Inf)
+    c = zeros(num_duals(solver))  # TODO: put this in the solver
+    eval_c!(solver, c, x, u)
+    norm(c, p)
+end
+
+function dual_residual(solver::TrajOptADMM, u, uprev, ρ=getpenalty(solver); p=Inf)
+    n = state_dim(solver)
+    N = nhorizon(solver)
+    s = zeros(sum(length, solver.x))  # TODO: put this in the solver
+
+    ix = 1:n
+    A = solver.data.A
+    B = solver.data.B
+    C = solver.data.C
+    for k = 1:N
+        s[ix] .= 0
+        if k < N
+            s[ix] .+= A[k]'B[k]*(u[k] - uprev[k])
+        end
+        if k > 1
+            s[ix] .+= C[k-1]'B[k-1]*(u[k-1] - uprev[k-1])
+        end
+        ix = ix .+ n
+    end
+    s .*= ρ
+    norm(s, p)
 end
 
 function buildstatesystem(solver::TrajOptADMM, u=getcontrols(solver), 

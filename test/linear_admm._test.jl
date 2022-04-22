@@ -61,3 +61,10 @@ c = zeros(BilinearControl.num_duals(solver))
 BilinearControl.eval_c!(solver, c, x, u)
 Â,B̂,ĉ = BilinearControl.buildadmmconstraint(solver)
 @test Â*X + B̂*U - ĉ ≈ c
+
+@test BilinearControl.primal_residual(solver, x, u) ≈ norm(c,Inf)
+
+uprev = [randn(m) for k = 1:N-1]
+Uprev = vcat(uprev...)
+@test BilinearControl.dual_residual(solver, u, uprev) ≈ 
+    norm(ρ*Â'B̂*(U-Uprev), Inf)
