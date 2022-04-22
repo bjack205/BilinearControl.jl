@@ -2,7 +2,7 @@ module BilinearControl
 
 export BilinearADMM, Problems, RiccatiSolver, TOQP
 
-export extractstatevec, extractcontrolvec
+export extractstatevec, extractcontrolvec, iterations
 
 using LinearAlgebra
 using SparseArrays

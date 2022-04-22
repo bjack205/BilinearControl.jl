@@ -86,3 +86,21 @@ BilinearControl.primal_residual(solver, xsol, usol)
 @test BilinearControl.primal_residual(prob, xsol, usol) < 1e-6
 
 @test BilinearControl.dual_residual(prob, xsol, usol, λsol) < 1e-3
+iters0 = iterations(solver)
+
+## Test with Acceleration
+using COSMOAccelerators
+acceleration = AndersonAccelerator{Float64, Type2{QRDecomp}, RestartedMemory, NoRegularizer}
+solver2 = BilinearControl.TrajOptADMM(prob, acceleration=acceleration)
+solver2.opts.penalty_threshold = 1e2
+solver2.opts.ϵ_abs_primal = 1e-6
+solver2.opts.ϵ_abs_dual = 1e-3
+xsol, usol, ysol = BilinearControl.solve(solver2, x, u, verbose=1, max_iters=200)
+
+@test BilinearControl.primal_residual(prob, xsol, usol) ≈ 
+    BilinearControl.primal_residual(solver, xsol, usol)
+@test BilinearControl.primal_residual(prob, xsol, usol) < 1e-6
+
+@test BilinearControl.dual_residual(prob, xsol, usol, λsol) < 1e-3
+
+@test iterations(solver2) < iters0

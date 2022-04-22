@@ -1,4 +1,4 @@
-struct TrajOptADMM{Nx,Nu,T}
+struct TrajOptADMM{Nx,Nu,T,A}
     data::TOQP{Nx,Nu,T}
     x::Vector{Vector{T}}
     u::Vector{Vector{T}}
@@ -8,23 +8,38 @@ struct TrajOptADMM{Nx,Nu,T}
     constraint_vector::Vector{T}
     dual_residual::Vector{T}
 
+    # Acceleration
+    aa::A
+    uy::Vector{Vector{Float64}}   # storage of stacked u,y pair
+
     opts::ADMMOptions
     stats::ADMMStats
 end
 
-function TrajOptADMM(data::TOQP{<:Any,<:Any,T}; kwargs...) where T
+function TrajOptADMM(data::TOQP{<:Any,<:Any,T}; 
+        acceleration::Type{AA} = COSMOAccelerators.EmptyAccelerator, 
+        opts...
+    ) where {T,AA}
     n = state_dim(data)
     m = control_dim(data)
     N = nhorizon(data)
+    Nx = N*n       # total number of states
+    Nu = (N-1)*m   # total number of controls
+    Nc = N*n       # total number of constraints (duals)
+
     x = [zeros(n) for k = 1:N]
     u = [zeros(m) for k = 1:N-1]
     y = [zeros(n) for k = 1:N]
     rho = ones(T,1) 
-    c = zeros(n*N)
-    s = zeros(n*N)
-    opts = ADMMOptions(;kwargs...)
+    c = zeros(Nc)
+    s = zeros(Nx)
+    opts = ADMMOptions(;opts...)
     stats = ADMMStats()
-    TrajOptADMM(data, x, u, y, rho, c, s, opts, stats)
+
+    aa = AA(Nu + Nc)
+    uy = [zeros(Nu + Nc) for _ = 1:2]
+    
+    TrajOptADMM(data, x, u, y, rho, c, s, aa, uy, opts, stats)
 end
 
 getpenalty(solver::TrajOptADMM) = solver.rho[1]
@@ -33,6 +48,7 @@ getstates(solver::TrajOptADMM) = solver.x
 getcontrols(solver::TrajOptADMM) = solver.u
 # getduals(solver::TrajOptADMM) = solver.λ
 getscaledduals(solver::TrajOptADMM) = solver.y
+iterations(solver::TrajOptADMM) = length(solver.stats.cost)
 
 num_primals(solver::TrajOptADMM) = sum(length, solver.x) + sum(length, solver.u)
 num_duals(solver::TrajOptADMM) = sum(length, solver.y)
@@ -293,14 +309,16 @@ function buildadmmconstraint(solver::TrajOptADMM)
     Â,B̂,ĉ
 end
 
-function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver), 
+function solve(solver::TrajOptADMM{<:Any,<:Any,<:Any,AA}, x0=getstates(solver), u0=getcontrols(solver), 
         y0=getscaledduals(solver); 
         max_iters=100, 
         verbose=true,
-    )
+    ) where {AA}
     n = state_dim(solver)
     m = control_dim(solver)
     N = nhorizon(solver)
+    Nu = (N-1)*m
+    Nc = N*n
 
     x = solver.x
     u = solver.u
@@ -313,6 +331,8 @@ function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver)
             u[k] .= u0[k]
         end
     end
+
+    reset!(solver.stats)
 
     eps_primal = solver.opts.ϵ_abs_primal
     eps_dual = solver.opts.ϵ_abs_dual
@@ -352,6 +372,23 @@ function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver)
         if r < eps_primal && s < eps_dual
             iters = iter
             break
+        end
+
+        # Acceleration
+        # TODO: add safeguarding
+        if !(AA <: COSMOAccelerators.EmptyAccelerator)
+            solver.uy[1] .= [vcat(u...); vcat(y...)]  # TODO: avoid this terrible thing...
+            COSMOAccelerators.update!(solver.aa, solver.uy[1], solver.uy[2], iter)
+            COSMOAccelerators.accelerate!(solver.uy[1], solver.uy[2], solver.aa, iter)
+            uacc = reshape(view(solver.uy[1], 1:Nu), m, N-1)
+            yacc = reshape(view(solver.uy[1], Nu+1:Nu+Nc), n, N)
+            for k = 1:N
+                y[k] .= @view yacc[:,k]
+                if k < N
+                    u[k] .= @view uacc[:,k]
+                end
+            end
+            solver.uy[2] .= solver.uy[1]
         end
 
         # Update penalty
