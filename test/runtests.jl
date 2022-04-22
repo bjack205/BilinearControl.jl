@@ -11,8 +11,7 @@ using Test
 using Statistics
 using Rotations
 
-include("gen_controllable.jl")
-using Main.RandomLinearModels
+using BilinearControl.RandomLinearModels
 using BilinearControl.Problems
 using BilinearControl.Problems: qrot, skew
 
@@ -39,4 +38,8 @@ end
 
 @testset "MOI" begin
     include("nlp_test.jl")
+end
+
+@testset "LQR" begin
+    include("lqr_test.jl")
 end
