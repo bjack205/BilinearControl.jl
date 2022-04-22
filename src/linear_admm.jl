@@ -4,9 +4,15 @@ struct TrajOptADMM{Nx,Nu,T}
     u::Vector{Vector{T}}
     y::Vector{Vector{T}}
     rho::Vector{T}
+
+    constraint_vector::Vector{T}
+    dual_residual::Vector{T}
+
+    opts::ADMMOptions
+    stats::ADMMStats
 end
 
-function TrajOptADMM(data::TOQP{<:Any,<:Any,T}) where T
+function TrajOptADMM(data::TOQP{<:Any,<:Any,T}; kwargs...) where T
     n = state_dim(data)
     m = control_dim(data)
     N = nhorizon(data)
@@ -14,7 +20,11 @@ function TrajOptADMM(data::TOQP{<:Any,<:Any,T}) where T
     u = [zeros(m) for k = 1:N-1]
     y = [zeros(n) for k = 1:N]
     rho = ones(T,1) 
-    TrajOptADMM(data, x, u, y, rho)
+    c = zeros(n*N)
+    s = zeros(n*N)
+    opts = ADMMOptions(;kwargs...)
+    stats = ADMMStats()
+    TrajOptADMM(data, x, u, y, rho, c, s, opts, stats)
 end
 
 getpenalty(solver::TrajOptADMM) = solver.rho[1]
@@ -287,8 +297,6 @@ function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver)
         y0=getscaledduals(solver); 
         max_iters=100, 
         verbose=true,
-        eps_primal=1e-3,
-        eps_dual=1e-3,
     )
     n = state_dim(solver)
     m = control_dim(solver)
@@ -305,6 +313,9 @@ function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver)
             u[k] .= u0[k]
         end
     end
+
+    eps_primal = solver.opts.ϵ_abs_primal
+    eps_dual = solver.opts.ϵ_abs_dual
 
     verbose = verbose > 0
     verbose && @printf("%8s %10s %10s %10s %10s\n", 
@@ -323,18 +334,30 @@ function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver)
         solveu!(solver, x, u, y, ρ)    # overwrites u
         updateduals!(solver, x, u, y)  # overwrites y
 
+        # Calculate residuals
         r = primal_residual(solver, x, u)
         s = dual_residual(solver, u, uprev, ρ)
         J = cost(solver, x, u)
 
+        # Printing
         verbose && @printf("%8d %10.2g %10.2g %10.2g %10.2g\n",
                            iter, J, r, s, ρ)
 
+        # Record stats
+        push!(solver.stats.cost, J)
+        push!(solver.stats.primal_residual, r)
+        push!(solver.stats.dual_residual, s)
+
+        # Check convergence
         if r < eps_primal && s < eps_dual
             iters = iter
             break
         end
 
+        # Update penalty
+        penaltyupdate!(solver, r, s)
+
+        # Update previous control
         for k = 1:N-1
             uprev[k] .= u[k]
         end

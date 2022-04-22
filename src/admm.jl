@@ -404,7 +404,7 @@ function updatew(solver::BilinearADMM, x, z, w)
     return w + eval_c(solver, x, z)
 end
 
-function penaltyupdate!(solver::BilinearADMM, r, s)
+function penaltyupdate!(solver, r, s)
     τ_incr = solver.opts.τ_incr
     τ_decr = solver.opts.τ_decr
     μ = solver.opts.penalty_threshold

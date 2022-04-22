@@ -79,7 +79,8 @@ function primal_residual(data, X, U)
             data.A[k] * X[k] + 
             data.B[k]*U[k] + 
             data.d[k] + 
-            data.C[k]*X[k+1]
+            data.C[k]*X[k+1],
+            Inf
         ))
     end
     r
