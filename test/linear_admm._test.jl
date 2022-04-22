@@ -68,3 +68,10 @@ uprev = [randn(m) for k = 1:N-1]
 Uprev = vcat(uprev...)
 @test BilinearControl.dual_residual(solver, u, uprev) ≈ 
     norm(ρ*Â'B̂*(U-Uprev), Inf)
+
+# Test solve
+xsol, usol, ysol = BilinearControl.solve(solver, x, u, verbose=1)
+ρ = BilinearControl.getpenalty(solver)
+λsol = [y*ρ for y in ysol]
+BilinearControl.primal_residual(prob, xsol, usol)
+BilinearControl.dual_residual(prob, xsol, usol, λsol)

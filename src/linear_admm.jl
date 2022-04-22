@@ -196,10 +196,10 @@ function buildcontrolsystem(solver::TrajOptADMM, x=getstates(solver),
 end
 
 function solvex!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
-                 y=getscaledduals(solver))
+                 y=getscaledduals(solver), ρ=getpenalty(solver))
     n = state_dim(solver)
     N = nhorizon(solver)
-    H,g = buildstatesystem(solver, u, y)
+    H,g = buildstatesystem(solver, u, y, ρ)
     g .*= -1
     F = cholesky(H)
     Xn = F\g
@@ -212,10 +212,10 @@ function solvex!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver)
 end
 
 function solveu!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
-                y=getscaledduals(solver))
+                y=getscaledduals(solver), ρ=getpenalty(solver))
     m = control_dim(solver)
     N = nhorizon(solver)
-    H,g = buildcontrolsystem(solver, x, y) 
+    H,g = buildcontrolsystem(solver, x, y, ρ)
     g .*= -1
     F = cholesky(H)
     Un = F\g
@@ -283,6 +283,63 @@ function buildadmmconstraint(solver::TrajOptADMM)
     Â,B̂,ĉ
 end
 
-function solve(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver), 
-               y=getscaledduals(solver))
+function solve(solver::TrajOptADMM, x0=getstates(solver), u0=getcontrols(solver), 
+        y0=getscaledduals(solver); 
+        max_iters=100, 
+        verbose=true,
+        eps_primal=1e-3,
+        eps_dual=1e-3,
+    )
+    n = state_dim(solver)
+    m = control_dim(solver)
+    N = nhorizon(solver)
+
+    x = solver.x
+    u = solver.u
+    y = solver.y
+    uprev = deepcopy(u)  # TODO: store this in the solver
+    for k = 1:N
+        x[k] .= x0[k]
+        y[k] .= y0[k]
+        if k < N
+            u[k] .= u0[k]
+        end
+    end
+
+    verbose = verbose > 0
+    verbose && @printf("%8s %10s %10s %10s %10s\n", 
+                       "iter", "cost", "||r||", "||s||", "ρ")
+    r = primal_residual(solver, x, u)
+    s = Inf 
+    J = cost(solver, x, u)
+    ρ = getpenalty(solver)
+    iters = 0
+    verbose && @printf("%8d %10.2g %10.2g %10.2g %10.2g\n",
+                        iters, J, r, s, ρ)
+
+    tstart = time_ns()
+    for iter = 1:max_iters
+        solvex!(solver, x, u, y, ρ)    # overwrites X
+        solveu!(solver, x, u, y, ρ)    # overwrites u
+        updateduals!(solver, x, u, y)  # overwrites y
+
+        r = primal_residual(solver, x, u)
+        s = dual_residual(solver, u, uprev, ρ)
+        J = cost(solver, x, u)
+
+        verbose && @printf("%8d %10.2g %10.2g %10.2g %10.2g\n",
+                           iter, J, r, s, ρ)
+
+        if r < eps_primal && s < eps_dual
+            iters = iter
+            break
+        end
+
+        for k = 1:N-1
+            uprev[k] .= u[k]
+        end
+    end
+    tsolve = (time_ns() - tstart) / 1e9
+    verbose && println("Solve took $iters iterations $tsolve seconds.")
+    x,u,y
 end
