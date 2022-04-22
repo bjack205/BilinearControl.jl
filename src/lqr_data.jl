@@ -41,8 +41,8 @@ function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) wh
 end
 Base.size(data::TOQP{n,m}) where {n,m} = (n,m, length(data.Q))
 nhorizon(data::TOQP) = length(data.Q)
-RD.state_dim(data::TOQP) = length(data.X[1])
-RD.control_dim(data::TOQP) = length(data.U[1])
+RD.state_dim(data::TOQP) = length(data.q[1])
+RD.control_dim(data::TOQP) = length(data.r[1])
 
 function Base.copy(data::TOQP)
     TOQP(
