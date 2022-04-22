@@ -42,8 +42,16 @@ end
 
 grad_x = FiniteDiff.finite_difference_gradient(
     x->BilinearControl.auglag(solver, collect(eachcol(reshape(x,:,N))), u, y, ρ),
-    vcat(x...)
+    X
+)
+
+grad_u = FiniteDiff.finite_difference_gradient(
+    u->BilinearControl.auglag(solver, x, collect(eachcol(reshape(u,:,N-1))), y, ρ),
+    U
 )
 
 A,b = BilinearControl.buildstatesystem(solver, u, y, ρ)
 @test A*X + b ≈ grad_x
+
+A,b = BilinearControl.buildcontrolsystem(solver, x, y, ρ)
+@test A*U + b ≈ grad_u

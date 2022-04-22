@@ -74,9 +74,8 @@ function buildstatesystem(solver::TrajOptADMM, u=getcontrols(solver),
     N = nhorizon(solver)
 
     Nx = N*n
-    Nc = N*n
-    P = spzeros(Nc, Nx)
-    p = zeros(Nc)
+    H = spzeros(Nx, Nx)
+    g = zeros(Nx)
     ix1 = 1:n
     ix2 = ix1 .+ n
 
@@ -88,23 +87,49 @@ function buildstatesystem(solver::TrajOptADMM, u=getcontrols(solver),
     f = solver.data.d
     ρ = getpenalty(solver)
 
-    P[ix1,ix1] .= Q[1] + ρ * A[1]'A[1] + ρ*I(n)
-    p[ix1] .= q[1] + ρ * A[1]'*(B[1]*u[1] + f[1] + y[2]) - ρ*(solver.data.x0 + y[1])
+    H[ix1,ix1] .= Q[1] + ρ * A[1]'A[1] + ρ*I(n)
+    g[ix1] .= q[1] + ρ * A[1]'*(B[1]*u[1] + f[1] + y[2]) - ρ*(solver.data.x0 + y[1])
     for k = 2:N-1
-        P[ix1, ix2] .= ρ * A[k-1]'C[k-1]
-        P[ix2, ix1] .= ρ * C[k-1]'A[k-1]
-        P[ix2,ix2] .= Q[k] + ρ * A[k]'A[k] + ρ * C[k-1]'C[k-1]
-        p[ix2] .= q[k] + ρ * A[k]'*(B[k] * u[k] + f[k] + y[k+1]) + ρ * C[k-1]'*(B[k-1]*u[k-1] + f[k-1] + y[k])
+        H[ix1, ix2] .= ρ * A[k-1]'C[k-1]
+        H[ix2, ix1] .= ρ * C[k-1]'A[k-1]
+        H[ix2,ix2] .= Q[k] + ρ * A[k]'A[k] + ρ * C[k-1]'C[k-1]
+        g[ix2] .= q[k] + ρ * A[k]'*(B[k] * u[k] + f[k] + y[k+1]) + ρ * C[k-1]'*(B[k-1]*u[k-1] + f[k-1] + y[k])
         ix1 = ix1 .+ n
         ix2 = ix2 .+ n
     end
     let k = N
-        P[ix1, ix2] .= ρ * A[k-1]'C[k-1]
-        P[ix2, ix1] .= ρ * C[k-1]'A[k-1]
-        P[ix2,ix2] .= Q[k] + ρ * C[k-1]'C[k-1]
-        p[ix2] .= q[k] + ρ * C[k-1]'*(B[k-1]*u[k-1] + f[k-1] + y[k])
+        H[ix1, ix2] .= ρ * A[k-1]'C[k-1]
+        H[ix2, ix1] .= ρ * C[k-1]'A[k-1]
+        H[ix2,ix2] .= Q[k] + ρ * C[k-1]'C[k-1]
+        g[ix2] .= q[k] + ρ * C[k-1]'*(B[k-1]*u[k-1] + f[k-1] + y[k])
     end
-    P,p
+    H,g
+end
+
+function buildcontrolsystem(solver::TrajOptADMM, x=getstates(solver), 
+                          y=getscaledduals(solver), ρ=getpenalty(solver))
+    m = control_dim(solver)
+    N = nhorizon(solver)
+
+    Nu = (N-1)*m
+    H = spzeros(Nu, Nu)
+    g = zeros(Nu)
+    iu = 1:m
+
+    R = solver.data.R
+    r = solver.data.r
+    A = solver.data.A
+    B = solver.data.B
+    C = solver.data.C
+    f = solver.data.d
+    ρ = getpenalty(solver)
+
+    for k = 1:N-1
+        H[iu,iu] .= R[k] + ρ * B[k]'B[k]
+        g[iu] .= r[k] + ρ * B[k]'*(A[k] * x[k] + f[k] + C[k]*x[k+1] + y[k+1])
+        iu = iu .+ m
+    end
+    H,g
 end
 
 function solvex(solver::TrajOptADMM, U=getcontrols(solver), y=getscaledduals(solver))
