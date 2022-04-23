@@ -20,6 +20,7 @@ include(joinpath(model_dir, "se3_models.jl"))
 include(joinpath(model_dir, "attitude_model.jl"))
 include(joinpath(model_dir, "se3_force_model.jl"))
 include(joinpath(model_dir, "quadrotor_model.jl"))
+include(joinpath(model_dir, "integrator_models.jl"))
 
 # Problem constructors
 include("problems.jl")
@@ -34,6 +35,7 @@ export
     QuadrotorSE23,
     QuadrotorRateLimited,
     FullAttitudeDynamics,
-    ConsensusDynamics
+    ConsensusDynamics,
+    DoubleIntegrator
 
 end
