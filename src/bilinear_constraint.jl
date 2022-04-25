@@ -10,9 +10,12 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     C = getC(model)  # continuous dynamics C
     D = getD(model)  # continuous dynamics D
 
+    usetermcon = all(isfinite, xf)
+
     # Get sizes
-    n,m = size(B)
-    Nc = (N+1)*n
+    n = size(A,2)
+    p,m = size(B)
+    Nc = N*p + usetermcon * n
     Nx = N*n
     Nu = (N-1)*m
 
@@ -23,14 +26,14 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     Dbar = spzeros(Nc)
 
     # Initialize some useful ranges
-    ic = 1:n
+    ic = 1:p
     ix1 = 1:n
     ix2 = ix1 .+ n 
     iu1 = 1:m
 
     # Initial condition
-    Abar[ic, ix1] .= -I(n)
-    Dbar[ic] .= x0
+    Abar[ix1, ix1] .= -I(n)
+    Dbar[ix1] .= x0
     ic = ic .+ n
 
     # Dynamics
@@ -50,7 +53,62 @@ function buildbilinearconstraintmatrices(model, x0, xf, h, N)
     end
 
     # Goal constraint
-    Abar[ic, ix1] .= -I(n)
+    ic = ic[1]:ic[1]+n-1
+    if usetermcon
+        Abar[ic, ix1] .= -I(n)
+        Dbar[ic] .= xf
+    end
+
+    return Abar, Bbar, Cbar, Dbar
+end
+
+"""
+Builds the bilinear matrices for a discrete dynamics model.
+Assumes that `getA`, `getB`, `getC`, and `getD` return the matrices for evaluating
+the dynamics error between two consecutive time steps (so that implicit dynamics
+are fully supported).
+"""
+function buildbilinearconstraintmatrices(model::RD.DiscreteDynamics, x0,xf,h, N)
+    # get sizes
+    n,m,p = RD.dims(model) 
+    Nx = N*n 
+    Nu = N*m
+    Nc = (N-1)*p + 2n
+
+    # Build matrices
+    Abar = spzeros(Nc, Nx)
+    Bbar = spzeros(Nc, Nu)
+    Cbar = [spzeros(Nc, Nx) for i = 1:Nu]
+    Dbar = spzeros(Nc)
+
+    # Initialize some useful ranges
+    ic = 1:n
+    ix12 = 1:2n
+    iu12 = 1:2m
+
+    # Initial conditio
+    Abar[ic, 1:n] .= -I(n)
+    Dbar[ic] .= x0
+    ic = (1:p) .+ n
+
+    # Dynamics
+    A,B,C,D = getA(model,h), getB(model,h), getC(model,h), getD(model,h)
+    for k = 1:N-1
+        Abar[ic, ix12] .+= A
+        Bbar[ic, iu12] .+= B
+        for (i,j) in enumerate(iu12)
+            Cbar[j][ic,ix12] .= C[i]
+        end
+        Dbar[ic] .+= D
+
+        ix12 = ix12 .+ n
+        iu12 = iu12 .+ m
+        ic = ic .+ p
+    end
+
+    # Terminal constraint
+    ic = ic[1] - 1 .+ (1:n)
+    Abar[ic, ix12[1:n]] .= -I(n)
     Dbar[ic] .= xf
 
     return Abar, Bbar, Cbar, Dbar
@@ -65,9 +123,11 @@ function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
     C = getC(model)  # continuous dynamics C
     D = getD(model)  # continuous dynamics D
 
+    usetermcon = all(isfinite, xf)
+
     # Get sizes
     n,m = size(B)
-    Nc = (N+1)*n
+    Nc = N*n + usetermcon * n
     Nx = N*n
     Nu = (N-1)*m
 
@@ -99,7 +159,9 @@ function evaluatebilinearconstraint(model, x0, xf, h, N, Z)
     end
 
     # Goal constraint
-    c[ic] .= xf - Z[ix1]
+    if usetermcon
+        c[ic] .= xf - Z[ix1]
+    end
 
     return c
 end
@@ -111,6 +173,17 @@ function buildcostmatrices(prob::TO.Problem)
     r = vcat([Vector(prob.obj[k].r) for k = 1:prob.N-1]...)
     c = sum(cst.c for cst in prob.obj)
     Q, q, R, r, c
+end
+
+function buildcostmatrices(Q,R,Qf,xf,N; u0=zeros(size(R,1)), uN = N-1)
+    Qbar = Diagonal(vcat([diag(Q) for i = 1:N-1]...))
+    Qbar = Diagonal([diag(Qbar); diag(Qf)])
+    Rbar = Diagonal(vcat([diag(R) for i = 1:uN]...))
+    q = repeat(-Q*xf, N)
+    r = repeat(-R*u0, uN)
+    c = 0.5*sum(dot(xf,Q,xf) for k = 1:N-1) + 0.5*dot(xf,Qf,xf) + 
+        0.5*sum(dot(u0,R,u0) for k = 1:N)
+    Qbar,q,Rbar,r,c
 end
 
 function evaluatebilinearconstraint(prob::TO.Problem)
@@ -153,3 +226,4 @@ function evaluatebilinearconstraint(prob::TO.Problem)
 
     return c
 end
+

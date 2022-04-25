@@ -1,3 +1,5 @@
+normsquared(x) = dot(x,x)
+
 evec(i,n) = evec(Float64, i, n)
 function evec(::Type{T}, i::Integer, n::Integer) where T
     e = zeros(T,n)
@@ -23,7 +25,7 @@ function getnzindsA(A, B::SparseMatrixCSC{<:Any,Ti}) where Ti
             # Find the index into the nonzeros vector of A
             r = rowvals(B)[i]
             nzind = getnzind(A, r, c) 
-            nzind == 0 && throw(ArgumentError("The nonzeros of B must be a subset of those of A."))
+            nzind == 0 && throw(ArgumentError("The nonzeros of B must be a subset of those of A. Got structural zero in A at ($r, $c)."))
             nzinds[ind] = nzind
             ind += 1
         end

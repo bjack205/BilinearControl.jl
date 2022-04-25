@@ -9,17 +9,26 @@ using Random
 using StaticArrays
 using Test
 using Statistics
+using Rotations
 
-include("models/dubins_model.jl")
-include("models/attitude_model.jl")
-include("models/se3_models.jl")
-include("gen_controllable.jl")
-using Main.RandomLinearModels
+using BilinearControl.RandomLinearModels
+using BilinearControl.Problems
+using BilinearControl.Problems: qrot, skew
 
+##
 include("dynamics_tests.jl")
+
+@testset "LQR" begin
+    include("lqr_test.jl")
+end
+
+@testset "Linear ADMM" begin
+    include("linear_admm._test.jl")
+end
 
 @testset "Dubins Example" begin
     include("dubins_test.jl")
+    include("mpc_test.jl")
 end
 
 @testset "Attitude Example" begin
@@ -31,7 +40,10 @@ end
     include("se3_force_test.jl")
 end
 
+@testset "Quadrotor Example" begin
+    include("quadrotor_test.jl")
+end
 
-# @testset "SE3 Examples" begin
-#     include("se3_test.jl")
-# end
+@testset "MOI" begin
+    include("nlp_test.jl")
+end

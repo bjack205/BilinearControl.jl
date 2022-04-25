@@ -7,7 +7,6 @@ using FiniteDiff
 using LinearAlgebra
 using Statistics
 import BilinearControl.RD
-include("models/attitude_model.jl")
 
 using BilinearControl: getA, getB, getC, getD
 const Nu = 2
@@ -85,89 +84,10 @@ function so3_dynamics_test(::Val{Nu}) where Nu
     @test Jfd ≈ J
 end
 
-function buildattitudeproblem(::Val{Nu}) where Nu
-    # Model
-    model = AttitudeDynamics{Nu}()
-    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
-
-    # Discretization
-    tf = 3.0
-    N = 301
-
-    # Dimensions
-    nx = RD.state_dim(model)
-    nu = RD.control_dim(model)
-
-    # Initial and final conditions
-    x0 = [1,0,0,0]
-    if Nu == 3
-        xf = [0.382683, 0.412759, 0.825518, 0.0412759]
-    else
-        xf = normalize([1,0,0,1.0])  # flip 90° around unactuated axis
-    end
-
-    # Objective
-    Q = Diagonal(fill(1e-1, nx))
-    R = Diagonal(fill(2e-2, nu))
-    Qf = Diagonal(fill(100.0, nx))
-    obj = LQRObjective(Q,R,Qf,xf,N)
-
-    # Goal state
-    cons = ConstraintList(nx, nu, N)
-    goalcon = GoalConstraint(xf)  # only constraint the original states
-    add_constraint!(cons, goalcon, N)
-
-    # Initial Guess
-    U0 = [fill(0.1,Nu) for k = 1:N-1] 
-
-    # Build the problem
-    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
-end
-
-function buildso3problem(::Val{Nu}) where Nu
-    # Model
-    model = SO3Dynamics{Nu}()
-    dmodel = RD.DiscretizedDynamics{RD.ImplicitMidpoint}(model)
-
-    # Discretization
-    tf = 3.0
-    N = 301
-
-    # Dimensions
-    nx = RD.state_dim(model)
-    nu = RD.control_dim(model)
-
-    # Initial and final conditions
-    x0 = vec(I(3))
-    xf = vec(RotZ(deg2rad(90)))
-
-    # Objective
-    Q = Diagonal(fill(0.0, nx))
-    R = Diagonal(fill(2e-2, nu))
-    Qf = Diagonal(fill(100.0, nx))
-    # costs = map(1:N) do k
-    #     q = -xf  # tr(Rf'R)
-    #     r = zeros(nu)
-    #     TO.DiagonalCost(Q,R,q,r,0.0)
-    # end
-    # obj = TO.Objective(costs)
-    obj = LQRObjective(Q,R,Qf,xf,N)
-
-    # Goal state
-    cons = ConstraintList(nx, nu, N)
-    goalcon = GoalConstraint(xf)
-    add_constraint!(cons, goalcon, N)
-
-    # Initial Guess
-    U0 = [fill(0.1,nu) for k = 1:N-1] 
-
-    # Build the problem
-    Problem(dmodel, obj, x0, tf, xf=xf, constraints=cons, U0=U0)
-end
-
 function testattitudeproblem(Nu)
     attitude_dynamics_test(Nu)
-    prob = buildattitudeproblem(Nu)
+    # prob = buildattitudeproblem(Nu)
+    prob = Problems.AttitudeProblem(Nu)
     rollout!(prob)
 
     A,B,C,D = BilinearControl.buildbilinearconstraintmatrices(
@@ -183,6 +103,8 @@ function testattitudeproblem(Nu)
     Q,q,R,r,c = BilinearControl.buildcostmatrices(prob)
     admm = BilinearADMM(A,B,C,D, Q,q,R,r,c)
     admm.opts.penalty_threshold = 1e4
+    admm.opts.ϵ_abs_dual = 1e-4
+    admm.opts.ϵ_rel_dual = 1e-4
     BilinearControl.setpenalty!(admm, 1e3)
     Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=300)
 
@@ -190,26 +112,33 @@ function testattitudeproblem(Nu)
     n,m = RD.dims(prob.model[1])
     Xs = collect(eachcol(reshape(Xsol, n, :)))
     Us = collect(eachcol(reshape(Usol, m, :)))
-    Zsol = SampledTrajectory(Xs,Us, tf=prob.tf)
+    Zsol = SampledTrajectory(Xs,Us, tf=TO.get_final_time(prob))
 
     # Test that it got to the goal
-    @test abs(Xs[end]'prob.xf - 1.0) < 1e-4
+    @test abs(Xs[end]'prob.xf - 1.0) < BilinearControl.get_primal_tolerance(admm)  
 
     # Test that the quaternion norms are preserved
     norm_error = norm(norm.(Xs) .- 1, Inf)
-    @test norm_error < 2e-3 
+    @test norm_error < 1e-2 
 
     # Check that the control signals are smooth 
     Us = reshape(Usol, m, :)
     @test all(x->x< 2e-2, mean(diff(Us, dims=2), dims=2))
 end
 
-function testso3problem(Nu)
-    prob = buildso3problem(Nu)
+function testso3problem(Nu; x_solver=:ldl, z_solver=:cholesky)
+    # prob = buildso3problem(Nu)
+    prob = Problems.SO3Problem(Nu)
     rollout!(prob)
     admm = BilinearADMM(prob)
     X = extractstatevec(prob)
     U = extractcontrolvec(prob)
+    admm.opts.ϵ_abs_primal = 1e-5
+    admm.opts.ϵ_rel_primal = 1e-5
+    admm.opts.ϵ_abs_dual = 1e-4
+    admm.opts.ϵ_rel_dual = 1e-4
+    admm.opts.x_solver = x_solver
+    admm.opts.z_solver = z_solver
     Xsol, Usol = BilinearControl.solve(admm, X, U, max_iters=50)
 
     n,m = RD.dims(prob.model[1])
@@ -219,7 +148,7 @@ function testso3problem(Nu)
     # Test that it got to the goal
     Rgoal = SMatrix{3,3}(prob.xf)
     Rf = SMatrix{3,3}(Xs[end])
-    @test abs(tr(Rgoal'Rf) - 3) < 1e-5
+    @test abs(tr(Rgoal'Rf) - 3) < BilinearControl.get_primal_tolerance(admm) 
 
     # Test that the quaternion norms are preserved
     det_error = norm([det(SMatrix{3,3}(x)) .- 1 for x in Xs], Inf)
@@ -228,7 +157,89 @@ function testso3problem(Nu)
     # Check that the control signals are smooth 
     Us = reshape(Usol, m, :)
     @test all(x->x< 2e-2, mean(diff(Us, dims=2), dims=2))
-    Xsol, Usol
+    Xsol, Usol, admm
+end
+
+function test_so3_torque_dynamics()
+    J = Diagonal(SA[1,2,1.])
+    model = FullAttitudeDynamics(J)
+    n,m = RD.dims(model)
+    R = qrot(randn(4))
+    ω = randn(3)
+    T = randn(3)
+    w = copy(ω)
+
+    x = [vec(R); ω]
+    u = [T; w]
+
+    xdot = RD.dynamics(model, x, u)
+    @test xdot ≈ [vec(R*skew(ω)); J\(T - cross(ω, J*ω))]
+    B,C = getB(model), getC(model)
+    @test xdot ≈ B*u + sum(u[i] * C[i] * x for i = 1:length(u))
+
+    ## Discrete model
+    dmodel = ConsensusDynamics(J)
+    R1 = qrot(randn(4))
+    ω1 = randn(3)
+    T1 = randn(3)
+    w1 = copy(ω1)
+
+    R2 = qrot(randn(4))
+    ω2 = randn(3)
+    T2 = randn(3)
+    w2 = copy(ω2)
+
+    x1 = [vec(R1); ω1]
+    x2 = [vec(R2); ω2]
+    u1 = [T1; w1]
+    u2 = [T2; w2]
+    h = 0.1
+
+    z1 = RD.KnotPoint{n,m}(n,m, [x1; u1], 0, h)
+    z2 = RD.KnotPoint{n,m}(n,m, [x2; u2], h, h)
+
+    err = RD.dynamics_error(dmodel, z2, z1)
+    xdot_mid = RD.dynamics(model, (x1+x2)/2, u1)
+    @test err[1:n] ≈ h*xdot_mid + x1 - x2
+    @test err[n+1:end] ≈ ω1 - w1
+
+    Ad,Bd,Cd,Dd = getA(dmodel,h), getB(dmodel,h), getC(dmodel,h), getD(dmodel,h)
+    x12 = [x1;x2]
+    u12 = [u1;u2]
+
+    @test Ad*x12 ≈ [x1 - x2;  ω1]
+    @test Bd*u12 ≈ [zeros(9); h*(J\T1); -w1]
+    tmp = sum(u1[i]*Cd[i]*x12 for i = 1:m)
+    @test tmp[1:9] ≈ vec(h*(R1 + R2)/2 * skew(w1))
+    @test tmp[10:12] ≈ -h*inv(J)*(w1 × (J*(ω1+ω2)/2))
+    @test tmp[13:15] ≈ zeros(3)
+    @test Ad*x12 + Bd*u12 + tmp ≈ err
+end
+
+function test_se3_torque_bilinear_constraint()
+    J = Diagonal(SA[1,2,1.])
+    dmodel = ConsensusDynamics(J)
+    n,m = RD.dims(dmodel)
+    x0 = [vec(I(3)); zeros(3)]
+    xf = [vec(RotX(deg2rad(45)) * RotZ(deg2rad(180))); zeros(3)]
+    N = 11
+    tf = 2.0
+    h = tf / (N-1)
+
+    Ad,Bd,Cd,Dd = getA(dmodel,h), getB(dmodel,h), getC(dmodel,h), getD(dmodel,h)
+    A,B,C,D = BilinearControl.buildbilinearconstraintmatrices(dmodel, x0, xf, h, N)
+    Xs = [Vector(rand(dmodel)[1]) for k = 1:N]
+    Us = [Vector(rand(dmodel)[2]) for k = 1:N]
+    X = vcat(Xs...)
+    U = vcat(Us...)
+    c = A*X + B*U + sum(U[i] * C[i] * X for i = 1:length(U)) + D
+    p = size(Ad,1)
+    @test c[1:n] ≈ x0 - Xs[1]
+    @test all(1:N-1) do k
+        c[n+1+p*(k-1):n+p*k] ≈ Ad * [Xs[k]; Xs[k+1]] + Bd * [Us[k]; Us[k+1]] + 
+            sum(Us[k][i] * Cd[i] * [Xs[k]; Xs[k+1]] for i = 1:m) + Dd
+    end
+    @test c[end-n+1:end] ≈ xf - Xs[end]
 end
 
 
@@ -236,7 +247,37 @@ end
     testattitudeproblem(Val(Nu))
 end
 
-@testset "SO(3) with $Nu controls" for Nu in (3,2)
-    testso3problem(Val(Nu))
+@testset "SO(3) with $Nu controls" for Nu in (2,3)
+    Xsol, Usol, admm = testso3problem(Val(Nu))
+    if Nu == 2
+        @testset "Cholesky" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:cholesky, z_solver=:cholesky)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+        @testset "OSQP" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:osqp, z_solver=:osqp)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+        @testset "CG" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:cg, z_solver=:cg)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+        @testset "MINRES/CG" begin
+            X2, U2, admm2 = testso3problem(Val(Nu), x_solver=:minres, z_solver=:cg)
+            @test X2 ≈ Xsol rtol=1e-5
+            @test U2 ≈ Usol rtol=1e-5
+            @test admm.stats.iterations == admm2.stats.iterations
+        end
+    end
 end
 
+@testset "SO(3) w/ Torque Inputs" begin
+    test_so3_torque_dynamics()
+    test_se3_torque_bilinear_constraint()
+end
