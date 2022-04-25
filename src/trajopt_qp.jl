@@ -1,27 +1,27 @@
 struct TOQP{n,m,T}
-    Q::Vector{Diagonal{T,SVector{n,T}}}
-    R::Vector{Diagonal{T,SVector{m,T}}}
-    q::Vector{SVector{n,T}}
-    r::Vector{SVector{m,T}}
+    Q::Vector{Diagonal{T,Vector{T}}}
+    R::Vector{Diagonal{T,Vector{T}}}
+    q::Vector{Vector{T}}
+    r::Vector{Vector{T}}
     c::Vector{T}
-    A::Vector{SizedMatrix{n,n,T,2,Matrix{T}}}
-    B::Vector{SizedMatrix{n,m,T,2,Matrix{T}}}
-    C::Vector{SizedMatrix{n,n,T,2,Matrix{T}}}
-    D::Vector{SizedMatrix{n,m,T,2,Matrix{T}}}
-    d::Vector{SVector{n,T}}
-    x0::SVector{n,T}
+    A::Vector{Matrix{T}}
+    B::Vector{Matrix{T}}
+    C::Vector{Matrix{T}}
+    D::Vector{Matrix{T}}
+    d::Vector{Vector{T}}
+    x0::Vector{T}
 end
 
 function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) where {n,m}
     Nx,Nu = n,m
-    Q = [Diagonal(@SVector rand(Nx)) * 10^cond for k = 1:N]
-    R = [Diagonal(@SVector rand(Nu)) for k = 1:N-1]
-    q = [@SVector randn(Nx) for k = 1:N]
-    r = [@SVector randn(Nu) for k = 1:N-1]
-    A = SizedMatrix.([@SMatrix zeros(Nx,Nx) for k = 1:N-1])
-    B = SizedMatrix.([@SMatrix zeros(Nx,Nu) for k = 1:N-1])
-    C = SizedMatrix.([@SMatrix zeros(Nx,Nx) for k = 1:N-1])
-    D = SizedMatrix.([@SMatrix zeros(Nx,Nu) for k = 1:N-1])
+    Q = [Diagonal(rand(Nx)) * 10^cond for k = 1:N]
+    R = [Diagonal(rand(Nu)) for k = 1:N-1]
+    q = [randn(Nx) for k = 1:N]
+    r = [randn(Nu) for k = 1:N-1]
+    A = [zeros(Nx,Nx) for k = 1:N-1]
+    B = [zeros(Nx,Nu) for k = 1:N-1]
+    C = [zeros(Nx,Nx) for k = 1:N-1]
+    D = [zeros(Nx,Nu) for k = 1:N-1]
     for k = 1:N-1
         Ak, Bk = RandomLinearModels.gencontrollable(n, m)
         A[k] .= Ak
@@ -34,10 +34,10 @@ function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) wh
             C[k] .= -I(n)
         end
     end
-    d = [@SVector randn(Nx) for k = 1:N-1]
-    x0 = @SVector randn(Nx)
+    d = [randn(Nx) for k = 1:N-1]
+    x0 = randn(Nx)
     c = randn(N) * 10
-    data = TOQP(Q,R,q,r,c,A,B,C,D,d,x0)
+    data = TOQP{n,m,Float64}(Q,R,q,r,c,A,B,C,D,d,x0)
 end
 Base.size(data::TOQP{n,m}) where {n,m} = (n,m, length(data.Q))
 nhorizon(data::TOQP) = length(data.Q)

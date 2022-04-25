@@ -32,7 +32,7 @@ include("mpc.jl")
 include("moi.jl")
 
 include("gen_controllable.jl")
-include("lqr_data.jl")
+include("trajopt_qp.jl")
 include("lqr_solver.jl")
 
 include("linear_admm.jl")
