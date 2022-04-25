@@ -1,4 +1,4 @@
-module edmd
+module EDMD
 
 export learn_bilinear_model, build_eigenfunctions, state, sine, cosine, hermite, chebyshev, monomial
 

@@ -51,8 +51,8 @@ dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 n,m = RD.dims(model)
 
 ## Learn the bilinear dynamics
-Z_sim, Zu_sim, z0 = BilinearControl.edmd.build_eigenfunctions(X_ref, U_ref, ["state", "sine", "cosine"], [0,0,0])
-F, C, g = BilinearControl.edmd.learn_bilinear_model(
+Z_sim, Zu_sim, z0 = BilinearControl.EDMD.build_eigenfunctions(X_ref, U_ref, ["state", "sine", "cosine"], [0,0,0])
+F, C, g = BilinearControl.EDMD.learn_bilinear_model(
     X_ref, Z_sim, Zu_sim, ["lasso", "lasso"]; 
     edmd_weights=[0.0], mapping_weights=[0.0]
 )
