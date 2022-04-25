@@ -26,6 +26,10 @@ end
     include("linear_admm._test.jl")
 end
 
+@testset "EDMD" begin
+    include("edmd_test.jl")
+end
+
 @testset "Dubins Example" begin
     include("dubins_test.jl")
     include("mpc_test.jl")

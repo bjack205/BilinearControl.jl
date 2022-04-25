@@ -105,7 +105,8 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
             func = function_list[i]
             order = order_list[i]
 
-            a = getfield(Main, Symbol(func))
+            # a = getfield(Main, Symbol(func))
+            a = eval(Symbol(func))
             
             if order == 0
                 func_eval = a(xk)
