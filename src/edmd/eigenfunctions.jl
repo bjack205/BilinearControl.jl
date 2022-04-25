@@ -87,7 +87,8 @@ state(xk::Vector{Float64}) = xk
 sine(xk::Vector{Float64}) = sin.(xk)
 cosine(xk::Vector{Float64}) = cos.(xk)
 
-function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float64}}, function_list::Vector{String}, order_list::Vector{Int64})
+function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float64}}, 
+                              function_list::Vector{String}, order_list::Vector{Int64})
 
     n = length(X[1])
     num_func = length(function_list)
@@ -105,7 +106,6 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
             func = function_list[i]
             order = order_list[i]
 
-            # a = getfield(Main, Symbol(func))
             a = eval(Symbol(func))
             
             if order == 0

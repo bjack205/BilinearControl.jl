@@ -227,7 +227,7 @@ function solvex!(solver::TrajOptADMM, x=getstates(solver), u=getcontrols(solver)
     N = nhorizon(solver)
     H,g = buildstatesystem(solver, u, y, ρ)
     g .*= -1
-    F = cholesky(H)
+    F = cholesky(Symmetric(H))
     Xn = F\g
 
     xn = reshape(Xn, n, N)

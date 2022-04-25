@@ -76,7 +76,7 @@ BilinearControl.setpenalty!(solver, 10.0)
 solver.opts.penalty_threshold = 1e2
 solver.opts.ϵ_abs_primal = 1e-6
 solver.opts.ϵ_abs_dual = 1e-3
-xsol, usol, ysol = BilinearControl.solve(solver, x, u, verbose=1, max_iters=200)
+xsol, usol, ysol = BilinearControl.solve(solver, x, u, verbose=0, max_iters=200)
 ρ = BilinearControl.getpenalty(solver)
 BilinearControl.primal_residual(solver, xsol, usol)
 λsol = [y*ρ for y in ysol]
@@ -95,7 +95,7 @@ solver2 = BilinearControl.TrajOptADMM(prob, acceleration=acceleration)
 solver2.opts.penalty_threshold = 1e2
 solver2.opts.ϵ_abs_primal = 1e-6
 solver2.opts.ϵ_abs_dual = 1e-3
-xsol, usol, ysol = BilinearControl.solve(solver2, x, u, verbose=1, max_iters=200)
+xsol, usol, ysol = BilinearControl.solve(solver2, x, u, verbose=0, max_iters=200)
 
 @test BilinearControl.primal_residual(prob, xsol, usol) ≈ 
     BilinearControl.primal_residual(solver, xsol, usol)
