@@ -130,6 +130,6 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
 
     z0 = Z[1]
 
-return Z, Zu, z0
+    return Z, Zu, z0
 
 end
