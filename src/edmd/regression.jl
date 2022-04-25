@@ -24,7 +24,7 @@ function linear_regression(Y::Vector{Float64}, X::Matrix{Float64}; gamma::Float6
         Sol = minimize(L1 - 2 * L2 + gamma * L3)
     end
 
-    solve!(Sol, SCS.Optimizer; silent_solver = true)
+    solve!(Sol, COSMO.Optimizer; silent_solver = true)
     Sol.status == Convex.MOI.OPTIMAL ? b = vec(evaluate(b)) : b = X \ Y
     
     return b

@@ -87,6 +87,35 @@ state(xk::Vector{Float64}) = xk
 sine(xk::Vector{Float64}) = sin.(xk)
 cosine(xk::Vector{Float64}) = cos.(xk)
 
+state_transform(z::Vector{Float64}, g) = g * z
+
+function koopman_transform(x::Vector{Float64}, function_list::Vector{String}, 
+    order_list::Vector{Int64})
+
+    num_func = length(function_list)
+    z = 1
+
+    for i in 1:num_func
+
+        func = function_list[i]
+        order = order_list[i]
+
+        a = eval(Symbol(func))
+        
+        if order == 0
+            func_eval = a(x)
+        else
+            func_eval = a(x; order)
+        end
+        
+        z = vcat(z, func_eval)
+
+    end
+
+    return z
+
+end
+
 function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float64}}, 
                               function_list::Vector{String}, order_list::Vector{Int64})
 
@@ -99,24 +128,7 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
     for k in 1:length(X)
         
         xk = X[k]
-        zk = 1
-        
-        for i in 1:num_func
-
-            func = function_list[i]
-            order = order_list[i]
-
-            a = eval(Symbol(func))
-            
-            if order == 0
-                func_eval = a(xk)
-            else
-                func_eval = a(xk; order)
-            end
-            
-            zk = vcat(zk, func_eval)
-
-        end
+        zk = koopman_transform(xk, function_list, order_list)
         
         push!(Z, zk)
 
