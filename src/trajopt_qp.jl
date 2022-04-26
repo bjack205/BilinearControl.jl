@@ -1,18 +1,43 @@
 struct TOQP{n,m,T}
+    # Objective
     Q::Vector{Diagonal{T,Vector{T}}}
     R::Vector{Diagonal{T,Vector{T}}}
     q::Vector{Vector{T}}
     r::Vector{Vector{T}}
     c::Vector{T}
+
+    # Dynamics constraints
     A::Vector{Matrix{T}}
     B::Vector{Matrix{T}}
     C::Vector{Matrix{T}}
     D::Vector{Matrix{T}}
     d::Vector{Vector{T}}
     x0::Vector{T}
+
+    # Equality constraints
+    Hx::Vector{Matrix{T}}
+    hx::Vector{Vector{T}}
+    Hu::Vector{Matrix{T}}
+    hu::Vector{Vector{T}}
+
+    # Inequality constraints 
+    Gx::Vector{Matrix{T}}
+    gx::Vector{Vector{T}}
+    Gu::Vector{Matrix{T}}
+    gu::Vector{Vector{T}}
+    # TODO: Add conic constraints 
 end
 
-function TOQP(model::DiscreteLinearModel, obj::TO.Objective, x0)
+function TOQP(model::DiscreteLinearModel, obj::TO.Objective, x0;
+        Hx=[zeros(0, state_dim(model)) for k = 1:length(obj)],
+        hx=[zeros(0) for k = 1:length(obj)],
+        Hu=[zeros(0, control_dim(model)) for k = 1:length(obj)],
+        hu=[zeros(0) for k = 1:length(obj)],
+        Gx=[zeros(0, state_dim(model)) for k = 1:length(obj)],
+        gx=[zeros(0) for k = 1:length(obj)],
+        Gu=[zeros(0, control_dim(model)) for k = 1:length(obj)],
+        gu=[zeros(0) for k = 1:length(obj)],
+    )
     N = length(obj)
     n,m = RD.dims(model)
     Q = map(c->c.Q, obj.cost)
@@ -21,7 +46,7 @@ function TOQP(model::DiscreteLinearModel, obj::TO.Objective, x0)
     r = map(c->c.r, obj.cost)
     c = map(c->c.c, obj.cost)
     D = [zeros(n,m) for k = 1:N-1]
-    TOQP{n,m,Float64}(Q, R, q, r, c, A, B, C, D, d, x0)
+    TOQP{n,m,Float64}(Q, R, q, r, c, A, B, C, D, d, x0, Hx,hx, Hu,hu, Gx,gx, Gu,gu)
 end
 
 function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) where {n,m}
@@ -49,12 +74,50 @@ function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) wh
     d = [randn(Nx) for k = 1:N-1]
     x0 = randn(Nx)
     c = randn(N) * 10
-    data = TOQP{n,m,Float64}(Q,R,q,r,c,A,B,C,D,d,x0)
+    Hx=[zeros(0, n) for k = 1:N]
+    hx=[zeros(0) for k = 1:N]
+    Hu=[zeros(0, m) for k = 1:N]
+    hu=[zeros(0) for k = 1:N]
+    Gx=[zeros(0, n) for k = 1:N]
+    gx=[zeros(0) for k = 1:N]
+    Gu=[zeros(0, m) for k = 1:N]
+    gu=[zeros(0) for k = 1:N]
+
+    data = TOQP{n,m,Float64}(Q,R,q,r,c,A,B,C,D,d,x0, Hx,hu, Hu,hu, Gx,gx, Gu,gu)
 end
 Base.size(data::TOQP{n,m}) where {n,m} = (n,m, length(data.Q))
 nhorizon(data::TOQP) = length(data.Q)
 RD.state_dim(data::TOQP) = length(data.q[1])
 RD.control_dim(data::TOQP) = length(data.r[1])
+num_primals(qp::TOQP) = sum(length, qp.q) + sum(length, qp.r)
+
+function num_duals(qp::TOQP)
+    nduals = state_dim(qp) * nhorizon(qp)              # dynamics and initial condition
+    nduals += num_equality(qp) + num_inequality(qp)
+    nduals
+end
+
+num_equality(qp::TOQP) = num_state_equality(qp) + num_control_equality(qp) 
+num_inequality(qp::TOQP) = num_state_inequality(qp) + num_control_inequality(qp) 
+
+num_state_equality(qp::TOQP) = sum(length(qp.hx))
+num_state_inequality(qp::TOQP) = sum(length(qp.gx))
+
+num_control_equality(qp::TOQP) = sum(length(qp.hu))
+num_control_inequality(qp::TOQP) = sum(length(qp.gu))
+
+num_states(qp::TOQP) = sum(length, qp.q)
+num_controls(qp::TOQP) = sum(length, qp.r)
+
+function getxind(qp::TOQP, k)
+    n = state_dim(qp)
+    (k-1)*n .+ (1:n)
+end
+
+function getuind(qp::TOQP, k)
+    n,m = state_dim(qp), control_dim(qp) 
+    N*n + (k-1)*m .+ (1:m)
+end
 
 function Base.copy(data::TOQP)
     TOQP(
@@ -68,7 +131,15 @@ function Base.copy(data::TOQP)
         deepcopy(data.C),
         deepcopy(data.D),
         deepcopy(data.d),
-        deepcopy(data.x0)
+        deepcopy(data.x0),
+        deepcopy(data.Gx),
+        deepcopy(data.gx),
+        deepcopy(data.Gu),
+        deepcopy(data.gu),
+        deepcopy(data.Hx),
+        deepcopy(data.hx),
+        deepcopy(data.Hu),
+        deepcopy(data.hu),
     )
 end
 
@@ -147,6 +218,120 @@ function stack_vectors(vectors)
     return b
 end
 
+function build_objective(qp::TOQP)
+    Np = num_primals(qp)
+    P = spzeros(Np, Np)
+    q = zeros(Np)
+
+    for k in eachindex(qp.Q) 
+        ix = getxind(qp, k)
+        iu = getuind(qp, k)
+        P[ix,ix] .= qp.Q[k]
+        q[ix] .= qp.q
+    end
+    for k in eachindex(qp.R)
+        P[iu,iu] .= qp.R[k]
+        q[iu] .= qp.r[k]
+    end
+
+    P, q, sum(qp.c)
+end
+
+function build_dynamics(qp::TOQP)
+    n = state_dim(qp)
+    Nc = nhorizon(qp) * n 
+    Nx = num_states(qp) 
+    Nu = num_controls(qp) 
+    A = spzeros(Nc,Nx)
+    B = spzeros(Nc,Nu)
+    C = spzeros(Nc,Nx)
+    d = spzeros(Nc)
+
+    # Initial condition
+    ix1 = getxind(qp, 1)
+    ic = 1:n
+    A[ic,ix1] .= -I(n)
+    d[ic] .= qp.x0
+    ic = ic .+ n
+
+    # Dynamics
+    for k in eachindex(qp.A)
+        ix1 = getxind(qp, k)
+        iu1 = getuind(qp, k) .- Nx
+        ix2 = getxind(qp, k+1)
+
+        A[ic,ix1] .= qp.A[k]
+        B[ic,iu1] .= qp.B[k]
+        C[ic,ix2] .= qp.C[k]
+        d[ic] .= qp.d[k]
+    end
+    A,B,C,d
+end
+
+function build_state_equalities(qp::TOQP)
+    Nc = num_state_equality(qp)
+    Nx = num_states(qp) 
+    Nu = num_controls(qp) 
+    Hx = spzeros(Nc,Nx)
+    hx = zeros(Nc)
+    off = 1
+    for k in eachindex(qp.Hx)
+        ic = off .+ eachindex(qp.hx[k])
+        ix = getxind(qp, k)
+        Hx[ic,ix] .= qp.Hx[k]
+        hx[ic] .= qp.hx[k]
+    end
+    Hx, hx
+end
+
+function build_state_inequalities(qp::TOQP)
+    Nc = num_state_inequality(qp)
+    Nx = num_states(qp) 
+    Nu = num_controls(qp) 
+    Gx = spzeros(Nc,Nx)
+    gx = zeros(Nc)
+    off = 1
+    for k in eachindex(qp.Gx)
+        ic = off .+ eachindex(qp.gx[k])
+        ix = getxind(qp, k)
+        Gx[ic,ix] .= qp.Gx[k]
+        gx[ic] .= qp.gx[k]
+    end
+    Gx, gx
+end
+
+function build_control_equalities(qp::TOQP)
+    Nc = num_control_equality(qp)
+    Nx = num_states(qp) 
+    Nu = num_controls(qp) 
+    Hu = spzeros(Nc,Nu)
+    hu = zeros(Nc)
+    off = 1
+    for k in eachindex(qp.Hu)
+        ic = off .+ eachindex(qp.hu[k])
+        iu = getuind(qp, k) .- Nx
+        Hu[ic,iu] .= qp.Hu[k]
+        hu[ic] .= qp.hu[k]
+    end
+    Hu, hu
+end
+
+function build_control_inequalities(qp::TOQP)
+    Nc = num_control_inequality(qp)
+    Nx = num_states(qp) 
+    Nu = num_controls(qp) 
+    Gx = spzeros(Nc,Nu)
+    gx = zeros(Nc)
+    off = 1
+    for k in eachindex(qp.Gu)
+        ic = off .+ eachindex(qp.gu[k])
+        ix = getxind(qp, k)
+        Gu[ic,ix] .= qp.Gu[k]
+        gu[ic] .= qp.gu[k]
+    end
+    Gx, gx
+end
+
 function build_Ab(data::TOQP{n,m}; remove_x1::Bool=false, reg=0.0) where {n,m}
     N = length(data.Q)
     Q,R,q,r = data.Q, data.R, data.q, data.r
@@ -193,4 +378,65 @@ function build_Ab(data::TOQP{n,m}; remove_x1::Bool=false, reg=0.0) where {n,m}
     b = Vector(stack_vectors(b))
     A = Ds + Is
     return A,-b
+end
+
+function setup_osqp!(qp::TOQP; kwargs...)
+    Nx = num_states(qp)
+    Nu = num_controls(qp)
+
+    P,q,c = build_objective(qp)
+    A,B,C,d = build_dynamics(qp)
+    Hx,hx = build_state_equalities(qp) 
+    Hu,hu = build_control_equalities(qp) 
+    Gx,gx = build_state_inequalities(qp) 
+    Gu,gu = build_control_iequalities(qp) 
+    Ahat = [
+        [A+C B];  # dynamics
+        [Hx spzeros(size(Hx,Nu))];  # state equalities
+        [spzeros(size(Hu,Nx)) Hu];  # control equalities
+        [Gx spzeros(size(Gx,Nu))];  # state inequalities
+        [spzeros(size(Gu,Nx)) Gu];  # control inequalities
+    ]
+    lb = [
+        -d; 
+        -hx; 
+        -hu;
+        fill(-Inf, length(gx) + length(gu));
+    ]
+    ub = [
+        -d; 
+        -hx; 
+        -hu;
+        -gx;
+        -gu;
+    ]
+    model = OSQP.Model()
+    OSQP.setup!(model, P=P, q=q, A=A, l=lb, u=ub; kwargs...)
+    model
+end
+
+function setup_convex!(qp::TOQP; kwargs...)
+    Nx = num_states(qp)
+    Nu = num_controls(qp)
+
+    A,B,C,d = build_dynamics(qp)
+    Hx,hx = build_state_equalities(qp) 
+    Hu,hu = build_control_equalities(qp) 
+    Gx,gx = build_state_inequalities(qp) 
+    Gu,gu = build_control_iequalities(qp) 
+
+    Q = build_block_diagonal(qp.Q)
+    R = build_block_diagonal(qp.Q)
+    q = stack_vectors(qp.q)
+    r = stack_vectors(qp.r)
+
+    x = Convex.Variable(Nx)
+    u = Convex.Variable(Nu)
+
+    problem = minimize(Convex.quadform(x, Q) + dot(x,q) + Convex.quadform(u, R) + dot(u, r))
+    problem.constraints += Hx*x + hx == 0
+    problem.constraints += Hu*u + hu == 0
+    problem.constraints += Gx*x + gx <= 0
+    problem.constraints += Gu*u + bu <= 0
+    problem
 end

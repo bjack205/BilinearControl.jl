@@ -8,6 +8,7 @@ using LinearAlgebra
 using SparseArrays
 using StaticArrays
 using OSQP
+import Convex
 import COSMO
 import IterativeSolvers 
 import RobotDynamics as RD
