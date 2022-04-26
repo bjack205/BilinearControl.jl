@@ -24,7 +24,11 @@ include("dynamics_tests.jl")
 end
 
 @testset "Linear ADMM" begin
-    include("linear_admm._test.jl")
+    include("linear_admm_test.jl")
+end
+
+@testset "EDMD" begin
+    include("edmd_test.jl")
 end
 
 @testset "Swarm Model" begin
