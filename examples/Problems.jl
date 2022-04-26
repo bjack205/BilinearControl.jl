@@ -8,9 +8,11 @@ using RobotDynamics
 using Rotations
 using BilinearControl
 using COSMO
+using JLD2
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
+import BilinearControl: DiscreteLinearModel
 
 # Include models
 model_dir = joinpath(@__DIR__, "models")

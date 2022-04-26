@@ -12,6 +12,18 @@ struct TOQP{n,m,T}
     x0::Vector{T}
 end
 
+function TOQP(model::DiscreteLinearModel, obj::TO.Objective, x0)
+    N = length(obj)
+    n,m = RD.dims(model)
+    Q = map(c->c.Q, obj.cost)
+    R = map(c->c.R, obj.cost)
+    q = map(c->c.q, obj.cost)
+    r = map(c->c.r, obj.cost)
+    c = map(c->c.c, obj.cost)
+    D = [zeros(n,m) for k = 1:N-1]
+    TOQP{n,m,Float64}(Q, R, q, r, c, A, B, C, D, d, x0)
+end
+
 function Base.rand(::Type{<:TOQP{n,m}}, N::Integer; cond=1.0, implicit=false) where {n,m}
     Nx,Nu = n,m
     Q = [Diagonal(rand(Nx)) * 10^cond for k = 1:N]

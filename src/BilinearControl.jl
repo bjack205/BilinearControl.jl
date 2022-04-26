@@ -1,6 +1,6 @@
 module BilinearControl
 
-export BilinearADMM, Problems, RiccatiSolver, TOQP
+export BilinearADMM, Problems, RiccatiSolver, TOQP, DiscreteLinearModel
 
 export extractstatevec, extractcontrolvec, iterations
 
@@ -32,6 +32,7 @@ include("mpc.jl")
 include("moi.jl")
 
 include("gen_controllable.jl")
+include("linear_model.jl")
 include("trajopt_qp.jl")
 include("lqr_solver.jl")
 

@@ -409,3 +409,75 @@ function SE3TorqueProblem(;N=11, tf=2.0,
 
     admm
 end
+
+function generate_linear_models(;h=0.02)
+    datadir = joinpath(@__DIR__, "..", "data")
+
+    function linearizeaboutzero(model, h)
+        n,m = RD.dims(model)
+        x = zeros(n)
+        u = zeros(m)
+        DiscreteLinearModel(model, copy(x), x, u, h)
+    end
+
+    function savelinearmodel(data, model, name)
+        A = BilinearControl.getA(model)
+        B = BilinearControl.getB(model)
+        C = BilinearControl.getC(model)
+        d = BilinearControl.getD(model)
+        data[name] = Dict(
+            "A" => A,
+            "B" => B,
+            "C" => C,
+            "d" => d,
+        )
+    end
+
+    data = Dict{String, Dict{String, AbstractVecOrMat}}()
+
+    # Swarm models
+    di2 = DoubleIntegrator{2}(gravity=zeros(2))
+    swarm24 = Swarm{4}(di2)
+    swarm220 = Swarm{20}(di2)
+    swarm24_linear = linearizeaboutzero(swarm24, h) 
+    swarm220_linear = linearizeaboutzero(swarm220, h) 
+    savelinearmodel(data, swarm24_linear, "swarm4")
+    savelinearmodel(data, swarm220_linear, "swarm20")
+    
+    # Dubins
+    dd = BilinearDubins()
+    x0 = [0,0,1,0.]
+    u0 = zeros(2)
+    dubins_linear = DiscreteLinearModel(dd, copy(x0), x0, u0, h)
+    G = SA[1 0 0; 0 1 0; 0 0 -x0[3]; 0 0 x0[4]]
+    dubins_linear = DiscreteLinearModel(
+        G'dubins_linear.A*G, 
+        G'dubins_linear.B, 
+        G'dubins_linear.C*G, 
+        G'dubins_linear.d
+    )
+    savelinearmodel(data, dubins_linear, "dubins")
+
+    # SO3
+    so33 = SO3Dynamics{3}()
+    x0 = vec(I(3))
+    u0 = zeros(3)
+    so33_linear = DiscreteLinearModel(so33, copy(x0), x0, u0, h)
+    savelinearmodel(data, so33_linear, "so3_fullyactuated")
+
+    so32 = SO3Dynamics{2}()
+    x0 = vec(I(3))
+    u0 = zeros(2)
+    so32_linear = DiscreteLinearModel(so32, copy(x0), x0, u0, h)
+    savelinearmodel(data, so32_linear, "so3_underactuated")
+    
+    # Quadrotor-SE2(3)
+    quad = QuadrotorSE23()
+    x0 = [zeros(3); vec(I(3)); zeros(3)]
+    u0 = [zeros(3); quad.mass * quad.gravity] 
+    quad_linear = DiscreteLinearModel(quad, copy(x0), x0, u0, h)
+    savelinearmodel(data, quad_linear, "quad")
+
+    jldsave(joinpath(datadir, "linear_models.jld2"); data)
+    data
+end

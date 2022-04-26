@@ -7,7 +7,11 @@ struct DiscreteLinearModel <: RD.DiscreteDynamics
     CB::SparseMatrixCSC{Float64,Int}
     Cd::SparseVector{Float64,Int}
     function DiscreteLinearModel(A,B,C,d)
-        F = factorize(C)
+        if C isa SMatrix
+            F = lu(C)
+        else
+            F = factorize(C)
+        end
         CA = -(F\A)
         CB = -(F\B)
         Cd = -(F\d)
@@ -32,10 +36,10 @@ function RD.discrete_dynamics!(model::DiscreteLinearModel, xn, x, u, t, h)
     nothing
 end
 
-BilinearDynamics.getA(model::DiscreteLinearModel) = model.A
-BilinearDynamics.getB(model::DiscreteLinearModel) = model.B
-BilinearDynamics.getC(model::DiscreteLinearModel) = model.C
-BilinearDynamics.getD(model::DiscreteLinearModel) = model.d
+getA(model::DiscreteLinearModel) = model.A
+getB(model::DiscreteLinearModel) = model.B
+getC(model::DiscreteLinearModel) = model.C
+getD(model::DiscreteLinearModel) = model.d
 
 
 """
@@ -43,16 +47,16 @@ Use Implicit Midpoint to create a discrete linear model from a continuous
 (bi)linear one.
 """
 function DiscreteLinearModel(model::RD.ContinuousDynamics, x2, x1, u1, h)
-    n,m = length(x), length(u)
-    A = BilinearControl.getA(model)
-    B = BilinearControl.getB(model)
-    C = BilinearControl.getC(model)
-    D = BilinearControl.getD(model)
+    n,m = length(x2), length(u1)
+    A = getA(model)
+    B = getB(model)
+    C = getC(model)
+    D = getD(model)
     xm = (x1+x2)/2
 
     isbilinear = norm(C) > 0
     if isbilinear
-        Cx = h/2 sum(u1[i] * C[i] for i = 1:m)
+        Cx = h/2 * sum(u1[i] * C[i] for i = 1:m)
         Cu = h * hcat([C[i] * xm for i = 1:m]...)
     else
         Cx = zero(A)
@@ -61,6 +65,6 @@ function DiscreteLinearModel(model::RD.ContinuousDynamics, x2, x1, u1, h)
     Ad = h/2 * A + I + Cx
     Bd = h * B + Cu
     Cd = h/2 * A - I + Cx
-    d = h*(A*xm + B*u1 + sum(u1[i] * C[i] for i = 1:m) + D) + x1 - x2
+    d = h*(A*xm + B*u1 + sum(u1[i] * C[i] * xm for i = 1:m) + D) + x1 - x2
     DiscreteLinearModel(Ad, Bd, Cd, d)
 end
