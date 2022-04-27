@@ -161,7 +161,6 @@ function primal_feasibility(data, X, U)
     pos(x) = max(zero(x), x)
     for k = 1:N
         x = X[k]
-        u = U[k]
         r = max(r, norm(
             data.Hx[k]*x + data.hx[k],
             Inf
@@ -171,6 +170,7 @@ function primal_feasibility(data, X, U)
             Inf
         ))
         if k < N
+            u = U[k]
             xn = X[k+1]
             r = max(r, norm(
                 data.A[k]*x + 

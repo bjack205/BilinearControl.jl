@@ -12,5 +12,7 @@ X,U,λ = BilinearControl.unpackY(data, Y)
 @test X ≈ lqrsolver.X
 @test U ≈ lqrsolver.U
 @test λ ≈ lqrsolver.λ
-@test BilinearControl.primal_residual(data, X, U) < 1e-10
-@test BilinearControl.dual_residual(data, X, U, λ) < 1e-10
+μ = [zeros(0) for k=1:11, j=1:2]
+ν = [zeros(0) for k=1:11, j=1:2]
+@test BilinearControl.primal_feasibility(data, X, U) < 1e-10
+@test BilinearControl.stationarity(data, X, U, λ, μ, ν) < 1e-10

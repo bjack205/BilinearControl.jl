@@ -81,11 +81,15 @@ xsol, usol, ysol = BilinearControl.solve(solver, x, u, verbose=0, max_iters=200)
 BilinearControl.primal_residual(solver, xsol, usol)
 λsol = [y*ρ for y in ysol]
 
-@test BilinearControl.primal_residual(prob, xsol, usol) ≈ 
+N = BilinearControl.nhorizon(prob)
+μ = [zeros(0) for k=1:N, j=1:2]
+ν = [zeros(0) for k=1:N, j=1:2]
+@test BilinearControl.primal_feasibility(prob, xsol, usol) ≈ 
     BilinearControl.primal_residual(solver, xsol, usol)
-@test BilinearControl.primal_residual(prob, xsol, usol) < 1e-6
+@test BilinearControl.primal_feasibility(prob, xsol, usol) < 1e-6
 
-@test BilinearControl.dual_residual(prob, xsol, usol, λsol) < 1e-3
+@test BilinearControl.stationarity(prob, xsol, usol, λsol, μ, ν) < 1e-3
+@test BilinearControl.dual_feasibility(prob, λsol, μ, ν) < 1e-3
 iters0 = iterations(solver)
 
 ## Test with Acceleration
@@ -96,11 +100,13 @@ solver2.opts.penalty_threshold = 1e2
 solver2.opts.ϵ_abs_primal = 1e-6
 solver2.opts.ϵ_abs_dual = 1e-3
 xsol, usol, ysol = BilinearControl.solve(solver2, x, u, verbose=0, max_iters=200)
+iterations(solver2)
 
-@test BilinearControl.primal_residual(prob, xsol, usol) ≈ 
-    BilinearControl.primal_residual(solver, xsol, usol)
-@test BilinearControl.primal_residual(prob, xsol, usol) < 1e-6
+@test BilinearControl.primal_feasibility(prob, xsol, usol) ≈ 
+    BilinearControl.primal_residual(solver2, xsol, usol)
+@test BilinearControl.primal_feasibility(prob, xsol, usol) < 1e-6
 
-@test BilinearControl.dual_residual(prob, xsol, usol, λsol) < 1e-3
+@test BilinearControl.stationarity(prob, xsol, usol, λsol, μ, ν) < 1e-3
+@test BilinearControl.dual_feasibility(prob, λsol, μ, ν) < 1e-3
 
 @test iterations(solver2) < iters0
