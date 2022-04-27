@@ -5,6 +5,10 @@ using Colors
 import RobotDynamics as RD
 import BilinearControl.Problems: orientation, translation
 
+#############################################
+# Endurance (satellite) 
+#############################################
+
 """
     setbackgroundimage(vis, imagefile, [d])
 
@@ -43,6 +47,10 @@ function setendurance!(vis; scale=1/3)
     settransform!(vis["robot"]["geometry"], compose(Translation((5.05, 6.38, 1) .* scale), LinearMap(I*scale * RotZ(deg2rad(140)))))
 end
 
+#############################################
+# Quadrotor 
+#############################################
+
 function setquadrotor!(vis;scale=1/8, color=colorant"black")
     meshfile = joinpath(@__DIR__, "AR_Drone.obj")
     obj = MeshFileGeometry(meshfile)
@@ -63,6 +71,10 @@ function defcolor(c1, c2, c1def, c2def)
     end
     c1,c2
 end
+
+#############################################
+# Cartpole
+#############################################
 
 function set_cartpole!(vis0; model=RobotZoo.Cartpole(), 
         color=nothing, color2=nothing)
@@ -90,6 +102,38 @@ function visualize!(vis, model::RobotZoo.Cartpole, x::AbstractVector)
     settransform!(vis["robot","cart"], Translation(0,-y,0))
     settransform!(vis["robot","cart","pole","geom"], LinearMap(UnitQuaternion(q)))
 end
+
+#############################################
+# Pendulum  
+#############################################
+
+function set_pendulum!(vis0, model::RobotZoo.Pendulum; 
+    color=nothing, color2=nothing)
+    
+    vis = vis0["robot"]
+    dim = Vec(0.1, 0.3, 0.1)
+    cart = Rect3D(-dim/2, dim)
+    hinge = Cylinder(Point3f0(-dim[1]/2,0,dim[3]/2), Point3f0(dim[1],0,dim[3]/2), 0.03f0)
+    c1,c2 = defcolor(color,color2, colorant"blue", colorant"red")
+
+    pole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,model.len),0.01f0)
+    mass = HyperSphere(Point3f0(0,0,model.len), 0.05f0)
+    setobject!(vis["cart","box"],   cart, MeshPhongMaterial(color=isnothing(color) ? colorant"green" : color))
+    setobject!(vis["cart","hinge"], hinge, MeshPhongMaterial(color=colorant"black"))
+    setobject!(vis["cart","pole","geom","cyl"], pole, MeshPhongMaterial(color=c1))
+    setobject!(vis["cart","pole","geom","mass"], mass, MeshPhongMaterial(color=c2))
+    settransform!(vis["cart","pole"], Translation(0.75*dim[1],0,dim[3]/2))
+end
+
+function visualize_state!(vis, model::RobotZoo.Pendulum, x)
+    θ = x[1]
+    q = expm((pi-θ) * @SVector [1,0,0])
+    settransform!(vis["robot","cart","pole","geom"], LinearMap(UnitQuaternion(q)))
+end
+
+#############################################
+# Generic Methods
+#############################################
 
 function visualize!(vis, model, tf, X)
     N = length(X)

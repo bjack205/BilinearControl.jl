@@ -113,16 +113,3 @@ Xsol, Usol = BilinearControl.unpackprimals(qp, res.x)
 @test BilinearControl.stationarity(qp, Xsol, Usol, λ, μ, ν) < 1e-1  # why isn't this lower?
 @test BilinearControl.dual_feasibility(qp, λ, μ, ν) < 1e-6
 @test BilinearControl.complementary_slackness(qp, Xsol, Usol, λ, μ, ν) < 1e-6
-
-## Solve Bilinear Cartpole
-prob = Problems.Cartpole(Problems.BilinearCartpole())
-qp = BilinearControl.TOQP(prob)
-
-model = BilinearControl.setup_cosmo(qp, eps_abs=1e-6, eps_rel=1e-6, eps_dual_inf=1e-6)
-res = COSMO.optimize!(model)
-Xsol, Usol = BilinearControl.unpackprimals(qp, res.x)
-λ,μ,ν = BilinearControl.unpackduals(qp, res.y)
-@test BilinearControl.primal_feasibility(qp, Xsol, Usol) < 1e-6
-@test BilinearControl.stationarity(qp, Xsol, Usol, λ, μ, ν) < 1e-1  # why isn't this lower?
-@test BilinearControl.dual_feasibility(qp, λ, μ, ν) < 1e-6
-@test BilinearControl.complementary_slackness(qp, Xsol, Usol, λ, μ, ν) < 1e-6
