@@ -125,10 +125,12 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
     Z = Vector{Float64}[]
     Zu = Vector{Float64}[]
     
+    kf(x) = koopman_transform(x, function_list, order_list)
+
     for k in 1:length(X)
         
         xk = X[k]
-        zk = koopman_transform(xk, function_list, order_list)
+        zk = kf(xk)
         
         push!(Z, zk)
 
@@ -142,6 +144,6 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
 
     z0 = Z[1]
 
-    return Z, Zu, z0
+    return Z, Zu, z0, kf
 
 end
