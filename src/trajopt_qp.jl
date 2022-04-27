@@ -505,30 +505,34 @@ function setup_osqp(qp::TOQP; kwargs...)
     model
 end
 
-function setup_convex!(qp::TOQP; kwargs...)
+function setup_cosmo(qp::TOQP; kwargs...)
     Nx = num_states(qp)
     Nu = num_controls(qp)
 
+    P,q,c = BilinearControl.build_objective(qp)
     A,B,C,d = build_dynamics(qp)
     Hx,hx = build_state_equalities(qp) 
     Hu,hu = build_control_equalities(qp) 
     Gx,gx = build_state_inequalities(qp) 
-    Gu,gu = build_control_iequalities(qp) 
+    Gu,gu = build_control_inequalities(qp) 
 
-    Q = build_block_diagonal(qp.Q)
-    R = build_block_diagonal(qp.Q)
-    q = stack_vectors(qp.q)
-    r = stack_vectors(qp.r)
+    Hx = [Hx spzeros(size(Hx,1), Nu)]
+    Hu = [spzeros(size(Hu,1), Nx) Hu]
+    Gx = [Gx spzeros(size(Gx,1), Nu)]
+    Gu = [spzeros(size(Gu,1), Nx) Gu]
 
-    x = Convex.Variable(Nx)
-    u = Convex.Variable(Nu)
-
-    problem = minimize(Convex.quadform(x, Q) + dot(x,q) + Convex.quadform(u, R) + dot(u, r))
-    problem.constraints += Hx*x + hx == 0
-    problem.constraints += Hu*u + hu == 0
-    problem.constraints += Gx*x + gx <= 0
-    problem.constraints += Gu*u + bu <= 0
-    problem
+    A,B,C,d = BilinearControl.build_dynamics(qp)
+    cons = [
+        COSMO.Constraint([(A+C) B], d, COSMO.ZeroSet),
+        COSMO.Constraint(Hx, hx, COSMO.ZeroSet),
+        COSMO.Constraint(Hu, hu, COSMO.ZeroSet),
+        COSMO.Constraint(-Gx, -gx, COSMO.Nonnegatives),
+        COSMO.Constraint(-Gu, -gu, COSMO.Nonnegatives),
+    ]
+    model = COSMO.Model() 
+    settings = COSMO.Settings(;kwargs...)
+    COSMO.assemble!(model, P, q, cons; settings)
+    model
 end
 
 function stack_linearized_constraints(constraints::TO.ConstraintList, con_inds, Z, input)

@@ -3,7 +3,9 @@ using BilinearControl.Problems
 import TrajectoryOptimization as TO
 import RobotDynamics as RD
 using LinearAlgebra
+using Convex
 using OSQP
+using COSMO
 using Test
 
 prob = Problems.Cartpole()
@@ -90,3 +92,30 @@ Xsol, Usol = BilinearControl.unpackprimals(qp, res.x)
 @test BilinearControl.dual_feasibility(qp, λ, μ, ν) < 1e-6
 @test BilinearControl.complementary_slackness(qp, Xsol, Usol, λ, μ, ν) < 1e-6
 @test res.info.dua_res ≈ BilinearControl.stationarity(qp, Xsol, Usol, λ, μ, ν)
+
+let x = res.x[1:Nx], u=res.x[Nx+1:end]
+    P,q,c = BilinearControl.build_objective(qp)
+    J = dot(res.x, P, res.x) + dot(res.x, q)
+
+    Q = BilinearControl.build_block_diagonal(qp.Q)
+    R = BilinearControl.build_block_diagonal(qp.R)
+    q = BilinearControl.stack_vectors(qp.q)
+    r = BilinearControl.stack_vectors(qp.r)
+    @test J ≈ dot(x,Q,x) + dot(q,x) + dot(u,R,u) + dot(r,u)
+end
+
+## Solve with COSMO
+model = COSMO.Model()
+P,q,c = BilinearControl.build_objective(qp)
+A,B,C,d = BilinearControl.build_dynamics(qp)
+COSMO.assemble!(model, P, q, [dyn])
+res = COSMO.optimize!(model)
+
+model = BilinearControl.setup_cosmo(qp, eps_abs=1e-6, eps_rel=1e-6, eps_dual_inf=1e-6)
+res = COSMO.optimize!(model)
+Xsol, Usol = BilinearControl.unpackprimals(qp, res.x)
+λ,μ,ν = BilinearControl.unpackduals(qp, res.y)
+@test BilinearControl.primal_feasibility(qp, Xsol, Usol) < 1e-6
+@test BilinearControl.stationarity(qp, Xsol, Usol, λ, μ, ν) < 1e-1  # why isn't this lower?
+@test BilinearControl.dual_feasibility(qp, λ, μ, ν) < 1e-6
+@test BilinearControl.complementary_slackness(qp, Xsol, Usol, λ, μ, ν) < 1e-6
