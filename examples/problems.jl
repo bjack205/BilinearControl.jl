@@ -519,3 +519,49 @@ function Cartpole(model = RobotZoo.Cartpole(); constrained::Bool=true, N=101,
     rollout!(prob)
     prob
 end
+
+function BilinearCartpoleProblem(; constrained::Bool=true, N=101, 
+        Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0)
+    model = BilinearCartpole()
+    n,m = RD.dims(model)
+    if model isa BilinearCartpole
+        N = round(Int, tf / model.dt) + 1
+        dt = tf / (N-1)
+    else
+        dt = tf/(N-1)
+    end
+    n0,m0 = 4,1    
+    nd = n - n0
+
+    Qd = fill(Qv, n0)
+    Qfd = fill(Qfv, n0)
+    Q = Diagonal([0; fill(Qv, n0); zeros(n-n0-1)])
+    Qf = Diagonal([0; fill(Qfv, n0); zeros(n-n0-1)])
+    # Q = Diagonal(fill(Qv, n))
+    # Qf = Diagonal(fill(Qfv, n))
+    # Q = Diagonal(expandstate(model, Qd))
+    # Qf = Diagonal(expandstate(model, Qfd))
+    # Q = Qv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)]) * dt
+    # Qf = Qfv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)])
+    R = Rv*Diagonal(@SVector ones(m)) * dt
+    x0 = expandstate(model, @SVector zeros(n0))
+    xf = @SVector [0, pi, 0, 0]
+    zf = expandstate(model, xf)
+    obj = LQRObjective(Q,R,Qf,zf,N)
+
+    u_bnd = u_bnd 
+    conSet = ConstraintList(n,m,N)
+    bnd = ControlBound(m, u_min=-u_bnd, u_max=u_bnd)
+    goal = GoalConstraint(zf, 1 .+ (1:n0))
+    if constrained
+        # add_constraint!(conSet, bnd, 1:N-1)
+        add_constraint!(conSet, goal, N:N)
+    end
+
+    # X0 = [@SVector fill(NaN,n) for k = 1:N]
+    u0 = @SVector fill(0.01,m)
+    U0 = [copy(u0) for k = 1:N-1]
+    prob = Problem(model, obj, x0, tf, constraints=conSet, U0=U0)
+    rollout!(prob)
+    prob
+end

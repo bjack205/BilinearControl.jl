@@ -41,6 +41,7 @@ export
     FullAttitudeDynamics,
     ConsensusDynamics,
     DoubleIntegrator,
-    Swarm
+    Swarm,
+    BilinearCartpole
 
 end

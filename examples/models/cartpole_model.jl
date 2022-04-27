@@ -29,7 +29,7 @@ RD.default_signature(::BilinearCartpole) = RD.InPlace()
 
 function RD.discrete_dynamics(model::BilinearCartpole, x, u, t, h)
     @assert h ≈ model.dt "Timestep must be $(model.dt)."
-    return model.A*x + model.C*x * u[1]
+    return model.A*x .+ model.C*x .* u[1]
 end
 
 function RD.discrete_dynamics!(model::BilinearCartpole, xn, x, u, t, h)
