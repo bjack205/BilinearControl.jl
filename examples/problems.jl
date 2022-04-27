@@ -482,17 +482,25 @@ function generate_linear_models(;h=0.02)
     data
 end
 
-function Cartpole(; constrained::Bool=true, N=101, 
-        Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0)
-    model = RobotZoo.Cartpole()
-    n,m = RD.dims(model)
-    dt = tf/(N-1)
+expandstate(::RobotZoo.Cartpole, x) = x
 
-    Q = Qv*Diagonal(@SVector ones(n)) * dt
-    Qf = Qfv*Diagonal(@SVector ones(n))
+function Cartpole(model = RobotZoo.Cartpole(); constrained::Bool=true, N=101, 
+        Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0)
+    n,m = RD.dims(model)
+    if model isa BilinearCartpole
+        N = round(Int, tf / model.dt) + 1
+        dt = tf / (N-1)
+    else
+        dt = tf/(N-1)
+    end
+    n0,m0 = 4,1    
+    nd = n - n0
+
+    Q = Qv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)]) * dt
+    Qf = Qfv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)])
     R = Rv*Diagonal(@SVector ones(m)) * dt
-    x0 = @SVector zeros(n)
-    xf = @SVector [0, pi, 0, 0]
+    x0 = expandstate(model, @SVector zeros(n0))
+    xf = expandstate(model, @SVector [0, pi, 0, 0])
     obj = LQRObjective(Q,R,Qf,xf,N)
 
     u_bnd = u_bnd 
@@ -504,11 +512,10 @@ function Cartpole(; constrained::Bool=true, N=101,
         add_constraint!(conSet, goal, N:N)
     end
 
-    X0 = [@SVector fill(NaN,n) for k = 1:N]
+    # X0 = [@SVector fill(NaN,n) for k = 1:N]
     u0 = @SVector fill(0.01,m)
-    U0 = [u0 for k = 1:N-1]
-    Z = SampledTrajectory(X0,U0,dt=dt*ones(N-1))
-    prob = Problem(model, obj, x0, tf, constraints=conSet)
+    U0 = [copy(u0) for k = 1:N-1]
+    prob = Problem(model, obj, x0, tf, constraints=conSet, U0=U0)
     rollout!(prob)
     prob
 end

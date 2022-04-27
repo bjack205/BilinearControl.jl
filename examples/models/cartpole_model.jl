@@ -14,10 +14,12 @@ struct BilinearCartpole <: RD.DiscreteDynamics
         dt = T_ref[2] - T_ref[1]
         eigfuns = data["eigfuns"]
         eigorders = data["eigorders"]
-        kf(x) = BilinearControl.EDMD.koopman_transform(x, eigfuns, eigorders)
+        kf(x) = BilinearControl.EDMD.koopman_transform(Vector(x), eigfuns, eigorders)
         new(A, C, g, dt, kf)
     end
 end
+
+Base.copy(model::BilinearCartpole) = BilinearCartpole()
 
 RD.output_dim(model::BilinearCartpole) = size(model.A,1)
 RD.state_dim(model::BilinearCartpole) = size(model.A,2)
