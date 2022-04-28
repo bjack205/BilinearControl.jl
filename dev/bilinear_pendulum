@@ -57,3 +57,23 @@ t_bl = TO.gettimes(altro_bilinear)
 
 plot(t_bl[1:end-1], U_bl', label="")
 visualize!(vis, model, TO.get_final_time(prob_bilinear), X_bl)
+
+## Track with TVLQR 
+struct BilinearTVLQRController{L}
+    model::L
+    K::Vector{Matrix{Float64}}
+    Xref::Vector{Vector{Float64}}
+    Uref::Vector{Vector{Float64}}
+    t::Vector{Float64}
+end
+get_k(ctrl::TVLQRController) = searchsortedfirst(ctrl.t, t)
+
+function getcontrol(ctrl::TVLQRController, x, t)
+    k = get_k(ctrl, t)
+    z = expandstate(ctrl.model)
+    dx = x - ctrl.Xref[k]
+    Uref[k] + K*dx
+end
+
+K = Altro.get_ilqr(altro_bilinear).K
+
