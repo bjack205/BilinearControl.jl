@@ -1036,7 +1036,7 @@ version = "0.4.6"
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RobotDynamics", "Rotations", "StaticArrays"]
 path = "/home/brian/.julia/dev/RobotZoo"
 uuid = "74be38bb-dcc2-4b9e-baf3-d6373cd95f10"
-version = "0.3.1"
+version = "0.3.2"
 
 [[deps.Rotations]]
 deps = ["LinearAlgebra", "Random", "StaticArrays", "Statistics"]
@@ -1233,7 +1233,9 @@ version = "0.5.16"
 
 [[deps.TrajectoryOptimization]]
 deps = ["DocStringExtensions", "FiniteDiff", "ForwardDiff", "LinearAlgebra", "RobotDynamics", "RobotZoo", "Rotations", "SparseArrays", "StaticArrays"]
-git-tree-sha1 = "1e449355d1a81f2bb54f7f5aba8ac33b69599130"
+git-tree-sha1 = "8e2b0f2b202bc7b2bda81dd165d9d8342434c9e3"
+repo-rev = "main"
+repo-url = "https://github.com/RoboticExplorationLab/TrajectoryOptimization.jl.git"
 uuid = "c79d492b-0548-5874-b488-5a62c1d9d0ca"
 version = "0.7.0"
 

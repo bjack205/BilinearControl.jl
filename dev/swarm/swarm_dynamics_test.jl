@@ -167,3 +167,5 @@ zsol, solver = BilinearControl.solve(nlp, z, verbose=5)
 
 Xmoi = collect(eachcol(reshape(zsol[1:length(X)], :, N)))
 visualize!(vis, model, tf, Xmoi)
+
+## Generic Swarm

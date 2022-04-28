@@ -14,6 +14,7 @@ using Rotations
 using BilinearControl.RandomLinearModels
 using BilinearControl.Problems
 using BilinearControl.Problems: qrot, skew
+using BilinearControl: getA, getB, getC, getD
 
 ##
 include("dynamics_tests.jl")
@@ -28,6 +29,10 @@ end
 
 @testset "EDMD" begin
     include("edmd_test.jl")
+end
+
+@testset "Swarm Model" begin
+    include("swarm_test.jl")
 end
 
 @testset "Dubins Example" begin

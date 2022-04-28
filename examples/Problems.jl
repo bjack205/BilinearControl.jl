@@ -8,9 +8,11 @@ using RobotDynamics
 using Rotations
 using BilinearControl
 using COSMO
+using JLD2
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
+import BilinearControl: DiscreteLinearModel
 
 # Include models
 model_dir = joinpath(@__DIR__, "models")
@@ -20,6 +22,10 @@ include(joinpath(model_dir, "se3_models.jl"))
 include(joinpath(model_dir, "attitude_model.jl"))
 include(joinpath(model_dir, "se3_force_model.jl"))
 include(joinpath(model_dir, "quadrotor_model.jl"))
+include(joinpath(model_dir, "integrator_models.jl"))
+include(joinpath(model_dir, "swarm_model.jl"))
+include(joinpath(model_dir, "cartpole_model.jl"))
+include(joinpath(model_dir, "edmd_model.jl"))
 
 # Problem constructors
 include("problems.jl")
@@ -34,6 +40,12 @@ export
     QuadrotorSE23,
     QuadrotorRateLimited,
     FullAttitudeDynamics,
-    ConsensusDynamics
+    ConsensusDynamics,
+    DoubleIntegrator,
+    Swarm,
+    BilinearCartpole,
+    EDMDModel
+
+export expandstate
 
 end

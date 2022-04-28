@@ -53,3 +53,5 @@ function getnzindsB(B, C::SparseMatrixCSC{<:Any,Ti}, col) where Ti
 end
 
 getnzindsB(B, C, col) = Vector{Int}[]
+
+tovecs(x, n) = collect(eachcol(reshape(x, n, :)))

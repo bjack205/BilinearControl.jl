@@ -409,3 +409,227 @@ function SE3TorqueProblem(;N=11, tf=2.0,
 
     admm
 end
+
+function generate_linear_models(;h=0.02)
+    datadir = joinpath(@__DIR__, "..", "data")
+
+    function linearizeaboutzero(model, h)
+        n,m = RD.dims(model)
+        x = zeros(n)
+        u = zeros(m)
+        DiscreteLinearModel(model, copy(x), x, u, h)
+    end
+
+    function savelinearmodel(data, model, name)
+        A = BilinearControl.getA(model)
+        B = BilinearControl.getB(model)
+        C = BilinearControl.getC(model)
+        d = BilinearControl.getD(model)
+        data[name] = Dict(
+            "A" => A,
+            "B" => B,
+            "C" => C,
+            "d" => d,
+        )
+    end
+
+    data = Dict{String, Dict{String, AbstractVecOrMat}}()
+
+    # Swarm models
+    di2 = DoubleIntegrator{2}(gravity=zeros(2))
+    swarm24 = Swarm{4}(di2)
+    swarm220 = Swarm{20}(di2)
+    swarm24_linear = linearizeaboutzero(swarm24, h) 
+    swarm220_linear = linearizeaboutzero(swarm220, h) 
+    savelinearmodel(data, swarm24_linear, "swarm4")
+    savelinearmodel(data, swarm220_linear, "swarm20")
+    
+    # Dubins
+    dd = BilinearDubins()
+    x0 = [0,0,1,0.]
+    u0 = zeros(2)
+    dubins_linear = DiscreteLinearModel(dd, copy(x0), x0, u0, h)
+    G = SA[1 0 0; 0 1 0; 0 0 -x0[3]; 0 0 x0[4]]
+    dubins_linear = DiscreteLinearModel(
+        G'dubins_linear.A*G, 
+        G'dubins_linear.B, 
+        G'dubins_linear.C*G, 
+        G'dubins_linear.d
+    )
+    savelinearmodel(data, dubins_linear, "dubins")
+
+    # SO3
+    so33 = SO3Dynamics{3}()
+    x0 = vec(I(3))
+    u0 = zeros(3)
+    so33_linear = DiscreteLinearModel(so33, copy(x0), x0, u0, h)
+    savelinearmodel(data, so33_linear, "so3_fullyactuated")
+
+    so32 = SO3Dynamics{2}()
+    x0 = vec(I(3))
+    u0 = zeros(2)
+    so32_linear = DiscreteLinearModel(so32, copy(x0), x0, u0, h)
+    savelinearmodel(data, so32_linear, "so3_underactuated")
+    
+    # Quadrotor-SE2(3)
+    quad = QuadrotorSE23()
+    x0 = [zeros(3); vec(I(3)); zeros(3)]
+    u0 = [zeros(3); quad.mass * quad.gravity] 
+    quad_linear = DiscreteLinearModel(quad, copy(x0), x0, u0, h)
+    savelinearmodel(data, quad_linear, "quad")
+
+    jldsave(joinpath(datadir, "linear_models.jld2"); data)
+    data
+end
+
+expandstate(::RobotZoo.Cartpole, x) = x
+
+function Cartpole(model = RobotZoo.Cartpole(); constrained::Bool=true, N=101, 
+        Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0)
+    n,m = RD.dims(model)
+    if model isa BilinearCartpole
+        N = round(Int, tf / model.dt) + 1
+        dt = tf / (N-1)
+    else
+        dt = tf/(N-1)
+    end
+    n0,m0 = 4,1    
+    nd = n - n0
+
+    Q = Qv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)]) * dt
+    Qf = Qfv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)])
+    R = Rv*Diagonal(@SVector ones(m)) * dt
+    x0 = expandstate(model, @SVector zeros(n0))
+    xf = expandstate(model, @SVector [0, pi, 0, 0])
+    obj = LQRObjective(Q,R,Qf,xf,N)
+
+    u_bnd = u_bnd 
+    conSet = ConstraintList(n,m,N)
+    bnd = ControlBound(m, u_min=-u_bnd, u_max=u_bnd)
+    goal = GoalConstraint(xf)
+    if constrained
+        add_constraint!(conSet, bnd, 1:N-1)
+        add_constraint!(conSet, goal, N:N)
+    end
+
+    # X0 = [@SVector fill(NaN,n) for k = 1:N]
+    u0 = @SVector fill(0.01,m)
+    U0 = [copy(u0) for k = 1:N-1]
+    prob = Problem(model, obj, x0, tf, constraints=conSet, U0=U0)
+    rollout!(prob)
+    prob
+end
+
+function BilinearCartpoleProblem(; constrained::Bool=true, N=101, 
+        Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0)
+    model = BilinearCartpole()
+    n,m = RD.dims(model)
+    if model isa BilinearCartpole
+        N = round(Int, tf / model.dt) + 1
+        dt = tf / (N-1)
+    else
+        dt = tf/(N-1)
+    end
+    n0,m0 = 4,1    
+    nd = n - n0
+
+    Qd = fill(Qv, n0)
+    Qfd = fill(Qfv, n0)
+    Q = Diagonal([0; fill(Qv, n0); zeros(n-n0-1)])
+    Qf = Diagonal([0; fill(Qfv, n0); zeros(n-n0-1)])
+    # Q = Diagonal(fill(Qv, n))
+    # Qf = Diagonal(fill(Qfv, n))
+    # Q = Diagonal(expandstate(model, Qd))
+    # Qf = Diagonal(expandstate(model, Qfd))
+    # Q = Qv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)]) * dt
+    # Qf = Qfv*Diagonal([(@SVector ones(n0)); @SVector zeros(nd)])
+    R = Rv*Diagonal(@SVector ones(m)) * dt
+    x0 = expandstate(model, @SVector zeros(n0))
+    xf = @SVector [0, pi, 0, 0]
+    zf = expandstate(model, xf)
+    obj = LQRObjective(Q,R,Qf,zf,N)
+
+    u_bnd = u_bnd 
+    conSet = ConstraintList(n,m,N)
+    bnd = ControlBound(m, u_min=-u_bnd, u_max=u_bnd)
+    goal = GoalConstraint(zf, 1 .+ (1:n0))
+    if constrained
+        # add_constraint!(conSet, bnd, 1:N-1)
+        add_constraint!(conSet, goal, N:N)
+    end
+
+    # X0 = [@SVector fill(NaN,n) for k = 1:N]
+    u0 = @SVector fill(0.01,m)
+    U0 = [copy(u0) for k = 1:N-1]
+    prob = Problem(model, obj, x0, tf, constraints=conSet, U0=U0)
+    rollout!(prob)
+    prob
+end
+
+function PendulumProblem()
+
+    model = RobotZoo.Pendulum()
+    n,m = RD.dims(model)
+    tf = 3.0
+    N = 51
+    dt = tf / (N-1)
+
+    # cost
+    Q = 1e-3*Diagonal(@SVector ones(n))
+    R = 1e-3*Diagonal(@SVector ones(m))
+    Qf = 1e-0*Diagonal(@SVector ones(n))
+    x0 = @SVector zeros(n)
+    xf = @SVector [pi, 0.0]  # i.e. swing up
+    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
+
+    # constraints
+    conSet = ConstraintList(n,m,N)
+    u_bnd = 3.
+    bnd = BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
+    goal = GoalConstraint(xf)
+    add_constraint!(conSet, bnd, 1:N-1)
+    add_constraint!(conSet, goal, N:N)
+
+    # problem
+    times = range(0,tf,length=N)
+    U = [SA[cos(t/2)] for t in times]
+    pendulum_static = Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
+    initial_controls!(pendulum_static, U)
+    rollout!(pendulum_static)
+    return pendulum_static
+end
+
+function BilinearPendulumProblem(;constraints=true, u_bnd=7.0)
+    model = BilinearPendulum()
+    n,m = RD.dims(model)
+    tf = 3.0
+    dt = model.dt
+    N = floor(Int,tf/dt) + 1
+    dt = tf / (N-1)
+
+    # cost
+    n0 = 2
+    Q = 1e-3*Diagonal([1e-3; ones(n0); fill(1e-3,n-n0-1)])
+    R = 1e-3*Diagonal(ones(m))
+    Qf = Q*(N-1)
+    x0 = expandstate(model, zeros(n0))
+    xf = expandstate(model, [pi, 0.0])  # i.e. swing up
+    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
+
+    # constraints
+    conSet = ConstraintList(n,m,N)
+    bnd = BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
+    goal = GoalConstraint(xf, 1 .+ (1:n0))
+    if constraints
+        add_constraint!(conSet, bnd, 1:N-1)
+        add_constraint!(conSet, goal, N:N)
+    end
+
+    # problem
+    times = range(0,tf,length=N)
+    U = [SA[cos(t/2)] for t in times]
+    pendulum_static = Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
+    initial_controls!(pendulum_static, U)
+    rollout!(pendulum_static)
+    return pendulum_static
+end

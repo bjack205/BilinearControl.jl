@@ -164,3 +164,4 @@ function BilinearControl.buildbilinearconstraintmatrices(model::SwarmSE2{P}, x0,
 
     Abar, Bbar, Cbar, Dbar
 end
+

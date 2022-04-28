@@ -63,22 +63,27 @@ function LLS_fit(x::Matrix{Float64}, b::Matrix{Float64}, regression_type::String
 
 end
 
-function learn_bilinear_model(X::Vector{Vector{Float64}}, Z::Vector{Vector{Float64}}, 
-                              Zu::Vector{Vector{Float64}}, regression_types::Vector{String}; 
+function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:AbstractVector}, 
+                              Zu::VecOrMat{<:AbstractVector},
+                              regression_types::Vector{String}; 
                               edmd_weights::Vector{Float64}=[0.0, 0.0], 
                               mapping_weights::Vector{Float64}=[0.0, 0.0])
 
-    X_mat = Matrix(mapreduce(permutedims, vcat, X)')
-    Z_mat = Matrix(mapreduce(permutedims, vcat, Z)')
-    Zu = Matrix(mapreduce(permutedims, vcat, Zu)')
+    X_mat = reduce(hcat, X[1:end-1,:])
+    Z_mat = reduce(hcat, Z[1:end-1,:])
+    Zu_mat = reduce(hcat, Zu)
+    Zn_mat = reduce(hcat, Z[2:end,:])
+    # X_mat = Matrix(mapreduce(permutedims, vcat, X)')
+    # Z_mat = Matrix(mapreduce(permutedims, vcat, Z)')
+    # Zu = Matrix(mapreduce(permutedims, vcat, Zu)')
 
     # extract data matrices
-    X = X_mat[:, 1:end-1]
-    Z = Z_mat[:, 1:end-1]
-    Z_prime = Z_mat[:, 2:end]
+    # X = X_mat[:, 1:end-1]
+    # Z = Z_mat[:, 1:end-1]
+    # Z_prime = Z_mat[:, 2:end]
         
-    dynamics_jacobians = LLS_fit(Zu, Z_prime, regression_types[1], edmd_weights)
-    g = LLS_fit(Z, X, regression_types[2], mapping_weights)
+    dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights)
+    g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights)
 
     A = dynamics_jacobians[:, 1:size(dynamics_jacobians)[1]]
     C = dynamics_jacobians[:, (size(dynamics_jacobians)[1] + 1):end]

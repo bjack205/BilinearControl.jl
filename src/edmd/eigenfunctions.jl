@@ -1,4 +1,4 @@
-function hermite(x::Vector{Float64}; order::Int64 = 0)
+function hermite(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
 
     if order == 0
         return Float64[]
@@ -23,7 +23,7 @@ function hermite(x::Vector{Float64}; order::Int64 = 0)
     
 end
 
-function chebyshev(x::Vector{Float64}; order::Int64 = 0)
+function chebyshev(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
 
     if order == 0
         return Float64[]
@@ -48,7 +48,7 @@ function chebyshev(x::Vector{Float64}; order::Int64 = 0)
     
 end
 
-function monomial(x::Vector{Float64}; order::Int64 = 0)
+function monomial(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
 
     if order == 0
         return Float64[]
@@ -83,13 +83,13 @@ function monomial(x::Vector{Float64}; order::Int64 = 0)
         
 end
 
-state(xk::Vector{Float64}) = xk
-sine(xk::Vector{Float64}) = sin.(xk)
-cosine(xk::Vector{Float64}) = cos.(xk)
+state(xk::AbstractVector{<:AbstractFloat}) = xk
+sine(xk::AbstractVector{<:AbstractFloat}) = sin.(xk)
+cosine(xk::AbstractVector{<:AbstractFloat}) = cos.(xk)
 
-state_transform(z::Vector{Float64}, g) = g * z
+state_transform(z::AbstractVector{<:AbstractFloat}, g) = g * z
 
-function koopman_transform(x::Vector{Float64}, function_list::Vector{String}, 
+function koopman_transform(x::AbstractVector{<:AbstractFloat}, function_list::Vector{String}, 
     order_list::Vector{Int64})
 
     num_func = length(function_list)
@@ -116,7 +116,7 @@ function koopman_transform(x::Vector{Float64}, function_list::Vector{String},
 
 end
 
-function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float64}}, 
+function build_eigenfunctions(X::VecOrMat{<:AbstractFloat}, U::VecOrMat{<:AbstractFloat}, 
                               function_list::Vector{String}, order_list::Vector{Int64})
 
     n = length(X[1])
@@ -125,23 +125,30 @@ function build_eigenfunctions(X::Vector{Vector{Float64}}, U::Vector{Vector{Float
     Z = Vector{Float64}[]
     Zu = Vector{Float64}[]
     
-    for k in 1:length(X)
-        
-        xk = X[k]
-        zk = koopman_transform(xk, function_list, order_list)
-        
-        push!(Z, zk)
+    kf(x) = koopman_transform(x, function_list, order_list)
 
-        if k < length(X)
-            uk = U[k]
-            zu = vcat(zk, vec(zk*uk'))
-            push!(Zu, zu)
-        end
-
+    Z = map(kf, X)
+    Zu = map(zip(CartesianIndices(U), U)) do (cind,u)
+        vcat(Z[cind], vec(Z[cind]*u')) 
     end
 
-    z0 = Z[1]
+    # for k in 1:length(X)
+        
+    #     xk = X[k]
+    #     zk = kf(xk)
+        
+    #     push!(Z, zk)
 
-    return Z, Zu, z0
+    #     if k < length(X)
+    #         uk = U[k]
+    #         zu = vcat(zk, vec(zk*uk'))
+    #         push!(Zu, zu)
+    #     end
+
+    # end
+
+    # z0 = Z[1]
+
+    return Z, Zu, kf
 
 end

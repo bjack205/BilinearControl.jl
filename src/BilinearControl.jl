@@ -1,13 +1,14 @@
 module BilinearControl
 
-export BilinearADMM, Problems, RiccatiSolver, TOQP
+export BilinearADMM, Problems, RiccatiSolver, TOQP, DiscreteLinearModel
 
-export extractstatevec, extractcontrolvec, iterations
+export extractstatevec, extractcontrolvec, iterations, tovecs
 
 using LinearAlgebra
 using SparseArrays
 using StaticArrays
 using OSQP
+import Convex
 import COSMO
 import IterativeSolvers 
 import RobotDynamics as RD
@@ -32,7 +33,8 @@ include("mpc.jl")
 include("moi.jl")
 
 include("gen_controllable.jl")
-include("lqr_data.jl")
+include("linear_model.jl")
+include("trajopt_qp.jl")
 include("lqr_solver.jl")
 
 include("linear_admm.jl")
