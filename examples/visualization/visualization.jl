@@ -107,7 +107,7 @@ end
 # Pendulum  
 #############################################
 
-function set_pendulum!(vis0, model::RobotZoo.Pendulum; 
+function set_pendulum!(vis0; model::RobotZoo.Pendulum=RobotZoo.Pendulum(),
     color=nothing, color2=nothing)
     
     vis = vis0["robot"]
@@ -125,7 +125,7 @@ function set_pendulum!(vis0, model::RobotZoo.Pendulum;
     settransform!(vis["cart","pole"], Translation(0.75*dim[1],0,dim[3]/2))
 end
 
-function visualize_state!(vis, model::RobotZoo.Pendulum, x)
+function visualize!(vis, model::RobotZoo.Pendulum, x::AbstractVector)
     θ = x[1]
     q = expm((pi-θ) * @SVector [1,0,0])
     settransform!(vis["robot","cart","pole","geom"], LinearMap(UnitQuaternion(q)))

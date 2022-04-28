@@ -25,6 +25,7 @@ include(joinpath(model_dir, "quadrotor_model.jl"))
 include(joinpath(model_dir, "integrator_models.jl"))
 include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
+include(joinpath(model_dir, "edmd_model.jl"))
 
 # Problem constructors
 include("problems.jl")
@@ -42,6 +43,9 @@ export
     ConsensusDynamics,
     DoubleIntegrator,
     Swarm,
-    BilinearCartpole
+    BilinearCartpole,
+    EDMDModel
+
+export expandstate
 
 end

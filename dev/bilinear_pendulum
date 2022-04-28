@@ -1,0 +1,59 @@
+
+import Pkg; Pkg.activate(@__DIR__)
+using BilinearControl
+using BilinearControl.RD
+using BilinearControl.TO
+import BilinearControl.RD
+import BilinearControl.TO
+using Altro
+using BilinearControl.Problems
+using BilinearControl: Problems
+using MeshCat
+using Plots
+using RobotZoo
+
+## Visualization
+model = RobotZoo.Pendulum()
+visdir = joinpath(@__DIR__, "../examples/visualization/")
+include(joinpath(visdir, "visualization.jl"))
+vis = Visualizer()
+open(vis)
+delete!(vis)
+set_pendulum!(vis)
+
+## Original Model
+prob = Problems.PendulumProblem()
+dmodel = TO.get_model(prob,1)
+X0 = TO.states(prob)
+visualize!(vis, model, TO.get_final_time(prob), X0)
+
+altro = ALTROSolver(prob)
+solve!(altro)
+X = TO.states(altro)
+U = TO.controls(altro)
+t = TO.gettimes(altro)
+plot(t, X)
+plot(t[1:end-1], U)
+visualize!(vis, model, TO.get_final_time(prob), X)
+
+## Plot output using Bilinear Model 
+const datadir = joinpath(dirname(pathof(BilinearControl)), "../data/")
+model_bilinear = EDMDModel(joinpath(datadir, "pendulum_eDMD_data.jld2"))
+z0 = expandstate(model, prob.x0)
+
+compare_models(RD.InPlace(), model_bilinear, dmodel, TO.get_initial_state(prob), tf_test, 
+    U, doplot=true)
+
+## Solve with Bilinear Model 
+model_bilinear = Problems.BilinearPendulum()
+prob_bilinear = Problems.BilinearPendulumProblem(constraints=true, u_bnd=5)
+altro_bilinear = ALTROSolver(prob_bilinear, verbose=4)
+solve!(altro_bilinear)
+
+Z_bl = TO.states(altro_bilinear)
+X_bl = map(x->model_bilinear.g * x, Z_bl)
+U_bl = reduce(hcat, TO.controls(altro_bilinear))
+t_bl = TO.gettimes(altro_bilinear)
+
+plot(t_bl[1:end-1], U_bl', label="")
+visualize!(vis, model, TO.get_final_time(prob_bilinear), X_bl)

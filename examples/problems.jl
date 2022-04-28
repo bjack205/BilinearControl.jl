@@ -565,3 +565,71 @@ function BilinearCartpoleProblem(; constrained::Bool=true, N=101,
     rollout!(prob)
     prob
 end
+
+function PendulumProblem()
+
+    model = RobotZoo.Pendulum()
+    n,m = RD.dims(model)
+    tf = 3.0
+    N = 51
+    dt = tf / (N-1)
+
+    # cost
+    Q = 1e-3*Diagonal(@SVector ones(n))
+    R = 1e-3*Diagonal(@SVector ones(m))
+    Qf = 1e-0*Diagonal(@SVector ones(n))
+    x0 = @SVector zeros(n)
+    xf = @SVector [pi, 0.0]  # i.e. swing up
+    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
+
+    # constraints
+    conSet = ConstraintList(n,m,N)
+    u_bnd = 3.
+    bnd = BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
+    goal = GoalConstraint(xf)
+    add_constraint!(conSet, bnd, 1:N-1)
+    add_constraint!(conSet, goal, N:N)
+
+    # problem
+    times = range(0,tf,length=N)
+    U = [SA[cos(t/2)] for t in times]
+    pendulum_static = Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
+    initial_controls!(pendulum_static, U)
+    rollout!(pendulum_static)
+    return pendulum_static
+end
+
+function BilinearPendulumProblem(;constraints=true, u_bnd=7.0)
+    model = BilinearPendulum()
+    n,m = RD.dims(model)
+    tf = 3.0
+    dt = model.dt
+    N = floor(Int,tf/dt) + 1
+    dt = tf / (N-1)
+
+    # cost
+    n0 = 2
+    Q = 1e-3*Diagonal([1e-3; ones(n0); fill(1e-3,n-n0-1)])
+    R = 1e-3*Diagonal(ones(m))
+    Qf = Q*(N-1)
+    x0 = expandstate(model, zeros(n0))
+    xf = expandstate(model, [pi, 0.0])  # i.e. swing up
+    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
+
+    # constraints
+    conSet = ConstraintList(n,m,N)
+    bnd = BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
+    goal = GoalConstraint(xf, 1 .+ (1:n0))
+    if constraints
+        add_constraint!(conSet, bnd, 1:N-1)
+        add_constraint!(conSet, goal, N:N)
+    end
+
+    # problem
+    times = range(0,tf,length=N)
+    U = [SA[cos(t/2)] for t in times]
+    pendulum_static = Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
+    initial_controls!(pendulum_static, U)
+    rollout!(pendulum_static)
+    return pendulum_static
+end

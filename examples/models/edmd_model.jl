@@ -3,25 +3,29 @@ struct EDMDModel <: RD.DiscreteDynamics
     A::Matrix{Float64}
     C::Matrix{Float64}
     g::Matrix{Float64}  # mapping from extended to original states
-    dt::Float64
     kf::Function
-    datafile::String
+    dt::Float64
     name::String
-    function EDMDModel(datafile::String; name=splitext(datafile)[1])
-        data = load(datafile)
-        A = Matrix(data["F"])
-        C = Matrix(data["C"])
-        g = Matrix(data["g"])
-        T_ref = data["T_ref"]
-        dt = T_ref[2] - T_ref[1]
-        eigfuns = data["eigfuns"]
-        eigorders = data["eigorders"]
-        kf(x) = BilinearControl.EDMD.koopman_transform(Vector(x), eigfuns, eigorders)
-        new(A, C, g, dt, kf, datafile)
+    function EDMDModel(A::AbstractMatrix, C::AbstractMatrix, g::AbstractMatrix, 
+                       kf::Function, dt::AbstractFloat, name::AbstractString)
+        new(A,C,g,kf,dt,name)
     end
 end
 
-Base.copy(model::EDMDModel) = EDMDModel(model.datafile)
+function EDMDModel(datafile::String; name=splitext(datafile)[1])
+    data = load(datafile)
+    A = Matrix(data["A"])
+    C = Matrix(data["C"])
+    g = Matrix(data["g"])
+    dt = data["dt"]
+    eigfuns = data["eigfuns"]
+    eigorders = data["eigorders"]
+    kf(x) = BilinearControl.EDMD.koopman_transform(Vector(x), eigfuns, eigorders)
+    EDMDModel(A, C, g, kf, dt, name)
+end
+
+Base.copy(model::EDMDModel) = EDMDModel(copy(model.A), copy(model.C), copy(model.g), 
+                                        model.kf, model.dt, model.name)
 
 RD.output_dim(model::EDMDModel) = size(model.A,1)
 RD.state_dim(model::EDMDModel) = size(model.A,2)
@@ -51,3 +55,7 @@ function RD.jacobian!(model::EDMDModel, J, xn, x, u, t, h)
 end
 
 expandstate(model::EDMDModel, x) = model.kf(x)
+
+## Saved models
+const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
+BilinearPendulum() = EDMDModel(joinpath(DATADIR, "pendulum_eDMD_data.jld2"), name="pendulum")
