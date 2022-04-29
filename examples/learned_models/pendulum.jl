@@ -1,14 +1,14 @@
 import Pkg; Pkg.activate(joinpath(@__DIR__, ".."))
-using RobotZoo
+using BilinearControl
+using BilinearControl.Problems
+using BilinearControl.EDMD
 import RobotDynamics as RD
+using RobotZoo
 using LinearAlgebra
 using StaticArrays
 using SparseArrays
 # using MeshCat, GeometryBasics, Colors, CoordinateTransformations, Rotations
 using Plots
-using BilinearControl
-using BilinearControl.Problems
-using BilinearControl.EDMD
 using Distributions
 using Distributions: Normal
 using Random
@@ -46,7 +46,7 @@ struct RandConstController{D} <: AbstractController
     end
 end
 
-resetcontroller!(ctrl::RandConstController) = rand!(d, ctrl.u)
+resetcontroller!(ctrl::RandConstController) = rand!(ctrl.distribution, ctrl.u)
 
 getcontrol(ctrl::RandConstController, x, t) = ctrl.u
 
@@ -71,7 +71,7 @@ function LQRController(model::RD.DiscreteDynamics, Q, R, xeq, ueq, dt)
     n,m = RD.dims(model)
     n != length(xeq) && throw(DimensionMismatch("Expected a state vector of length $n, got $(length(xeq))."))
     m != length(ueq) && throw(DimensionMismatch("Expected a control vector of length $m, got $(length(ueq))."))
-    zeq = KnotPoint{n,m}(xeq, ueq, 0.0, dt)
+    zeq = RD.KnotPoint{n,m}(xeq, ueq, 0.0, dt)
     J = zeros(n, n+m)
     xn = zeros(n)
     RD.jacobian!(RD.default_signature(model), RD.default_diffmethod(model), model, J, xn, zeq)
@@ -186,37 +186,40 @@ xeq = [pi,0]
 ueq = [0.]
 ctrl_3 = LQRController(dmodel, Q, R, xeq, ueq, dt)
 
-x0_sampler_1 = Product([Uniform(-pi/4,pi/4), Normal(0.0, 2.0)])
+x0_sampler_1 = Product([Uniform(-eps(),0), Normal(0.0, 0.0)])
+x0_sampler_2 = Product([Uniform(-pi/4,pi/4), Normal(0.0, 2.0)])
 x0_sampler_3 = Product([Uniform(pi-pi, pi+pi), Normal(0.0, 4.0)])
-initial_conditions_1 = tovecs(rand(x0_sampler_1, num_traj), length(x0_sampler))
-initial_conditions_3 = tovecs(rand(x0_sampler_3, num_traj), length(x0_sampler))
+initial_conditions_1 = tovecs(rand(x0_sampler_1, num_traj), length(x0_sampler_1))
+initial_conditions_2 = tovecs(rand(x0_sampler_2, num_traj), length(x0_sampler_2))
+initial_conditions_3 = tovecs(rand(x0_sampler_3, num_traj), length(x0_sampler_3))
 X_train_1, U_train_1 = create_data(dmodel, ctrl_1, initial_conditions_1, tf, dt)
 X_train_2, U_train_2 = create_data(dmodel, ctrl_2, initial_conditions_1, tf, dt)
 X_train_3, U_train_3 = create_data(dmodel, ctrl_2, initial_conditions_3, tf, dt)
 X_train = hcat(X_train_1, X_train_2, X_train_3)
 U_train = hcat(U_train_1, U_train_2, U_train_3)
+X_train = X_train_1
+U_train = U_train_1
 
 ## Generate test data
 Random.seed!(1)
 num_traj_test = 8
 tf_test = tf
-initial_conditions = tovecs(rand(x0_sampler, num_traj_test), length(x0_sampler))
+initial_conditions = tovecs(rand(x0_sampler_1, num_traj_test), length(x0_sampler_1))
 # initial_conditions = [zeros(2) for i = 1:num_traj_test]
-X_test, U_test = create_data(dmodel, ctrl, initial_conditions, tf_test, dt)
-length(X_test)
+X_test, U_test = create_data(dmodel, ctrl_1, initial_conditions, tf_test, dt)
 
 ## Learn Bilinear Model
-eigfuns = ["state", "sine", "cosine", "chebyshev"]
-eigorders = [0, 0, 0, 2]
+eigfuns = ["state", "sine", "cosine"]
+eigorders = [0, 0, 0]
 Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
 
 # learn bilinear model
 F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
-    ["lasso", "lasso"]; edmd_weights=[0.0], mapping_weights=[0.0]);
+    ["lasso", "lasso"]; edmd_weights=[0.0], mapping_weights=[0.0], algorithm=:cholesky);
 
 model_bilinear = EDMDModel(F,C,g,kf,dt,"pendulum")
 
-let i = 1
+let i = 3
     compare_models(RD.InPlace(), model_bilinear, dmodel, initial_conditions[i], tf_test, 
         U_test[:,i], doplot=true)
 end

@@ -5,6 +5,8 @@ export learn_bilinear_model, build_eigenfunctions, state_transform, koopman_tran
 using LinearAlgebra
 using Convex
 using COSMO
+import QDLDL
+using SparseArrays
 
 include("eigenfunctions.jl")
 include("regression.jl")
