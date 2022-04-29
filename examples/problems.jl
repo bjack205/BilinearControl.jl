@@ -566,12 +566,11 @@ function BilinearCartpoleProblem(; constrained::Bool=true, N=101,
     prob
 end
 
-function PendulumProblem()
+function PendulumProblem(;N=61, u_bnd=5.0)
 
     model = RobotZoo.Pendulum()
     n,m = RD.dims(model)
     tf = 3.0
-    N = 51
     dt = tf / (N-1)
 
     # cost
@@ -584,7 +583,6 @@ function PendulumProblem()
 
     # constraints
     conSet = ConstraintList(n,m,N)
-    u_bnd = 3.
     bnd = BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
     goal = GoalConstraint(xf)
     add_constraint!(conSet, bnd, 1:N-1)

@@ -116,7 +116,8 @@ function koopman_transform(x::AbstractVector{<:AbstractFloat}, function_list::Ve
 
 end
 
-function build_eigenfunctions(X::VecOrMat{<:AbstractFloat}, U::VecOrMat{<:AbstractFloat}, 
+function build_eigenfunctions(X::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
+                              U::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
                               function_list::Vector{String}, order_list::Vector{Int64})
 
     n = length(X[1])
