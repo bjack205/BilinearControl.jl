@@ -42,7 +42,7 @@ model_bilinear = EDMDModel(joinpath(datadir, "pendulum_eDMD_data.jld2"))
 z0 = expandstate(model_bilinear, prob.x0)
 
 compare_models(RD.InPlace(), model_bilinear, dmodel, TO.get_initial_state(prob), 
-    TO.get_final_time(prob), U, doplot=true)
+    TO.get_final_time(prob), TO.controls(altro), doplot=true)
 
 ## Solve with Bilinear Model 
 model_bilinear = Problems.BilinearPendulum()
