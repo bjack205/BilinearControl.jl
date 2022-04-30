@@ -116,7 +116,8 @@ function koopman_transform(x::AbstractVector{<:AbstractFloat}, function_list::Ve
 
 end
 
-function build_eigenfunctions(X::VecOrMat{<:AbstractFloat}, U::VecOrMat{<:AbstractFloat}, 
+function build_eigenfunctions(X::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
+                              U::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
                               function_list::Vector{String}, order_list::Vector{Int64})
 
     n = length(X[1])
@@ -127,28 +128,16 @@ function build_eigenfunctions(X::VecOrMat{<:AbstractFloat}, U::VecOrMat{<:Abstra
     
     kf(x) = koopman_transform(x, function_list, order_list)
 
+    build_eigenfunctions(X, U, kf)
+end
+
+function build_eigenfunctions(X::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
+                              U::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
+                              kf::Function)
+
     Z = map(kf, X)
     Zu = map(zip(CartesianIndices(U), U)) do (cind,u)
         vcat(Z[cind], vec(Z[cind]*u')) 
     end
-
-    # for k in 1:length(X)
-        
-    #     xk = X[k]
-    #     zk = kf(xk)
-        
-    #     push!(Z, zk)
-
-    #     if k < length(X)
-    #         uk = U[k]
-    #         zu = vcat(zk, vec(zk*uk'))
-    #         push!(Zu, zu)
-    #     end
-
-    # end
-
-    # z0 = Z[1]
-
     return Z, Zu, kf
-
 end

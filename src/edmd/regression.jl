@@ -1,38 +1,59 @@
-function linear_regression(Y::Vector{Float64}, X::Matrix{Float64}; gamma::Float64=0.0, 
-                           lambda::Float64=0.0)
+function linear_regression(Y::AbstractVector{<:AbstractFloat}, 
+                           X::AbstractMatrix{<:AbstractFloat}; 
+                           gamma::Float64=0.0, lambda::Float64=0.0,
+                           algorithm=:cholesky)
     
     (T, K) = (size(X, 1), size(X, 2))
 
-    Q = X'X / T
-    c = X'Y / T                   #c'b = Y'X*b
+    λ = lambda
+    if algorithm == :qdldl
+        P = 2*(X'X + 2λ * I) / T
+        gamma == zero(gamma) || error("Cannot use QDLDL with L1 regularization.")
+        F = QDLDL.qdldl(P)
+        b = QDLDL.solve(F, Y)
+        return b
+    elseif algorithm == :cholesky
+        P = Matrix(X'X) + 2λ * I
+        F = cholesky!(P)
+        b = F \ (X'Y)
+        return b
+    elseif algorithm == :qr
+        F = qr(X)
+        b = F \ Y
+        return b
+    elseif algorithm == :convex
+        Q = X'X / T
+        c = X'Y / T                   #c'b = Y'X*b
 
-    b = Variable(K)               #define variables to optimize over
-    L1 = quadform(b, Q)           #b'Q*b
-    L2 = dot(c, b)                #c'b
-    L3 = norm(b, 1)               #sum(|b|)
-    L4 = sumsquares(b)            #sum(b^2)
+        b = Variable(K)               #define variables to optimize over
+        L1 = quadform(b, Q)           #b'Q*b
+        L2 = dot(c, b)                #c'b
+        L3 = norm(b, 1)               #sum(|b|)
+        L4 = sumsquares(b)            #sum(b^2)
 
-    if gamma==0 && lambda==0
-        return X \ Y
-    end
+        if gamma==0 && lambda==0
+            return X \ Y
+        end
 
-    if lambda > 0
-        # perform elastic net or ridge
-        Sol = minimize(L1 - 2 * L2 + gamma * L3 + lambda * L4)
+        if lambda > 0
+            # perform elastic net or ridge
+            Sol = minimize(L1 - 2 * L2 + gamma * L3 + lambda * L4)
+        else
+            # perform lasso
+            Sol = minimize(L1 - 2 * L2 + gamma * L3)
+        end
+
+        solve!(Sol, COSMO.Optimizer; silent_solver = true)
+        Sol.status == Convex.MOI.OPTIMAL ? b = vec(evaluate(b)) : b = X \ Y
+        return b
     else
-        # perform lasso
-        Sol = minimize(L1 - 2 * L2 + gamma * L3)
+        error("Algorithm $algorithm not recognized.")
     end
-
-    solve!(Sol, COSMO.Optimizer; silent_solver = true)
-    Sol.status == Convex.MOI.OPTIMAL ? b = vec(evaluate(b)) : b = X \ Y
-    
-    return b
 
 end
 
 function LLS_fit(x::Matrix{Float64}, b::Matrix{Float64}, regression_type::String, 
-                 weights::Vector{Float64})
+                 weights::Vector{Float64}; kwargs...)
 
     #= this function performs LLS to best fit A for system
     Ax = b where x and b are also matrices
@@ -53,9 +74,10 @@ function LLS_fit(x::Matrix{Float64}, b::Matrix{Float64}, regression_type::String
     end
 
     vec_b_T = Vector{Float64}(vec(b'))
-    x_T_mat = Matrix(kron(I(size(b')[2]), x'))
+    n = size(b, 1)
+    x_T_mat = kron(sparse(I,n,n), x')
 
-    A_T_vec = linear_regression(vec_b_T, x_T_mat; gamma, lambda)
+    A_T_vec = linear_regression(vec_b_T, x_T_mat; gamma, lambda, kwargs...)
     
     A = reshape(A_T_vec, size(x')[2], size(b')[2])'
 
@@ -67,7 +89,8 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
                               Zu::VecOrMat{<:AbstractVector},
                               regression_types::Vector{String}; 
                               edmd_weights::Vector{Float64}=[0.0, 0.0], 
-                              mapping_weights::Vector{Float64}=[0.0, 0.0])
+                              mapping_weights::Vector{Float64}=[0.0, 0.0],
+                              kwargs...)
 
     X_mat = reduce(hcat, X[1:end-1,:])
     Z_mat = reduce(hcat, Z[1:end-1,:])
@@ -82,8 +105,8 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
     # Z = Z_mat[:, 1:end-1]
     # Z_prime = Z_mat[:, 2:end]
         
-    dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights)
-    g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights)
+    dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights; kwargs...)
+    g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights; kwargs...)
 
     A = dynamics_jacobians[:, 1:size(dynamics_jacobians)[1]]
     C = dynamics_jacobians[:, (size(dynamics_jacobians)[1] + 1):end]
