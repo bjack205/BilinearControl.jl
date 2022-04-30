@@ -29,6 +29,7 @@ end
 
 function genpendulumproblem(x0=[0.,0.], Qv=1.0, Rv=1.0, Qfv=1000.0, u_bnd=3.0, tf=3.0; dt=0.05)
     model = RobotZoo.Pendulum()
+    dmodel = RD.DiscretizedDynamics{RD.RK4}(model) 
     n,m = RD.dims(model)
     N = floor(Int, tf / dt) + 1
 
@@ -49,7 +50,7 @@ function genpendulumproblem(x0=[0.,0.], Qv=1.0, Rv=1.0, Qfv=1000.0, u_bnd=3.0, t
     # problem
     times = range(0,tf,length=N)
     U = [SA[cos(t/2)] for t in times]
-    pendulum_static = TO.Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
+    pendulum_static = TO.Problem(dmodel, obj, x0, tf, constraints=conSet, xf=xf)
     TO.initial_controls!(pendulum_static, U)
     TO.rollout!(pendulum_static)
     return pendulum_static

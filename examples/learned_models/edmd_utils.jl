@@ -95,7 +95,7 @@ struct TVLQRController <: AbstractController
     time::Vector{Float64}
 end
 
-get_k(ctrl::TVLQRController, t) = searchsortedfirst(ctrl.time, t)
+get_k(ctrl::TVLQRController, t) = min(searchsortedfirst(ctrl.time, t), length(ctrl.K))
 
 function getcontrol(ctrl::TVLQRController, x, t)
     k = get_k(ctrl, t)
