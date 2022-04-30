@@ -103,10 +103,10 @@ X_train, U_train = create_data(dmodel, ctrl, initial_conditions, tf, dt)
 num_traj_test = 10
 x0_sampler_test = Product([Uniform(-eps(),eps()), Normal(-eps(), eps())])
 initial_conditions_test = tovecs(rand(x0_sampler, num_traj_test), length(x0_sampler))
-params_sampler_test = PendulumParams(tf=[tf-eps(tf),tf+eps(tf)])
+params_sampler_test = PendulumParams(tf=[tf-eps(tf),tf+eps(tf)], QRratio=[1.0, 1.1], Qfratio=[2.0,3.0], u_bnd=[4.0,5.5])
 ctrl_test = ALTROController(genpendulumproblem, params_sampler_test, opts=opts)
 X_test, U_test = create_data(dmodel, ctrl_test, initial_conditions_test, tf, dt)
-jldsave(joinpath(Problems.DATADIR, "pendulum_trajectories.jld2"); X_train, U_train, X_test, U_test)
+jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); X_train, U_train, X_test, U_test)
 
 ## Generate training data
 model = RobotZoo.Pendulum()
