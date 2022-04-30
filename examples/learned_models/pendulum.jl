@@ -15,6 +15,7 @@ using Distributions: Normal
 using Random
 using JLD2
 using Altro
+using BilinearControl: Problems
 
 include("edmd_utils.jl")
 
@@ -78,29 +79,34 @@ function Base.rand(params::PendulumParams)
     Q = rand(params.Qfratio)
     Qf = 10^(rand(params.Qfratio)) * Q
     u_bnd = rand(params.u_bnd)
-    tf_raw = rand(params.u_bnd)
-    N = floor(tf_raw / params.dt) + 1
-    tf = params.dt * N
+    tf_raw = rand(params.tf)
+    N = round(Int, tf_raw / params.dt) + 1
+    tf = params.dt * (N - 1)
     (x0=x0, Qv=Q, Rv=R, Qfv=Qf, u_bnd=u_bnd, tf=tf)
 end
 
 ## Generate ALTRO data
-params_sampler = PendulumParams()
-params = rand(params_sampler)
-params.u_bnd
-prob = genpendulumproblem(params...)
-solver = ALTROSolver(prob)
-solve!(solver)
-Altro.status(solver) == Altro.SOLVE_SUCCEEDED
 model = RobotZoo.Pendulum()
-visualize!(vis, model, TO.get_final_time(prob), RD.states(solver))
-norm(RD.controls(solver),Inf)
+dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+num_traj = 100
+tf = 4.0
+dt = 0.05
 
-ctrl = ALTROController(genpendulumproblem, params_sampler)
-resetcontroller!(ctrl)
-X_sim, = simulatewithcontroller(dmodel, ctrl, zeros(2), 
-    TO.get_final_time(ctrl.prob), dt)
-visualize!(vis, model, TO.get_final_time(ctrl.prob), X_sim)
+params_sampler = PendulumParams(tf=[tf-eps(tf),tf+eps(tf)])  # restrict it to a set horizon, for now
+opts = Altro.SolverOptions(show_summary=false)
+ctrl = ALTROController(genpendulumproblem, params_sampler, opts=opts)
+
+x0_sampler = Product([Uniform(-pi/4,pi/4), Normal(-2, 2)])
+initial_conditions = tovecs(rand(x0_sampler, num_traj), length(x0_sampler))
+X_train, U_train = create_data(dmodel, ctrl, initial_conditions, tf, dt)
+
+num_traj_test = 10
+x0_sampler_test = Product([Uniform(-eps(),eps()), Normal(-eps(), eps())])
+initial_conditions_test = tovecs(rand(x0_sampler, num_traj_test), length(x0_sampler))
+params_sampler_test = PendulumParams(tf=[tf-eps(tf),tf+eps(tf)])
+ctrl_test = ALTROController(genpendulumproblem, params_sampler_test, opts=opts)
+X_test, U_test = create_data(dmodel, ctrl_test, initial_conditions_test, tf, dt)
+jldsave(joinpath(Problems.DATADIR, "pendulum_trajectories.jld2"); X_train, U_train, X_test, U_test)
 
 ## Generate training data
 model = RobotZoo.Pendulum()

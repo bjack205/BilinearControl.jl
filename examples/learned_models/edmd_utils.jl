@@ -2,7 +2,7 @@
 ## Define some useful controllers
 abstract type AbstractController end
 
-resetcontroller!(::AbstractController) = nothing
+resetcontroller!(::AbstractController, x0) = nothing
 
 struct RandomController{D} <: AbstractController
     m::Int
@@ -31,7 +31,7 @@ struct RandConstController{D} <: AbstractController
     end
 end
 
-resetcontroller!(ctrl::RandConstController) = rand!(ctrl.distribution, ctrl.u)
+resetcontroller!(ctrl::RandConstController, x0) = rand!(ctrl.distribution, ctrl.u)
 
 getcontrol(ctrl::RandConstController, x, t) = ctrl.u
 
@@ -125,9 +125,10 @@ mutable struct ALTROController{D} <: AbstractController
     end
 end
 
-function resetcontroller!(ctrl::ALTROController)
+function resetcontroller!(ctrl::ALTROController, x0)
     params = rand(ctrl.distribution)
     prob = ctrl.genprob(params...)
+    TO.set_initial_state!(prob, x0)
     solver = Altro.ALTROSolver(prob, ctrl.opts)
     solve!(solver)
     status = Altro.status(solver)
@@ -216,7 +217,7 @@ function create_data(model::RD.DiscreteDynamics, ctrl::AbstractController,
     X_sim = Matrix{Vector{Float64}}(undef, N, num_traj)
     U_sim = Matrix{Vector{Float64}}(undef, N-1, num_traj)
     for i = 1:num_traj
-        resetcontroller!(ctrl)
+        resetcontroller!(ctrl, initial_conditions[i])
         X,U = simulatewithcontroller(sig, model, ctrl, initial_conditions[i], tf, dt)
         X_sim[:,i] = X
         U_sim[:,i] = U
