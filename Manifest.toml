@@ -895,7 +895,9 @@ version = "0.5.17"
 
 [[deps.TrajectoryOptimization]]
 deps = ["DocStringExtensions", "FiniteDiff", "ForwardDiff", "LinearAlgebra", "RobotDynamics", "RobotZoo", "Rotations", "SparseArrays", "StaticArrays"]
-path = "/home/brian/.julia/dev/TrajectoryOptimization"
+git-tree-sha1 = "e142e793d2fb137326a30bedb4468113a6e52530"
+repo-rev = "main"
+repo-url = "https://github.com/RoboticExplorationLab/TrajectoryOptimization.jl.git"
 uuid = "c79d492b-0548-5874-b488-5a62c1d9d0ca"
 version = "0.7.0"
 
