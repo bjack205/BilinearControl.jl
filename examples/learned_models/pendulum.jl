@@ -3,6 +3,7 @@ using BilinearControl
 using BilinearControl.Problems
 using BilinearControl.EDMD
 import RobotDynamics as RD
+import TrajectoryOptimization as TO
 using RobotZoo
 using LinearAlgebra
 using StaticArrays
@@ -35,21 +36,21 @@ function genpendulumproblem(x0=[0.,0.], Qv=1.0, Rv=1.0, Qfv=1000.0, u_bnd=3.0, t
     R = 1e-3*Diagonal(@SVector fill(Rv,m))
     Qf = 1e-0*Diagonal(@SVector fill(Qfv,n))
     xf = @SVector [pi, 0.0]  # i.e. swing up
-    obj = LQRObjective(Q*dt,R*dt,Qf,xf,N)
+    obj = TO.LQRObjective(Q*dt,R*dt,Qf,xf,N)
 
     # constraints
-    conSet = ConstraintList(n,m,N)
-    bnd = BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
-    goal = GoalConstraint(xf)
-    add_constraint!(conSet, bnd, 1:N-1)
-    add_constraint!(conSet, goal, N:N)
+    conSet = TO.ConstraintList(n,m,N)
+    bnd = TO.BoundConstraint(n,m,u_min=-u_bnd,u_max=u_bnd)
+    goal = TO.GoalConstraint(xf)
+    TO.add_constraint!(conSet, bnd, 1:N-1)
+    TO.add_constraint!(conSet, goal, N:N)
 
     # problem
     times = range(0,tf,length=N)
     U = [SA[cos(t/2)] for t in times]
-    pendulum_static = Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
-    initial_controls!(pendulum_static, U)
-    rollout!(pendulum_static)
+    pendulum_static = TO.Problem(model, obj, x0, tf, constraints=conSet, xf=xf)
+    TO.initial_controls!(pendulum_static, U)
+    TO.rollout!(pendulum_static)
     return pendulum_static
 end
 
@@ -94,6 +95,12 @@ Altro.status(solver) == Altro.SOLVE_SUCCEEDED
 model = RobotZoo.Pendulum()
 visualize!(vis, model, TO.get_final_time(prob), RD.states(solver))
 norm(RD.controls(solver),Inf)
+
+ctrl = ALTROController(genpendulumproblem, params_sampler)
+resetcontroller!(ctrl)
+X_sim, = simulatewithcontroller(dmodel, ctrl, zeros(2), 
+    TO.get_final_time(ctrl.prob), dt)
+visualize!(vis, model, TO.get_final_time(ctrl.prob), X_sim)
 
 ## Generate training data
 model = RobotZoo.Pendulum()

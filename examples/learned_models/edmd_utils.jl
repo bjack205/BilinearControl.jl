@@ -104,12 +104,13 @@ function getcontrol(ctrl::TVLQRController, x, t)
     ctrl.uref[k] + K*dx
 end
 
-struct ALTROController{D} <: AbstractController
+mutable struct ALTROController{D} <: AbstractController
     genprob::Function
     distribution::D
     tvlqr::TVLQRController
+    prob::TO.Problem{Float64}
     opts::Altro.SolverOptions{Float64}
-    function ALTROController(genprob::Function, distribution::D)
+    function ALTROController(genprob::Function, distribution::D; opts=Altro.SolverOptions()) where D
         params = rand(distribution)
         prob = genprob(params...)
         n = RD.state_dim(prob,1)
@@ -119,14 +120,14 @@ struct ALTROController{D} <: AbstractController
         Xref = RD.states(prob)
         Uref = RD.controls(prob)
         time = RD.gettimes(prob)
-        tvlqr = TVLQR(K, Xref, Uref, time)
-        new{D}(genprob, distribution, tvlqr)
+        tvlqr = TVLQRController(K, Xref, Uref, time)
+        new{D}(genprob, distribution, tvlqr, prob, opts)
     end
 end
 
 function resetcontroller!(ctrl::ALTROController)
     params = rand(ctrl.distribution)
-    prob = genprob(params...)
+    prob = ctrl.genprob(params...)
     solver = Altro.ALTROSolver(prob, ctrl.opts)
     solve!(solver)
     status = Altro.status(solver)
@@ -136,10 +137,17 @@ function resetcontroller!(ctrl::ALTROController)
     X = RD.states(solver)
     U = RD.controls(solver)
     t = RD.gettimes(prob)
-    K = Altro.get_ilqr().K
+    K = Altro.get_ilqr(solver).K
+    N = TO.horizonlength(prob)
+    ctrl.prob = prob
+    resize!(ctrl.tvlqr.K, N-1)
+    resize!(ctrl.tvlqr.xref, N)
+    resize!(ctrl.tvlqr.uref, N-1)
+    resize!(ctrl.tvlqr.time, N)
     copyto!(ctrl.tvlqr.K, K)
     copyto!(ctrl.tvlqr.xref, X)
     copyto!(ctrl.tvlqr.uref, U)
+    copyto!(ctrl.tvlqr.time, t)
     ctrl
 end
 
