@@ -10,6 +10,8 @@ using StaticArrays
 using Test
 using Statistics
 using Rotations
+using RobotZoo
+using JLD2
 
 using BilinearControl.RandomLinearModels
 using BilinearControl.Problems
