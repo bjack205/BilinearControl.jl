@@ -87,6 +87,7 @@ function Base.rand(params::PendulumParams)
 end
 
 ## Generate ALTRO data
+Random.seed!(1)
 model = RobotZoo.Pendulum()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 num_traj = 100

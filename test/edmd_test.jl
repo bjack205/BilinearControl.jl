@@ -1,12 +1,3 @@
-using BilinearControl
-
-using RobotZoo
-using RobotDynamics
-using LinearAlgebra
-using StaticArrays
-using SparseArrays
-using JLD2
-using Test
 
 function simulate_bilinear(F, C, g, x0, z0, U)
     
@@ -51,7 +42,9 @@ dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 n,m = RD.dims(model)
 
 ## Learn the bilinear dynamics
-Z_sim, Zu_sim, z0, kf = BilinearControl.EDMD.build_eigenfunctions(X_ref, U_ref, ["state", "sine", "cosine"], [0,0,0])
+Z_sim, Zu_sim, kf = BilinearControl.EDMD.build_eigenfunctions(
+    X_ref, U_ref, ["state", "sine", "cosine"], [0,0,0]
+)
 F, C, g = BilinearControl.EDMD.learn_bilinear_model(
     X_ref, Z_sim, Zu_sim, ["lasso", "lasso"]; 
     edmd_weights=[0.0], mapping_weights=[0.0]
@@ -61,6 +54,7 @@ F, C, g = BilinearControl.EDMD.learn_bilinear_model(
 @test all(k->Z_sim[k] ≈ kf(X_ref[k]), eachindex(Z_sim))
 
 ## Compare solutions
+z0 = kf(x0)
 bi_X, bi_Z = simulate_bilinear(F, C, g, x0, z0, U_ref)
 
 # Test that the discrete dynamics match
@@ -79,8 +73,10 @@ end
 @test norm(bi_X - X_ref, Inf) < 0.2
 
 ## Load Bilinear Cartpole Model
-model_bilinear = Problems.BilinearCartpole()
-@test RD.discrete_dynamics(model_bilinear, bi_Z[1], U_ref[1], 0.0, dt) ≈ bi_Z[2]
+# model_bilinear = Problems.BilinearCartpole()
+model_bilinear = Problems.EDMDModel(F,C,g,kf,dt, "cartpole")
+@test RD.discrete_dynamics(model_bilinear, bi_Z[1], U_ref[1], 0.0, dt) ≈ 
+    bi_Z[2]
 
 n2,m2 = RD.dims(model_bilinear)
 J = zeros(n2, n2+m2)
