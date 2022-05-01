@@ -234,9 +234,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["ChainRulesCore", "DensityInterface", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "Test"]
-git-tree-sha1 = "58d51b2cc7648b750f5fc012d45ddc3bfc0628ee"
+git-tree-sha1 = "221ff6c6c9ede484e9f8be4974697187c06eb06b"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.54"
+version = "0.25.55"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
@@ -707,7 +707,7 @@ version = "0.3.0+0"
 
 [[deps.RobotDynamics]]
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RecipesBase", "Rotations", "SparseArrays", "StaticArrays"]
-git-tree-sha1 = "23c650bcf8c7928f1831308671044839d8459867"
+git-tree-sha1 = "60baa0be3faa8288b705b023e54a845d25b77f88"
 repo-rev = "bilinear"
 repo-url = "https://github.com/RoboticExplorationLab/RobotDynamics.jl.git"
 uuid = "38ceca67-d8d3-44e8-9852-78a5596522e1"
