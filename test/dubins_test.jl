@@ -104,7 +104,7 @@ end
 Random.seed!(1)
 ubnd = 1.15
 prob = Problems.DubinsProblem(scenario=:parallelpark, ubnd=ubnd)
-rollout!(prob)
+rollout!(RD.InPlace(), prob)
 model = prob.model[1].continuous_dynamics
 n,m = RD.dims(model)
 admm = BilinearADMM(prob)

@@ -51,7 +51,7 @@ function DubinsProblem(model=BilinearDubins();
     end
 
     prob = Problem(dmodel, obj, x0, tf, xf=xf, U0=U, constraints=cons)
-    rollout!(prob)
+    rollout!(RD.InPlace(), prob)
 
     return prob
 end

@@ -4,6 +4,7 @@ struct BilinearDubins <: RD.ContinuousDynamics end
 RD.state_dim(::BilinearDubins) = 4
 RD.control_dim(::BilinearDubins) = 2
 RD.default_diffmethod(::BilinearDubins) = RD.UserDefined()
+RD.default_signature(::BilinearDubins) = RD.InPlace()
 
 function expandstate(model::BilinearDubins, x)
     return SA[x[1], x[2], cos(x[3]), sin(x[3])]
