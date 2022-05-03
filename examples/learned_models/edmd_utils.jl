@@ -65,7 +65,12 @@ function LQRController(model::RD.DiscreteDynamics, Q, R, xeq, ueq, dt)
     LQRController(A,B,Q,R,xeq,ueq)
 end
 
-function dlqr(A,B,Q,R; max_iters=200, tol=1e-6)
+function getcontrol(ctrl::LQRController, x, t)
+    dx = x - ctrl.xeq
+    ctrl.ueq - ctrl.K*dx
+end
+
+function dlqr(A,B,Q,R; max_iters=200, tol=1e-6, verbose=false)
     P = Matrix(copy(Q))
     n,m = size(B)
     K = zeros(m,n)
@@ -75,17 +80,51 @@ function dlqr(A,B,Q,R; max_iters=200, tol=1e-6)
         K .= (R + B'P*B) \ (B'P*A)
         P .= Q + A'P*A - A'P*B*K
         if norm(K-K_prev,Inf) < tol
-            println("Converged in $k iterations")
+            verbose && println("Converged in $k iterations")
             return K
         end
         K_prev .= K
     end
-    return K * NaN
+    return K
 end
 
-function getcontrol(ctrl::LQRController, x, t)
-    dx = x - ctrl.xeq
-    ctrl.ueq - ctrl.K*dx
+function linearize(model::RD.DiscreteDynamics, X, U, times)
+    linearize(RD.default_signature(model), RD.default_diffmethod(model), model, X, U, times)
+end
+
+function linearize(sig, diffmethod, model::RD.DiscreteDynamics, X, U, times)
+    N = length(X)
+    n,m = RD.dims(model)
+    J = zeros(n,n+m)
+    xn = zeros(n)
+    A = [zeros(n,n) for k = 1:N-1]
+    B = [zeros(n,m) for k = 1:N-1]
+    for k = 1:N-1
+        dt = times[k+1] - times[k]
+        z = RD.KnotPoint(X[k], U[k], times[k], dt)
+        # RD.jacobian!(sig, diffmethod, model, J, xn, X[k], U[k], times[k], dt)
+        RD.jacobian!(sig, diffmethod, model, J, xn, z)
+        A[k] = J[:,1:n]
+        B[k] = J[:,n+1:end]
+    end
+    A,B
+end
+
+function tvlqr(A,B,Q,R)
+    # initialize the output
+    n,m = size(B[1])
+    N = length(A) + 1
+    P = [zeros(n,n) for k = 1:N]
+    K = [zeros(m,n) for k = 1:N-1]
+    
+    P[end] .= dlqr(A[end], B[end], Q[end], R[end])
+    for k = reverse(1:N-1) 
+        K[k] .= (R[k] + B[k]'P[k+1]*B[k])\(B[k]'P[k+1]*A[k])
+        P[k] .= Q[k] + A[k]'P[k+1]*A[k] - A[k]'P[k+1]*B[k]*K[k]
+    end
+    
+    # return the feedback gains and ctg matrices
+    return K,P
 end
 
 struct TVLQRController <: AbstractController
@@ -102,6 +141,19 @@ function getcontrol(ctrl::TVLQRController, x, t)
     K = ctrl.K[k]
     dx = x - ctrl.xref[k]
     ctrl.uref[k] + K*dx
+end
+
+struct BilinearController{C} <: AbstractController
+    model::EDMDModel
+    ctrl::C  # controller defined on bilinear model
+end
+
+resetcontroller!(crl::BilinearController, x) = resetcontroller!(ctrl.ctrl, expandstate(ctrl.model, x))
+
+function getcontrol(ctrl::BilinearController, x, t)
+    z = expandstate(ctrl.model, x)
+    u = getcontrol(ctrl.ctrl, z, t)
+    return u
 end
 
 mutable struct ALTROController{D} <: AbstractController
@@ -178,6 +230,32 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
         RD.discrete_dynamics!(sig, model, X[k+1], X[k], u, times[k], dt)
     end
     X,U
+end
+
+function bilinearerror(model::EDMDModel, model0::RD.DiscreteDynamics, X, U)
+    dt = model.dt
+    map(1:length(U)) do k
+        uk = U[k]
+        zk = expandstate(model, X[k]) 
+        zn = zero(zk)
+        t = (k-1)*dt
+        RD.discrete_dynamics!(model, zn, zk, uk, t, dt)
+        xn = originalstate(model, zn) 
+        xn - X[k+1]
+    end
+end
+
+function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
+    times = range(0, tf, step=dt)
+    N = length(times)
+    @assert length(U) in [N,N-1]
+    X = [copy(x0) for k = 1:N]
+    sig = RD.default_signature(model)
+    for k = 1:N-1 
+        dt = times[k+1] - times[k]
+        RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
+    end
+    X
 end
 
 function compare_models(sig::RD.FunctionSignature, model::EDMDModel,

@@ -46,6 +46,6 @@ export
     BilinearCartpole,
     EDMDModel
 
-export expandstate
+export expandstate, originalstate
 
 end

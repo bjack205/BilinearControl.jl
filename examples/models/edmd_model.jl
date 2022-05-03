@@ -55,6 +55,7 @@ function RD.jacobian!(model::EDMDModel, J, xn, x, u, t, h)
 end
 
 expandstate(model::EDMDModel, x) = model.kf(x)
+originalstate(model::EDMDModel, z) = model.g*z
 
 ## Saved models
 const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
