@@ -264,6 +264,8 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
         dt = times[k+1] - times[k]
         RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
     end
+
+    # Bound constraints
     xlo = repeat(x_min, Nmpc - 1)
     xhi = repeat(x_max, Nmpc - 1)
     ulo = repeat(u_min, Nmpc - 1)
@@ -273,17 +275,6 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
     A = [A; X; U]
     l = [l; xlo; ulo]
     u = [u; xhi; uhi]
-
-    # State and control bounds
-    # icu = Nmpc*n + (Nmpc-1)*n0 .+ (1:n)
-    # for k = 1:Nmpc-1
-    #     icx = Nmpc*n + k*n0 .+ (1:n0)  # start at k = 2
-    #     icu = Nmpc*n + (Nmpc-1)*n0 .+ (k-1)*m .+ (1:m)
-    #     l[icx] .= x_min
-    #     u[icx] .= x_max
-    #     l[icu] .= u_min
-    #     u[icu] .= u_max 
-    # end
     
     ctrl = BilinearMPC(model, Q, R, P, q, c, A, l, u, Xref, Uref, Yref, times, Ā, B̄, d̄, Nmpc)
     build_qp!(ctrl, Xref[1], 1)
@@ -350,7 +341,7 @@ function build_qp!(ctrl::BilinearMPC, x0, kstart::Integer)
     ctrl
 end
 
-function solveqp!(ctrl::BilinearMPC, x, t)
+function solveqp!(ctrl::BilinearMPC, x, t; x0=nothing)
     k = get_k(ctrl, t)
     build_qp!(ctrl, x, k)
     model = OSQP.Model()
@@ -359,6 +350,9 @@ function solveqp!(ctrl::BilinearMPC, x, t)
         error("Large state detected")
     end
     OSQP.setup!(model, P=ctrl.P, q=ctrl.q, A=ctrl.A, l=ctrl.l, u=ctrl.u, verbose=false)
+    if !isnothing(x0)
+        OSQP.warm_start_x!(model, x0)
+    end
     res = OSQP.solve!(model)  # TODO: implement warm-starting
     if res.info.status != :Solved
         @warn "OSQP didn't solve! Got status $(res.info.status)"
@@ -372,6 +366,25 @@ function getcontrol(ctrl::BilinearMPC, x, t)
     uind = Ny .+ (1:m)  # indices of first control
     z = solveqp!(ctrl, x, t)
     return z[uind]
+end
+
+function updatereference!(ctrl::BilinearMPC, Xref, Uref, tref)
+    @assert length(Xref) == length(ctrl.Xref) "Changing length of reference trajectory not supported yet."
+    Yref = map(x->expandstate(model, x), Xref)
+    Ā,B̄ = linearize(model, Yref, Uref, times)
+    d̄ = map(1:N-1) do k
+        dt = times[k+1] - times[k]
+        RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
+    end
+    for k = 1:N
+        ctrl.Ā[k] .= Ā[k]
+        ctrl.B̄[k] .= B̄[k]
+        ctrl.d̄[k] .= d̄[k]
+        ctrl.Xref[k] .= Xref[k]
+        ctrl.Uref[k] .= uref[k]
+    end
+    copyto!(ctrl.tref, tref)
+    ctrl
 end
 
 ## Simulation functions
