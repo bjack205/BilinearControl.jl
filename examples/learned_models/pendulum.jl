@@ -16,6 +16,7 @@ using Random
 using JLD2
 using Altro
 using BilinearControl: Problems
+using Test
 
 include("edmd_utils.jl")
 
@@ -129,7 +130,7 @@ X_test, U_test = create_data(dmodel, ctrl_test, initial_conditions_test, tf, dt)
 all(1:num_traj_test) do i
     simulate(dmodel, U_test[:,i], initial_conditions_test[i], tf, dt) ≈ X_test[:,i]
 end
-jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); X_train, U_train, X_test, U_test)
+jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); X_train, U_train, X_test, U_test, tf, dt)
 
 # ## Generate training data
 # model = RobotZoo.Pendulum()
@@ -169,11 +170,16 @@ jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); X_train,
 # X_test, U_test = create_data(dmodel, ctrl_1, initial_conditions, tf_test, dt)
 
 ## Learn Bilinear Model
+model = RobotZoo.Pendulum()
+dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+
 datafile = joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2")
 X_train = load(datafile, "X_train")
 U_train = load(datafile, "U_train")
 X_test = load(datafile, "X_test")
 U_test = load(datafile, "U_test")
+tf = load(datafile, "tf")
+dt = load(datafile, "dt")
 
 eigfuns = ["state", "sine", "cosine", "hermite"]
 eigorders = [0, 0, 0, 2]
@@ -195,13 +201,13 @@ RD.dims(model_bilinear)
 
 norm(bilinearerror(model_bilinear, dmodel, X_test[:,2], U_test[:,2]), Inf)
 
-let i = 1
-    compare_models(RD.InPlace(), model_bilinear, dmodel, initial_conditions[i], tf, 
-        U_test[:,i], doplot=true)
-end
+# let i = 1
+#     compare_models(RD.InPlace(), model_bilinear, dmodel, initial_conditions[i], tf, 
+#         U_test[:,i], doplot=true)
+# end
 
-const datadir = joinpath(dirname(pathof(BilinearControl)), "../data")
-jldsave(joinpath(datadir, "pendulum_eDMD_data.jld2"); A=F, C, g, dt=dt, eigfuns, eigorders)
+# const datadir = joinpath(dirname(pathof(BilinearControl)), "../data")
+# jldsave(joinpath(datadir, "pendulum_eDMD_data.jld2"); A=F, C, g, dt=dt, eigfuns, eigorders)
 
 ## Try tracking with bilinear TVLQR 
 i = 4
@@ -306,21 +312,30 @@ function build_qp!(model::EDMDModel, x0, Q, R, Xref, Uref, times)
 end
 
 # Generate the QP data
+n,m = RD.dims(model_bilinear)
+n0 = originalstatedim(model_bilinear)
 i = 1
 Q = Diagonal(fill(1.0, n0))
-R = Diagonal(fill(1e-3, m0))
+R = Diagonal(fill(1e-3, m))
+N = size(X_train,1)
 
 Xref = X_train[:,i]
 Uref = U_train[:,i] 
+Xref[end] = [pi,0]
+push!(Uref, zeros(m))
 Yref = map(x->expandstate(model_bilinear, x), Xref)
 x0 = copy(Xref[i])
 Ny = sum(length, Yref)
 Nu = sum(length, Uref)
-P,q,c, A,lb,ub = build_qp!(model_bilinear, x0, Q, R, Xref, Uref, times)
+
+# Create controller
+ctrl_mpc = BilinearMPC(
+    model_bilinear, N, x0, Q, R, Xref, Uref, times
+)
 
 # Generate random input
 X = [randn(n0) for k = 1:N]
-U = [randn(m0) for k = 1:N-1]
+U = [randn(m) for k = 1:N-1]
 Y = map(x->expandstate(model_bilinear, x), X)
 
 # Convert to vectors
@@ -334,8 +349,8 @@ y = reduce(vcat, Y)
 z = [y;u]
 
 # Test cost
-J = 0.5 * dot(z, P, z) + dot(q,z) + sum(c)
-J ≈ sum(1:N) do k
+J = 0.5 * dot(z, ctrl_mpc.P, z) + dot(ctrl_mpc.q,z) + sum(ctrl_mpc.c)
+@test J ≈ sum(1:N) do k
     J = 0.5 * (X[k]-Xref[k])'Q*(X[k]-Xref[k])
     if k < N
         J += 0.5 * (U[k] - Uref[k])'R*(U[k] - Uref[k])
@@ -356,22 +371,43 @@ c = mapreduce(vcat, 1:N-1) do k
     dyn = Y[k+1] - Yref[k+1]
     RD.discrete_dynamics(model_bilinear, z̄) - Yref[k+1] + A*dy + B*du - dyn
 end
-c = [expandstate(model_bilinear, x0) - Y[1]; c]
-c ≈ Vector(A*z - lb)
+c = [expandstate(model_bilinear, Xref[1]) - Y[1]; c]
+@test c ≈ Vector(ctrl_mpc.A*z - ctrl_mpc.l)
 
-import OSQP
-model = OSQP.Model()
-OSQP.setup!(model, P=P, q=q, A=A, l=lb, u=ub)
-res = OSQP.solve!(model)
-zsol = res.x
+zsol = solveqp!(ctrl_mpc, Xref[1], 0.0) 
 ysol = zsol[1:Ny]
 usol = zsol[Ny+1:end]
 Xsol = map(eachcol(reshape(ysol, n, :))) do y
     originalstate(model_bilinear, y)
 end
-Usol = tovecs(usol, m0)
+Usol = tovecs(usol, m)
+norm(Xsol - Xref, Inf) < 0.2
+
 plot(times, reduce(hcat,Xref)', c=[1 2], label="reference")
 plot!(times, reduce(hcat,Xsol)', c=[1 2], s=:dash, label="MPC")
-plot(times[1:end-1], reduce(hcat,Uref)', c=1, label="reference")
+plot(times, reduce(hcat,Uref)', c=1, label="reference")
 plot!(times[1:end-1], reduce(hcat,Usol)', c=1, s=:dash, label="MPC")
 
+# Use shorter MPC horizon 
+Nmpc = 21 
+ctrl_mpc = BilinearMPC(
+    model_bilinear, Nmpc, x0, Q, R, Xref, Uref, times
+)
+for i = 1:3
+    zsol = solveqp!(ctrl_mpc, Xref[min(N,i)], (i-1)*dt) 
+    Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+        originalstate(model_bilinear, y)
+    end
+    p = plot(times, reduce(hcat,Xref)', c=[1 2], label="reference")
+    t_mpc = range(dt*(i-1), length=Nmpc, step=dt)
+    plot!(p, 
+        t_mpc, reduce(hcat,Xsol)', 
+        c=[1 2], s=:dash, label="MPC", lw=2, legend=:bottom
+    )
+    @test norm(Xsol - Xref[i-1 .+ (1:Nmpc)], Inf) < 0.01
+end
+
+# Run MPC Controller
+Xmpc, Umpc = simulatewithcontroller(dmodel, ctrl_mpc, Xref[1] + randn(n0) * 1e-1, tf, dt)
+plot(times, reduce(hcat,Xref)', c=[1 2], label="reference")
+plot!(times, reduce(hcat,Xmpc)', c=[1 2], s=:dash, label="MPC", lw=2, legend=:bottom, ylim=(-4,4))

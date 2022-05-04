@@ -3,6 +3,7 @@
 abstract type AbstractController end
 
 resetcontroller!(::AbstractController, x0) = nothing
+get_k(ctrl::AbstractController, t) = searchsortedfirst(gettime(ctrl), t)
 
 struct RandomController{D} <: AbstractController
     m::Int
@@ -97,8 +98,9 @@ function linearize(sig, diffmethod, model::RD.DiscreteDynamics, X, U, times)
     n,m = RD.dims(model)
     J = zeros(n,n+m)
     xn = zeros(n)
-    A = [zeros(n,n) for k = 1:N-1]
-    B = [zeros(n,m) for k = 1:N-1]
+    uN = length(U)
+    A = [zeros(n,n) for k = 1:uN]
+    B = [zeros(n,m) for k = 1:uN]
     for k = 1:N-1
         dt = times[k+1] - times[k]
         z = RD.KnotPoint(X[k], U[k], times[k], dt)
@@ -134,10 +136,10 @@ struct TVLQRController <: AbstractController
     time::Vector{Float64}
 end
 
-get_k(ctrl::TVLQRController, t) = min(searchsortedfirst(ctrl.time, t), length(ctrl.K))
+gettime(ctrl::TVLQRController) = ctrl.time
 
 function getcontrol(ctrl::TVLQRController, x, t)
-    k = get_k(ctrl, t)
+    k = min(get_k(ctrl, t), length(ctrl.K))
     K = ctrl.K[k]
     dx = x - ctrl.xref[k]
     ctrl.uref[k] + K*dx
@@ -206,6 +208,137 @@ end
 
 function getcontrol(ctrl::ALTROController, x, t)
     getcontrol(ctrl.tvlqr, x, t)
+end
+
+struct BilinearMPC <: AbstractController
+    model::EDMDModel
+    Q::Diagonal{Float64,Vector{Float64}}
+    R::Diagonal{Float64,Vector{Float64}}
+    P::SparseMatrixCSC{Float64,Int}
+    q::Vector{Float64}
+    c::Vector{Float64}
+    A::SparseMatrixCSC{Float64,Int}
+    l::Vector{Float64}
+    u::Vector{Float64}
+    Xref::Vector{Vector{Float64}}
+    Uref::Vector{Vector{Float64}}
+    Yref::Vector{Vector{Float64}}
+    times::Vector{Float64}
+    Ā::Vector{Matrix{Float64}}
+    B̄::Vector{Matrix{Float64}}
+    d̄::Vector{Vector{Float64}}
+    Nmpc::Int
+end
+function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times)
+    @assert length(Xref) == length(Uref) "State and control trajectory must have equal lengths. Must include terminal control."
+    n,m = RD.dims(model)
+    n0 = originalstatedim(model)
+    N = length(Xref)
+    Nx = Nmpc*n0
+    Nu = (Nmpc-1)*m
+    Ny = Nmpc*n
+    Nc = Nmpc*n
+
+    # QP Data
+    G = model.g
+    P = blockdiag(kron(sparse(I,Nmpc,Nmpc),G'Q*G), kron(sparse(I,Nmpc-1,Nmpc-1), R))
+    q = zeros(Ny+Nu)
+    c = zeros(Nmpc)
+    A = sparse(-1.0*I, Nc, Ny+Nu)
+    l = zeros(Nc)
+    u = zeros(Nc)
+
+    # Initial conditions
+    A[1:n,1:n] .= -I(n)
+
+    # Reference trajectory data
+    Yref = map(x->expandstate(model, x), Xref)
+    Ā,B̄ = linearize(model, Yref, Uref, times)
+    d̄ = map(1:N-1) do k
+        dt = times[k+1] - times[k]
+        RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
+    end
+    
+    ctrl = BilinearMPC(model, Q, R, P, q, c, A, l, u, Xref, Uref, Yref, times, Ā, B̄, d̄, Nmpc)
+    build_qp!(ctrl, Xref[1], 1)
+end
+
+gettime(ctrl::BilinearMPC) = ctrl.times
+
+function build_qp!(ctrl::BilinearMPC, x0, kstart::Integer)
+    model = ctrl.model
+
+    # Indices from reference trajectory
+    kinds = kstart - 1 .+ (1:ctrl.Nmpc)
+
+    # Extract out info from controller
+    Xref = ctrl.Xref
+    Uref = ctrl.Uref
+    Yref = ctrl.Yref
+    Ā,B̄,d̄ = ctrl.Ā, ctrl.B̄, ctrl.d̄
+    G = ctrl.model.g
+    Q,R = ctrl.Q, ctrl.R
+
+    # Some useful sizes
+    n,m = RD.dims(model)
+    Nmpc = ctrl.Nmpc
+    N = length(Xref)
+    Nu = (Nmpc-1) * m
+    Ny = Nmpc * n 
+
+    # Build Cost
+    q = reshape(view(ctrl.q,1:Ny), n, :)
+    r = reshape(view(ctrl.q,Ny+1:Ny+Nu), m, :)
+    for i = 1:Nmpc
+        k = min(kinds[i], N)
+        q[:,i] .= -G'Q*Xref[k]
+        ctrl.c[i] = 0.5 * dot(Xref[k], Q, Xref[k])
+        if i < Nmpc
+            r[:,i] .= -R*Uref[k]
+            ctrl.c[i] += 0.5 * dot(Uref[k], R, Uref[k])
+        end
+    end
+
+    # Build dynamics
+    A,l,u = ctrl.A, ctrl.l, ctrl.u
+    ic = 1:n
+    # D[ic,1:n] .= -I(n)
+    y0 = expandstate(model, x0)
+    l[ic] .= .-y0
+    u[ic] .= .-y0
+    ic = ic .+ n
+    for i = 1:Nmpc-1
+        k = min(kinds[i], N-1)
+        ix1 = (i-1)*n .+ (1:n)
+        iu1 = (i-1)*m + Ny .+ (1:m)
+        ix2 = ix1 .+ n
+        A[ic,ix1] .= Ā[k]
+        A[ic,iu1] .= B̄[k]
+        # A[ic,ix2] .= -I(n)
+        l[ic] .= -d̄[k]
+        u[ic] .= -d̄[k]
+
+        ic = ic .+ n
+    end
+
+    ctrl
+end
+
+function solveqp!(ctrl::BilinearMPC, x, t)
+    k = get_k(ctrl, t)
+    build_qp!(ctrl, x, k)
+    model = OSQP.Model()
+    OSQP.setup!(model, P=ctrl.P, q=ctrl.q, A=ctrl.A, l=ctrl.l, u=ctrl.u, verbose=false)
+    res = OSQP.solve!(model)  # TODO: implement warm-starting
+    res.x
+end
+
+function getcontrol(ctrl::BilinearMPC, x, t)
+    n,m = RD.dims(ctrl.model)
+    Ny = ctrl.Nmpc * n 
+    uind = Ny .+ (1:m)  # indices of first control
+    z = solveqp!(ctrl, x, t)
+    return z[uind]
 end
 
 ## Simulation functions

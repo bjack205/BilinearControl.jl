@@ -56,6 +56,7 @@ end
 
 expandstate(model::EDMDModel, x) = model.kf(x)
 originalstate(model::EDMDModel, z) = model.g*z
+originalstatedim(model::EDMDModel) = size(model.g, 1)
 
 ## Saved models
 const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
