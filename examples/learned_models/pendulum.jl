@@ -400,9 +400,11 @@ F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
     algorithm=:cholesky
 );
 
-norm(F)
+# Build Model
 model_lqr = EDMDModel(F,C,g,kf,dt,"pendulum")
 
+# Check performance on test data
+norm(F)
 maximum(
     norm(bilinearerror(model_lqr, dmodel, X_test[:,i], U_test[:,i]), Inf) for i = 1:num_test
 )
@@ -411,102 +413,23 @@ maximum(
 )
 n = RD.state_dim(model_lqr)
 
-# Compare open-loop rollouts
-i = 4  # test data index
-X = simulate(dmodel, U_test[:,i], initial_conditions_test[i], tf, dt)
-Y = simulate(model_lqr, U_test[:,i], expandstate(model_lqr, initial_conditions_test[i]), tf, dt)
-X_bl = map(x->originalstate(model_lqr, x), Y)
-plot(
-    t_train, reduce(hcat,X_test[:,i])', 
-    c=[1 2], label="Test", lw=1, legend=:bottom, ylim=(-5,5)
-)
-plot!(
-    t_train, reduce(hcat,X)', 
-    c=[1 2], s=:dot, label="Nonlinear model", lw=1, legend=:bottom, ylim=(-5,5)
-)
-plot!(
-    t_train, reduce(hcat,X_bl)', 
-    c=[1 2], s=:dash, label="Bilinear model", lw=2, legend=:bottom, ylim=(-5,5)
-)
-norm(bilinearerror(model_lqr, dmodel, X_train[:,i], U_train[:,i]), Inf)
-
-# Create MPC controller
+## Generate MPC controller
 N = 1001
 Xref = [copy(xe) for k = 1:N]
 Uref = [copy(ue) for k = 1:N]
 tref = range(0,length=N,step=dt)
-Nmpc = length(t_train) 
+Nmpc = 21
 Qmpc = Diagonal([1.0,0.1])
 Rmpc = Diagonal([1e-3])
 ctrl_mpc = BilinearMPC(
     model_lqr, Nmpc, initial_conditions[1], Qmpc, Rmpc, Xref, Uref, tref
 )
 
-i = 4  # test data index
-j = 1  # time step index
-t_mpc = range(0,length=Nmpc,step=dt)
-x0 = initial_conditions_test[i]
-zsol = solveqp!(ctrl_mpc, x0, dt*(j-1))
-Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
-    originalstate(model_lqr, y)
-end
-Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m) 
-plot(t_mpc[1:end-1], reduce(hcat,Usol)', ylabel="controls", label="OSQP")
-plot!(t_mpc[1:end-1], reduce(hcat,U_test[:,i])', ylabel="controls", label="Train")
-plot(t_mpc, reduce(hcat,Xsol)', label="OSQP", c=[1 2], lw=2)
-plot!(t_mpc, reduce(hcat,X_test[:,i])', label="Train", c=[1 2])
-
-Ysim = simulate(model_lqr, Usol, expandstate(model_lqr, x0), t_mpc[end], dt)
-Xsim_bl = map(x->originalstate(model_lqr, x), Ysim)
-plot!(t_mpc, reduce(hcat,Xsim_bl)', label="Simulated (bilinear)", c=[1 2], s=:dash)
-
-Xsim = simulate(dmodel, Usol, x0, t_mpc[end], dt)
-plot!(t_mpc, reduce(hcat,Xsim)', label="Simulated (nonlinear)", c=[3 4], s=:solid, lw=1)
-# Xsim = simulate(dmodel, U_test[:,i], x0, t_mpc[end], dt)
-# plot!(t_mpc, reduce(hcat,Xsim)', label="Simulated (nonlinear)", c=[3 4], s=:solid, lw=1)
-
-
-# Solve first
-i = 6  # test data index
-j = 1  # time step index
-x0 = initial_conditions_test[i]
-zsol = solveqp!(ctrl_mpc, x0, dt*(j-1))
-Xsol0 = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
-    originalstate(model_lqr, y)
-end
-# p = plot(t_mpc, reduce(hcat,Xsol0)', label="OSQP", c=[1 2], lw=1)
-
-Xmpc = [copy(x0) for t in t_mpc]
-##
-let k=j
-    t0 = dt*(k-1)
-    zsol = solveqp!(ctrl_mpc, Xmpc[k], t0)
-    Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
-        originalstate(model_lqr, y)
-    end
-    Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m) 
-    p = plot(t_mpc, reduce(hcat,Xsol0)', label="OSQP", c=[1 2], lw=1)
-    plot!(p, t0 .+ t_mpc, reduce(hcat,Xsol)', label="OSQP", c=[1 2], lw=2, s=:dash)
-    display(p)
-    
-    u = Usol[1]
-    Xmpc[k+1] = RD.discrete_dynamics(dmodel, Xmpc[k], u, t_mpc[k], dt)
-    global j += 1
-end
-
-## Plot all of the test data
-i = 1  # test data index
+# Test on test data
 tsim = 1.0
 times_sim = range(0,tsim,step=dt)
-x0 = initial_conditions_test[i]
-Xmpc, = simulatewithcontroller(dmodel, ctrl_mpc, x0, tsim, dt)
-p = plot(times_sim, reduce(hcat,Xmpc)', label="OSQP", c=[1 2], lw=1)
-
-##
-tsim = 1.0
-times_sim = range(0,tsim,step=dt)
-p = plot(times[1:length(times_sim)], reduce(hcat, Xref[1:length(times_sim)])', 
-    label="reference", lw=2
+p = plot(times_sim, reduce(hcat, Xref[1:length(times_sim)])', 
+    label=["θ" "ω"], lw=2
 )
 for i = 1:num_test
     x0 = initial_conditions_test[i]
