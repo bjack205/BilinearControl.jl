@@ -173,41 +173,160 @@ jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); X_train,
 model = RobotZoo.Pendulum()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 
-datafile = joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2")
-X_train = load(datafile, "X_train")
-U_train = load(datafile, "U_train")
-X_test = load(datafile, "X_test")
-U_test = load(datafile, "U_test")
-tf = load(datafile, "tf")
-dt = load(datafile, "dt")
+altro_datafile = joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2")
+lqr_datafile = joinpath(Problems.DATADIR, "pendulum_lqr_trajectories.jld2")
+X_train_altro = load(altro_datafile, "X_train")
+U_train_altro = load(altro_datafile, "U_train")
+X_train_lqr = load(lqr_datafile, "X_train")[:,1:100]
+U_train_lqr = load(lqr_datafile, "U_train")[:,1:100]
+X_test = load(altro_datafile, "X_test")
+U_test = load(altro_datafile, "U_test")
+tf = load(altro_datafile, "tf")
+dt = load(altro_datafile, "dt")
+@assert load(lqr_datafile, "tf") == tf
+@assert load(lqr_datafile, "dt") == dt 
+X_train = [X_train_altro X_train_lqr]
+U_train = [U_train_altro U_train_lqr]
 
-eigfuns = ["state", "sine", "cosine", "hermite"]
-eigorders = [0, 0, 0, 2]
-eigfuns = ["state", "chebyshev"]
-eigorders = [0,5]
+# Learn bilinear model
+eigfuns = ["state", "sine", "cosine", "chebyshev"]
+eigorders = [0,0,0,5]
 Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
-# Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, pendulum_kf)
 
-# learn bilinear model
 F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
-    ["lasso", "lasso"]; 
-    edmd_weights=[0.1], 
+    ["ridge", "lasso"]; 
+    edmd_weights=[10.1], 
     mapping_weights=[0.0], 
-    algorithm=:qr
+    algorithm=:cholesky
 );
 
 model_bilinear = EDMDModel(F,C,g,kf,dt,"pendulum")
 RD.dims(model_bilinear)
 
-norm(bilinearerror(model_bilinear, dmodel, X_test[:,2], U_test[:,2]), Inf)
+norm(bilinearerror(model_bilinear, X_train, U_train)) / length(U_train)
+norm(bilinearerror(model_bilinear, X_test, U_test)) / length(U_test)
 
-# let i = 1
-#     compare_models(RD.InPlace(), model_bilinear, dmodel, initial_conditions[i], tf, 
-#         U_test[:,i], doplot=true)
-# end
+## MPC Controller
+n,m = RD.dims(model_bilinear)
+n0 = originalstatedim(model_bilinear)
+i = 1  # test trajectory index
+x_max = [2pi, 1000]
+u_max = [20]
+x_min = -x_max 
+u_min = -u_max 
 
-# const datadir = joinpath(dirname(pathof(BilinearControl)), "../data")
-# jldsave(joinpath(datadir, "pendulum_eDMD_data.jld2"); A=F, C, g, dt=dt, eigfuns, eigorders)
+# Reference trajectory
+i = 1  # test trajectory index
+x0 = copy(X_test[1,i])
+xf = [pi,0]
+N = length(X_test[:,i])
+Xref = X_test[:,i]
+Uref = U_test[:,i]
+tref = range(0,length=N,step=dt)
+Xref[end] = xf
+push!(Uref, zeros(m))
+
+# MPC controller
+Nmpc = 41
+Qmpc = Diagonal([10.0,0.1])
+Rmpc = Diagonal([1e-2])
+ctrl_mpc = BilinearMPC(
+    model_bilinear, Nmpc, x0, Qmpc, Rmpc, Xref, Uref, tref;
+    x_max, x_min, u_max, u_min
+)
+
+## Test MPC controller
+Nx = Nmpc*n0
+Ny = Nmpc*n
+Nu = (Nmpc-1)*m
+@test size(ctrl_mpc.A,2) ≈ Ny+Nu
+@test size(ctrl_mpc.A,1) == Nmpc*n + (Nmpc-1)*(n0+m)
+
+# Generate random input
+X = [randn(n0) for k = 1:Nmpc]
+U = [randn(m) for k = 1:Nmpc-1]
+Y = map(x->expandstate(model_bilinear, x), X)
+
+# Convert to vectors
+Yref = map(x->expandstate(model_bilinear, x), Xref)
+x̄ = reduce(vcat, Xref[j-1 .+ (1:Nmpc)])
+ū = reduce(vcat, Uref[j-1 .+ (1:Nmpc-1)])
+ȳ = reduce(vcat, Yref[j-1 .+ (1:Nmpc)])
+z̄ = [ȳ;ū]
+x = reduce(vcat, X)
+u = reduce(vcat, U)
+y = reduce(vcat, Y)
+z = [y;u]
+
+# Test cost
+J = 0.5 * dot(z, ctrl_mpc.P, z) + dot(ctrl_mpc.q,z) + sum(ctrl_mpc.c)
+@test J ≈ sum(1:Nmpc) do k
+    J = 0.5 * (X[k]-Xref[k])'Qmpc*(X[k]-Xref[k])
+    if k < Nmpc
+        J += 0.5 * (U[k] - Uref[k])'Rmpc*(U[k] - Uref[k])
+    end
+    J
+end
+
+# Test dynamics constraint
+c = mapreduce(vcat, 1:Nmpc-1) do k
+    J = zeros(n,n+m)
+    yn = zeros(n)
+    z̄ = RD.KnotPoint(Yref[k], Uref[k], times[k], dt)
+    RD.jacobian!(RD.InPlace(), RD.UserDefined(), model_bilinear, J, yn, z̄)
+    A = J[:,1:n]
+    B = J[:,n+1:end]
+    dy = Y[k] - Yref[k]
+    du = U[k] - Uref[k]
+    dyn = Y[k+1] - Yref[k+1]
+    RD.discrete_dynamics(model_bilinear, z̄) - Yref[k+1] + A*dy + B*du - dyn
+end
+c = [expandstate(model_bilinear, Xref[1]) - Y[1]; c]
+ceq = Vector(ctrl_mpc.A*z - ctrl_mpc.l)[1:Nmpc*n]
+@test c ≈ ceq
+
+# Test bound constraints
+clo = [
+    mapreduce(vcat, 1:Nmpc-1) do k
+        G*Y[k+1] - x_min
+    end
+    mapreduce(vcat, 1:Nmpc-1) do k
+        U[k] - u_min
+    end
+]
+chi = [
+    mapreduce(vcat, 1:Nmpc-1) do k
+        G*Y[k+1] - x_max
+    end
+    mapreduce(vcat, 1:Nmpc-1) do k
+        U[k] - u_max
+    end
+]
+@test clo ≈ (ctrl_mpc.A*z - ctrl_mpc.l)[Nmpc*n+1:end]
+@test chi ≈ (ctrl_mpc.A*z - ctrl_mpc.u)[Nmpc*n+1:end]
+
+## Try Solving single step
+j = 1  # time index
+zsol = solveqp!(ctrl_mpc, Xref[j], dt*(j-1))
+Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+    originalstate(model_bilinear, y)
+end
+Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m)
+@test getcontrol(ctrl_mpc, Xref[j], dt*(j-1)) ≈ Usol[1]
+tmpc = dt*(j-1) .+ range(0,length=Nmpc,step=dt)
+p = plot(tref, reduce(hcat, Xref)', 
+    label=["θref" "ωref"], lw=1, c=[1 2]
+)
+plot!(p, tmpc, reduce(hcat, Xsol)',
+    label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash
+)
+p = plot(tref, reduce(hcat, Uref)', 
+    label=["θref" "ωref"], lw=1, c=[1 2]
+)
+plot!(p, tmpc[1:end-1], reduce(hcat, Usol)',
+    label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash
+)
+
 
 ## Try tracking with bilinear TVLQR 
 i = 4
@@ -276,14 +395,15 @@ ctrl_mpc = BilinearMPC(
 )
 
 # Generate random input
-X = [randn(n0) for k = 1:N]
-U = [randn(m) for k = 1:N-1]
+X = [randn(n0) for k = 1:Nmpc]
+U = [randn(m) for k = 1:Nmpc-1]
 Y = map(x->expandstate(model_bilinear, x), X)
 
 # Convert to vectors
-x̄ = reduce(vcat, Xref)
-ū = reduce(vcat, Uref)
-ȳ = reduce(vcat, Yref)
+Yref = map(x->expandstate(model_bilinear, x), Xref)
+x̄ = reduce(vcat, Xref[j-1 .+ (1:Nmpc)])
+ū = reduce(vcat, Uref[j-1 .+ (1:Nmpc-1)])
+ȳ = reduce(vcat, Yref[j-1 .+ (1:Nmpc)])
 z̄ = [ȳ;ū]
 x = reduce(vcat, X)
 u = reduce(vcat, U)
@@ -291,17 +411,18 @@ y = reduce(vcat, Y)
 z = [y;u]
 
 # Test cost
+z
 J = 0.5 * dot(z, ctrl_mpc.P, z) + dot(ctrl_mpc.q,z) + sum(ctrl_mpc.c)
-@test J ≈ sum(1:N) do k
-    J = 0.5 * (X[k]-Xref[k])'Q*(X[k]-Xref[k])
-    if k < N
-        J += 0.5 * (U[k] - Uref[k])'R*(U[k] - Uref[k])
+@test J ≈ sum(1:Nmpc) do k
+    J = 0.5 * (X[k]-Xref[k])'Qmpc*(X[k]-Xref[k])
+    if k < Nmpc
+        J += 0.5 * (U[k] - Uref[k])'Rmpc*(U[k] - Uref[k])
     end
     J
 end
 
 # Test dynamics constraint
-c = mapreduce(vcat, 1:N-1) do k
+c = mapreduce(vcat, 1:Nmpc-1) do k
     J = zeros(n,n+m)
     yn = zeros(n)
     z̄ = RD.KnotPoint(Yref[k], Uref[k], times[k], dt)
@@ -314,7 +435,9 @@ c = mapreduce(vcat, 1:N-1) do k
     RD.discrete_dynamics(model_bilinear, z̄) - Yref[k+1] + A*dy + B*du - dyn
 end
 c = [expandstate(model_bilinear, Xref[1]) - Y[1]; c]
-@test c ≈ Vector(ctrl_mpc.A*z - ctrl_mpc.l)
+ceq = Vector(ctrl_mpc.A*z - ctrl_mpc.l)[1:Nmpc*n]
+@test c ≈ ceq
+
 
 zsol = solveqp!(ctrl_mpc, Xref[1], 0.0) 
 ysol = zsol[1:Ny]

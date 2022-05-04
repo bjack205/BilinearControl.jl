@@ -53,6 +53,7 @@ end
 num_test = 10
 initial_conditions_test = tovecs(rand(x0_sampler, num_test), length(x0_sampler))
 X_test, U_test = create_data(dmodel, ctrl_lqr, initial_conditions_test, tf, dt)
+jldsave(joinpath(Problems.DATADIR, "pendulum_lqr_trajectories.jld2"); X_train, U_train, X_test, U_test, tf, dt)
 
 # Linear a model about the top equilibrium
 eigfuns = ["state", "sine", "cosine", "chebyshev"]

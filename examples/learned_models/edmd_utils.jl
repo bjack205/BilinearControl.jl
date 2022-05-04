@@ -230,7 +230,12 @@ struct BilinearMPC <: AbstractController
     d̄::Vector{Vector{Float64}}
     Nmpc::Int
 end
-function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times)
+function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
+        x_min=fill(-Inf,length(x0)),
+        x_max=fill(+Inf,length(x0)),
+        u_min=fill(-Inf,length(Uref[1])),
+        u_max=fill(+Inf,length(Uref[1])),
+    )
     @assert length(Xref) == length(Uref) "State and control trajectory must have equal lengths. Must include terminal control."
     n,m = RD.dims(model)
     n0 = originalstatedim(model)
@@ -238,7 +243,7 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times)
     Nx = Nmpc*n0
     Nu = (Nmpc-1)*m
     Ny = Nmpc*n
-    Nc = Nmpc*n
+    Nc = Nmpc*n #+ (Nmpc-1)*n0 + Nu
 
     # QP Data
     G = model.g
@@ -259,6 +264,26 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times)
         dt = times[k+1] - times[k]
         RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
     end
+    xlo = repeat(x_min, Nmpc - 1)
+    xhi = repeat(x_max, Nmpc - 1)
+    ulo = repeat(u_min, Nmpc - 1)
+    uhi = repeat(u_max, Nmpc - 1)
+    X = [kron(spdiagm(Nmpc-1,Nmpc,1=>ones(Nmpc-1)), G) spzeros(Nx-n0, Nu)]
+    U = [spzeros(Nu,Ny) sparse(I,Nu,Nu)] 
+    A = [A; X; U]
+    l = [l; xlo; ulo]
+    u = [u; xhi; uhi]
+
+    # State and control bounds
+    # icu = Nmpc*n + (Nmpc-1)*n0 .+ (1:n)
+    # for k = 1:Nmpc-1
+    #     icx = Nmpc*n + k*n0 .+ (1:n0)  # start at k = 2
+    #     icu = Nmpc*n + (Nmpc-1)*n0 .+ (k-1)*m .+ (1:m)
+    #     l[icx] .= x_min
+    #     u[icx] .= x_max
+    #     l[icu] .= u_min
+    #     u[icu] .= u_max 
+    # end
     
     ctrl = BilinearMPC(model, Q, R, P, q, c, A, l, u, Xref, Uref, Yref, times, Ā, B̄, d̄, Nmpc)
     build_qp!(ctrl, Xref[1], 1)
@@ -329,11 +354,15 @@ function solveqp!(ctrl::BilinearMPC, x, t)
     k = get_k(ctrl, t)
     build_qp!(ctrl, x, k)
     model = OSQP.Model()
-    if norm(ctrl.l) + norm(ctrl.u) > 1e8
-        error("Large bound detected")
+    n = RD.state_dim(ctrl.model)
+    if norm(ctrl.l[1:n]) > 1e8
+        error("Large state detected")
     end
     OSQP.setup!(model, P=ctrl.P, q=ctrl.q, A=ctrl.A, l=ctrl.l, u=ctrl.u, verbose=false)
     res = OSQP.solve!(model)  # TODO: implement warm-starting
+    if res.info.status != :Solved
+        @warn "OSQP didn't solve! Got status $(res.info.status)"
+    end
     res.x
 end
 
