@@ -28,7 +28,7 @@ function pendulum_kf(x)
     [1,s,c,s2,s3, p*s,p*c, v*s,v*c]
 end
 
-function genpendulumproblem(x0=[0.,0.], Qv=1.0, Rv=1.0, Qfv=1000.0, u_bnd=3.0, tf=3.0; dt=0.05)
+function genpendulumproblem(x0=[0.,0.], Qv=1e-3, Rv=1e-3, Qfv=1e-0, u_bnd=3.0, tf=3.0; dt=0.05)
     model = RobotZoo.Pendulum()
     dmodel = RD.DiscretizedDynamics{RD.RK4}(model) 
     n,m = RD.dims(model)
@@ -50,7 +50,7 @@ function genpendulumproblem(x0=[0.,0.], Qv=1.0, Rv=1.0, Qfv=1000.0, u_bnd=3.0, t
 
     # problem
     times = range(0,tf,length=N)
-    U = [SA[cos(t/2)] for t in times]
+    U = [SA[0*cos(t/2) + randn() * 1e-2] for t in times]
     pendulum_static = TO.Problem(dmodel, obj, x0, tf, constraints=conSet, xf=xf)
     TO.initial_controls!(pendulum_static, U)
     TO.rollout!(pendulum_static)
@@ -77,7 +77,7 @@ end
 
 function Base.rand(params::PendulumParams) 
     x0 = rand(params.x0) 
-    R = 1.0 
+    R = 1.0
     Q = rand(params.Qfratio)
     Qf = 10^(rand(params.Qfratio)) * Q
     u_bnd = rand(params.u_bnd)
@@ -98,39 +98,66 @@ delete!(vis)
 set_pendulum!(vis)
 
 ## Generate ALTRO data
-Random.seed!(1)
 model = RobotZoo.Pendulum()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
-num_traj = 100
+num_traj = 400
 tf = 4.0
 dt = 0.05
 
 # Training data
-params_sampler = PendulumParams(tf=[tf-eps(tf),tf+eps(tf)])  # restrict it to a set horizon, for now
-opts = Altro.SolverOptions(show_summary=false)
-ctrl = ALTROController(genpendulumproblem, params_sampler, opts=opts)
-resetcontroller!(ctrl, zeros(2))
-X,U = simulatewithcontroller(dmodel, ctrl, zeros(2), tf, dt)
-
-x0_sampler = Product([Uniform(-pi/4,pi/4), Normal(-2, 2)])
-initial_conditions = tovecs(rand(x0_sampler, num_traj), length(x0_sampler))
-X_train, U_train = create_data(dmodel, ctrl, initial_conditions, tf, dt)
-
+Random.seed!(1)
+train_params = map(1:num_traj) do i
+    Qv = 1e-3
+    Rv = Qv * 10^rand(Uniform(-1,3.0))
+    Qfv = Qv * 10^rand(Uniform(1,4.0)) 
+    u_bnd = rand(Uniform(3.0, 8.0))
+    (zeros(2), Qv, Rv, Qfv, u_bnd, tf)
+end
+train_trajectories = map(train_params) do params
+    solver = Altro.solve!(ALTROSolver(genpendulumproblem(params...), 
+        show_summary=false, projected_newton=true))
+    if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
+        @warn "ALTRO Solve failed"
+    end
+    X = TO.states(solver)
+    U = TO.controls(solver)
+    Vector.(X), Vector.(U)
+end
+X_train_altro = mapreduce(x->getindex(x,1), hcat, train_trajectories)
+U_train_altro = mapreduce(x->getindex(x,2), hcat, train_trajectories)
+    
 all(1:num_traj) do i
-    simulate(dmodel, U_train[:,i], initial_conditions[i], tf, dt) ≈ X_train[:,i]
+    simulate(dmodel, U_train_altro[:,i], zeros(2), tf, dt) ≈ X_train_altro[:,i]
 end
 
 # Test data
-num_traj_test = 10
-x0_sampler_test = Product([Uniform(-eps(),eps()), Normal(-eps(), eps())])
-initial_conditions_test = tovecs(rand(x0_sampler_test, num_traj_test), length(x0_sampler_test))
-params_sampler_test = PendulumParams(tf=[tf-eps(tf),tf+eps(tf)], QRratio=[1.0, 1.1], Qfratio=[1.0,3.0], u_bnd=[3.5,5.5])
-ctrl_test = ALTROController(genpendulumproblem, params_sampler_test, opts=opts)
-X_test, U_test = create_data(dmodel, ctrl_test, initial_conditions_test, tf, dt)
-all(1:num_traj_test) do i
-    simulate(dmodel, U_test[:,i], initial_conditions_test[i], tf, dt) ≈ X_test[:,i]
+test_params = [
+    (zeros(2), 1e-3, 1e-3, 1e-0, 10.0, tf),
+    (zeros(2), 1e-3, 1e-2, 1e-0, 3.0, tf),
+    (zeros(2), 1e-3, 1e-3, 1e-0, 3.0, tf),
+    (zeros(2), 1e-3, 1e-3, 1e-0, 4.0, tf),
+    (zeros(2), 1e-3, 1e-3, 1e-0, 5.0, tf),
+    (zeros(2), 1e-3, 1e-0, 1e-0, 5.0, tf),
+    (zeros(2), 1e-1, 1e-3, 1e-0, 4.0, tf),
+    (zeros(2), 1e-0, 1e-3, 1e-0, 7.0, tf),
+    (zeros(2), 1e-0, 1e-3, 1e-0, 4.0, tf),
+    (zeros(2), 1e-3, 1e-2, 1e-0, 4.0, tf),
+]
+test_trajectories = map(test_params) do params
+    solver = Altro.solve!(ALTROSolver(genpendulumproblem(params...), show_summary=false))
+    if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
+        @warn "ALTRO Solve failed"
+    end
+    X = TO.states(solver)
+    U = TO.controls(solver)
+    Vector.(X), Vector.(U)
 end
-jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); X_train, U_train, X_test, U_test, tf, dt)
+X_test = mapreduce(x->getindex(x,1), hcat, test_trajectories)
+U_test = mapreduce(x->getindex(x,2), hcat, test_trajectories)
+
+jldsave(joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2"); 
+    X_train=X_train_altro, U_train=U_train_altro, X_test, U_test, tf, dt
+)
 
 # ## Generate training data
 # model = RobotZoo.Pendulum()
@@ -177,10 +204,13 @@ altro_datafile = joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2")
 lqr_datafile = joinpath(Problems.DATADIR, "pendulum_lqr_trajectories.jld2")
 X_train_altro = load(altro_datafile, "X_train")
 U_train_altro = load(altro_datafile, "U_train")
-X_train_lqr = load(lqr_datafile, "X_train")[:,1:300]
-U_train_lqr = load(lqr_datafile, "U_train")[:,1:300]
 X_test = load(altro_datafile, "X_test")
 U_test = load(altro_datafile, "U_test")
+
+X_train_lqr = load(lqr_datafile, "X_train")[:,1:00]
+U_train_lqr = load(lqr_datafile, "U_train")[:,1:00]
+X_test_lqr = load(lqr_datafile, "X_test")
+U_test_lqr = load(lqr_datafile, "U_test")
 tf = load(altro_datafile, "tf")
 dt = load(altro_datafile, "dt")
 @assert load(lqr_datafile, "tf") == tf
@@ -190,33 +220,65 @@ U_train = [U_train_altro U_train_lqr]
 
 # Learn bilinear model
 eigfuns = ["state", "sine", "cosine", "chebyshev"]
-eigorders = [0,0,0,5]
+eigorders = [0,0,0,4]
 Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
 
 F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
     ["ridge", "lasso"]; 
-    edmd_weights=[10.1], 
+    edmd_weights=[1.1], 
     mapping_weights=[0.0], 
     algorithm=:cholesky
 );
 
+norm(F)
 model_bilinear = EDMDModel(F,C,g,kf,dt,"pendulum")
 RD.dims(model_bilinear)
 
 norm(bilinearerror(model_bilinear, X_train, U_train)) / length(U_train)
 norm(bilinearerror(model_bilinear, X_test, U_test)) / length(U_test)
+norm(bilinearerror(model_bilinear, X_test_lqr, U_test_lqr)) / length(U_test_lqr)
 
-## MPC Controller
+## Stabilizing MPC Controller
+xe = [pi,0]
+ue = [0.0] 
+N = 1001
+Xref = [copy(xe) for k = 1:N]
+Uref = [copy(ue) for k = 1:N]
+tref = range(0,length=N,step=dt)
+Nmpc = 21
+Qmpc = Diagonal([10.0,0.1])
+Rmpc = Diagonal([1e-4])
+ctrl_mpc = BilinearMPC(
+    model_bilinear, Nmpc, Xref[1], Qmpc, Rmpc, Xref, Uref, tref
+)
+
+# Test on test data
+tsim = 1.0
+times_sim = range(0,tsim,step=dt)
+p = plot(times_sim, reduce(hcat, Xref[1:length(times_sim)])', 
+    label=["θ" "ω"], lw=2
+)
+for i = 1:size(X_test_lqr,2)
+    x0 = X_test_lqr[1,i] 
+    Xmpc, Umpc = simulatewithcontroller(
+        dmodel, ctrl_mpc, x0, tsim, dt
+    )
+    plot!(p,times_sim, reduce(hcat,Xmpc)', 
+        c=[1 2], s=:dash, label="", lw=1, legend=:bottom, ylim=(-6,6))
+end
+display(p)
+
+## MPC Tracking Controller
 n,m = RD.dims(model_bilinear)
 n0 = originalstatedim(model_bilinear)
-i = 1  # test trajectory index
+i = 2  # test trajectory index
 x_max = [20pi, 1000]
 u_max = [200]
 x_min = -x_max 
 u_min = -u_max 
 
 # Reference trajectory
-i = 1  # test trajectory index
+i = 10  # test trajectory index
 x0 = copy(X_test[1,i])
 xf = [pi,0]
 uf = zeros(m)
@@ -224,22 +286,88 @@ Xref = X_test[:,i]
 Uref = U_test[:,i]
 Xref[end] .= xf
 push!(Uref, zeros(m))
-# for i = 1:100
-#     push!(Xref, xf)
-#     push!(Uref, uf)
-# end
 tref = range(0,length=length(Xref),step=dt)
 
-# MPC controller
+# Plot the Reference trajectory
+p = plot(tref, reduce(hcat, X_test[:,i])',
+    label=["θref" "ωref"], lw=1, c=[1 2]
+)
+
+# Generate controller
 Nmpc = 41
 Qmpc = Diagonal([10.0,0.1])
-Rmpc = Diagonal([1e-2])
+Rmpc = Diagonal([1e-4])
 ctrl_mpc = BilinearMPC(
     model_bilinear, Nmpc, x0, Qmpc, Rmpc, Xref, Uref, tref;
     x_max, x_min, u_max, u_min
 )
 
+# Run full controller
+t_sim = 5.0
+time_sim = range(0,t_sim, step=dt)
+Xsim,Usim = simulatewithcontroller(dmodel, ctrl_mpc, Xref[1], t_sim, dt)
+p = plot(tref, reduce(hcat, ctrl_mpc.Xref)', 
+    label=["θref" "ωref"], lw=1, c=[1 2],
+    xlabel="time (s)", ylabel="states"
+)
+plot!(p, time_sim, reduce(hcat, Xsim)',
+    label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash, legend=:outerright,
+)
+
+#############################################
+## Step through MPC control
+#############################################
+Nmpc = 41
+Qmpc = Diagonal([10.0,0.1])
+Rmpc = Diagonal([1e-4])
+ctrl_mpc = BilinearMPC(
+    model_bilinear, Nmpc, x0, Qmpc, Rmpc, Xref, Uref, tref;
+    x_max, x_min, u_max, u_min
+)
+
+j = 1  # time index
+zprev = solveqp!(ctrl_mpc, Xref[j], dt*(j-1))
+t_sim = 5.0
+time_sim = range(0,t_mpc, step=dt)
+time_mpc = range(0, length=ctrl_mpc.Nmpc, step=dt)
+zsol = zprev
+Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+    originalstate(model_bilinear, y)
+end
+p = plot(tref, reduce(hcat, Xref)', 
+    label=["θref" "ωref"], lw=1, c=[1 2]
+)
+plot!(p, time_mpc, reduce(hcat, Xsol)',
+    label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash, legend=:right
+)
+
+Xmpc = [copy(Xref[1]) for t in time_mpc] 
+
+## 
+let
+    zsol = solveqp!(ctrl_mpc, Xmpc[j], dt*(j-1))
+    Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+        originalstate(model_bilinear, y)
+    end
+    Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m)
+    global zprev .= zsol
+    u = Usol[1]
+    Xmpc[j+1] = RD.discrete_dynamics(dmodel, Xmpc[j], u, time_mpc[j], dt)
+    tmpc = dt*(j-1) .+ range(0,length=Nmpc,step=dt)
+    global j += 1
+    p = plot(tref, reduce(hcat, Xref)', 
+        label=["θref" "ωref"], lw=1, c=[1 2]
+    )
+    plot!(p, tmpc, reduce(hcat, Xsol)',
+        label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash, legend=:right
+    )
+    display(p)
+end
+
+
+#############################################
 ## Test MPC controller
+#############################################
 Nx = Nmpc*n0
 Ny = Nmpc*n
 Nu = (Nmpc-1)*m
@@ -253,6 +381,7 @@ U = [randn(m) for k = 1:Nmpc-1]
 Y = map(x->expandstate(model_bilinear, x), X)
 
 # Convert to vectors
+j = 1
 Yref = map(x->expandstate(model_bilinear, x), Xref)
 x̄ = reduce(vcat, Xref[j-1 .+ (1:Nmpc)])
 ū = reduce(vcat, Uref[j-1 .+ (1:Nmpc-1)])
@@ -277,7 +406,7 @@ end
 c = mapreduce(vcat, 1:Nmpc-1) do k
     J = zeros(n,n+m)
     yn = zeros(n)
-    z̄ = RD.KnotPoint(Yref[k], Uref[k], times[k], dt)
+    z̄ = RD.KnotPoint(Yref[k], Uref[k], tref[k], dt)
     RD.jacobian!(RD.InPlace(), RD.UserDefined(), model_bilinear, J, yn, z̄)
     A = J[:,1:n]
     B = J[:,n+1:end]
@@ -291,6 +420,7 @@ ceq = Vector(ctrl_mpc.A*z - ctrl_mpc.l)[1:Nmpc*n]
 @test c ≈ ceq
 
 # Test bound constraints
+G = model_bilinear.g
 clo = [
     mapreduce(vcat, 1:Nmpc-1) do k
         G*Y[k+1] - x_min
@@ -311,38 +441,6 @@ chi = [
 @test chi ≈ (ctrl_mpc.A*z - ctrl_mpc.u)[Nmpc*n+1:end]
 @test (ctrl_mpc.A*z)[Nd+1:end] ≈ [x[n0+1:end]; u]
 
-j = 1  # time index
-ctrl_mpc = BilinearMPC(
-    model_bilinear, Nmpc, x0, Qmpc, Rmpc, Xref, Uref, tref;
-    u_max, u_min,
-    # x_max, x_min, u_max, u_min
-)
-zprev = solveqp!(ctrl_mpc, Xref[j], dt*(j-1), x0=zsol)
-t_mpc = 5.0
-time_mpc = range(0,t_mpc, step=dt)
-Xmpc = [copy(Xref[1]) for t in time_mpc] 
-
-## Try Solving single step
-let
-    zsol = solveqp!(ctrl_mpc, Xmpc[j], dt*(j-1), x0=zprev)
-    Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
-        originalstate(model_bilinear, y)
-    end
-    Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m)
-    global zprev .= zsol
-    u = Usol[1]
-    Xmpc[j+1] = RD.discrete_dynamics(dmodel, Xmpc[j], u, time_mpc[j], dt)
-    # @show norm(Usol, Inf)
-    # @test getcontrol(ctrl_mpc, Xref[j], dt*(j-1)) ≈ Usol[1]
-    tmpc = dt*(j-1) .+ range(0,length=Nmpc,step=dt)
-    global j += 1
-    p = plot(tref, reduce(hcat, Xref)', 
-        label=["θref" "ωref"], lw=1, c=[1 2]
-    )
-    plot!(p, tmpc, reduce(hcat, Xsol)',
-        label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash, legend=:right
-    )
-end
 
 ##
 i = 1  # test trajectory index
@@ -359,16 +457,6 @@ ctrl_mpc = BilinearMPC(
     # x_max, x_min, u_max, u_min
 )
 
-t_sim = 5.0
-time_sim = range(0,t_sim, step=dt)
-Xsim,Usim = simulatewithcontroller(dmodel, ctrl_mpc, Xref[1], t_sim, dt)
-p = plot(tref, reduce(hcat, X_test[:,10])', 
-    label=["θref" "ωref"], lw=1, c=[1 2],
-    xlabel="time (s)", ylabel="states"
-)
-plot!(p, time_sim, reduce(hcat, Xsim)',
-    label=["θmpc" "ωmpc"], lw=2, c=[1 2], s=:dash, legend=:right
-)
 
 ##
 p = plot(tref, reduce(hcat, Uref)', 
