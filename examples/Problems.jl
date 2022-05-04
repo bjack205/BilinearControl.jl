@@ -12,6 +12,8 @@ using JLD2
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
+const FIGDIR = joinpath(dirname(pathof(BilinearControl)), "..", "images")
+
 import BilinearControl: DiscreteLinearModel
 
 # Include models
