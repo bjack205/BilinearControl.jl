@@ -253,64 +253,6 @@ visualize!(vis, model, tf, X)
 visualize!(vis, model, tf, X_bilinear)
 
 ## MPC 
-function build_qp!(model::EDMDModel, x0, Q, R, Xref, Uref, times)
-    Yref = map(x->expandstate(model, x), Xref)
-
-    n,m = RD.dims(model)
-    N = length(Xref)
-    Nx = sum(length, Xref)
-    Nu = sum(length, Uref)
-    Ny = sum(length, Yref)
-
-    Ā,B̄ = linearize(model, Yref, Uref, times)
-    d̄ = map(1:N-1) do k
-        dt = times[k+1] - times[k]
-        RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
-    end
-    G = model.g
-
-    # Build Cost
-    P = blockdiag(kron(sparse(I,N,N),G'Q*G), kron(sparse(I,N-1,N-1), R))
-    q0 = mapreduce(vcat, 1:N) do k
-        -G'Q*Xref[k]
-    end
-    r0 = mapreduce(vcat, 1:length(U)) do k
-        -R*Uref[k]
-    end
-    q = [q0; r0]
-    c = map(1:N) do k
-        J = 0.5 * dot(Xref[k], Q, Xref[k])
-        if k < N
-            J += 0.5 * dot(Uref[k], R, Uref[k])
-        end
-        J
-    end
-
-    # Build dynamics
-    D = spzeros(N*n, Ny + Nu) 
-    d = zeros(N*n)
-    ic = 1:n
-    D[ic,1:n] .= -I(n)
-    d[ic] .= -expandstate(model, x0)
-    ic = ic .+ n
-    for k = 1:N-1
-        ix1 = (k-1)*n .+ (1:n)
-        iu1 = (k-1)*m + Ny .+ (1:m)
-        ix2 = ix1 .+ n
-        D[ic,ix1] .= Ā[k]
-        D[ic,iu1] .= B̄[k]
-        D[ic,ix2] .= -I(n)
-        d[ic] .= -d̄[k]
-
-        ic = ic .+ n
-    end
-    A = D
-    ub = d
-    lb = d
-
-    P, q, c, A, lb, ub 
-end
-
 # Generate the QP data
 n,m = RD.dims(model_bilinear)
 n0 = originalstatedim(model_bilinear)
@@ -411,3 +353,166 @@ end
 Xmpc, Umpc = simulatewithcontroller(dmodel, ctrl_mpc, Xref[1] + randn(n0) * 1e-1, tf, dt)
 plot(times, reduce(hcat,Xref)', c=[1 2], label="reference")
 plot!(times, reduce(hcat,Xmpc)', c=[1 2], s=:dash, label="MPC", lw=2, legend=:bottom, ylim=(-4,4))
+
+## Try stabilizing about the top
+Random.seed!(1)
+model = RobotZoo.Pendulum()
+dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+n0,m = RD.dims(model)
+num_traj = 400
+tf = 4.0
+dt = 0.05
+xe = [pi,0]
+ue = [0.0]
+
+# Training data
+Random.seed!(1)
+Q = Diagonal([1.0, 1e-1])
+R = Diagonal(fill(1e-3, m))
+ctrl_lqr = LQRController(dmodel, Q, R, xe, ue, dt)
+
+x_ub = [pi+pi/4,+2]
+x_lb = [pi-pi/4,-2]
+x0_sampler = Product([Uniform(x_lb[1], x_ub[1]), Normal(x_lb[2], x_ub[2])])
+initial_conditions = tovecs(rand(x0_sampler, num_traj), length(x0_sampler))
+X_train, U_train = create_data(dmodel, ctrl_lqr, initial_conditions, tf, dt)
+t_train = range(0,tf,step=dt)
+u_bnd = norm(U_train,Inf)
+
+all(1:num_traj) do i
+    simulate(dmodel, U_train[:,i], initial_conditions[i], tf, dt) ≈ X_train[:,i]
+end
+
+# Test data
+num_test = 10
+initial_conditions_test = tovecs(rand(x0_sampler, num_test), length(x0_sampler))
+X_test, U_test = create_data(dmodel, ctrl_lqr, initial_conditions_test, tf, dt)
+
+# Linear a model about the top equilibrium
+eigfuns = ["state", "sine", "cosine", "chebyshev"]
+eigorders = [0,0,0,4]
+Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
+
+F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
+    ["ridge", "lasso"]; 
+    edmd_weights=[0.1], 
+    mapping_weights=[10.0], 
+    algorithm=:cholesky
+);
+
+norm(F)
+model_lqr = EDMDModel(F,C,g,kf,dt,"pendulum")
+
+maximum(
+    norm(bilinearerror(model_lqr, dmodel, X_test[:,i], U_test[:,i]), Inf) for i = 1:num_test
+)
+maximum(
+    norm(bilinearerror(model_lqr, dmodel, X_train[:,i], U_train[:,i]), Inf) for i = 1:num_traj
+)
+n = RD.state_dim(model_lqr)
+
+# Compare open-loop rollouts
+i = 4  # test data index
+X = simulate(dmodel, U_test[:,i], initial_conditions_test[i], tf, dt)
+Y = simulate(model_lqr, U_test[:,i], expandstate(model_lqr, initial_conditions_test[i]), tf, dt)
+X_bl = map(x->originalstate(model_lqr, x), Y)
+plot(
+    t_train, reduce(hcat,X_test[:,i])', 
+    c=[1 2], label="Test", lw=1, legend=:bottom, ylim=(-5,5)
+)
+plot!(
+    t_train, reduce(hcat,X)', 
+    c=[1 2], s=:dot, label="Nonlinear model", lw=1, legend=:bottom, ylim=(-5,5)
+)
+plot!(
+    t_train, reduce(hcat,X_bl)', 
+    c=[1 2], s=:dash, label="Bilinear model", lw=2, legend=:bottom, ylim=(-5,5)
+)
+norm(bilinearerror(model_lqr, dmodel, X_train[:,i], U_train[:,i]), Inf)
+
+# Create MPC controller
+N = 1001
+Xref = [copy(xe) for k = 1:N]
+Uref = [copy(ue) for k = 1:N]
+tref = range(0,length=N,step=dt)
+Nmpc = length(t_train) 
+Qmpc = Diagonal([1.0,0.1])
+Rmpc = Diagonal([1e-3])
+ctrl_mpc = BilinearMPC(
+    model_lqr, Nmpc, initial_conditions[1], Qmpc, Rmpc, Xref, Uref, tref
+)
+
+i = 4  # test data index
+j = 1  # time step index
+t_mpc = range(0,length=Nmpc,step=dt)
+x0 = initial_conditions_test[i]
+zsol = solveqp!(ctrl_mpc, x0, dt*(j-1))
+Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+    originalstate(model_lqr, y)
+end
+Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m) 
+plot(t_mpc[1:end-1], reduce(hcat,Usol)', ylabel="controls", label="OSQP")
+plot!(t_mpc[1:end-1], reduce(hcat,U_test[:,i])', ylabel="controls", label="Train")
+plot(t_mpc, reduce(hcat,Xsol)', label="OSQP", c=[1 2], lw=2)
+plot!(t_mpc, reduce(hcat,X_test[:,i])', label="Train", c=[1 2])
+
+Ysim = simulate(model_lqr, Usol, expandstate(model_lqr, x0), t_mpc[end], dt)
+Xsim_bl = map(x->originalstate(model_lqr, x), Ysim)
+plot!(t_mpc, reduce(hcat,Xsim_bl)', label="Simulated (bilinear)", c=[1 2], s=:dash)
+
+Xsim = simulate(dmodel, Usol, x0, t_mpc[end], dt)
+plot!(t_mpc, reduce(hcat,Xsim)', label="Simulated (nonlinear)", c=[3 4], s=:solid, lw=1)
+# Xsim = simulate(dmodel, U_test[:,i], x0, t_mpc[end], dt)
+# plot!(t_mpc, reduce(hcat,Xsim)', label="Simulated (nonlinear)", c=[3 4], s=:solid, lw=1)
+
+
+# Solve first
+i = 6  # test data index
+j = 1  # time step index
+x0 = initial_conditions_test[i]
+zsol = solveqp!(ctrl_mpc, x0, dt*(j-1))
+Xsol0 = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+    originalstate(model_lqr, y)
+end
+# p = plot(t_mpc, reduce(hcat,Xsol0)', label="OSQP", c=[1 2], lw=1)
+
+Xmpc = [copy(x0) for t in t_mpc]
+##
+let k=j
+    t0 = dt*(k-1)
+    zsol = solveqp!(ctrl_mpc, Xmpc[k], t0)
+    Xsol = map(eachcol(reshape(view(zsol, 1:Nmpc*n), n, :))) do y
+        originalstate(model_lqr, y)
+    end
+    Usol = tovecs(view(zsol, Nmpc*n+1:length(zsol)), m) 
+    p = plot(t_mpc, reduce(hcat,Xsol0)', label="OSQP", c=[1 2], lw=1)
+    plot!(p, t0 .+ t_mpc, reduce(hcat,Xsol)', label="OSQP", c=[1 2], lw=2, s=:dash)
+    display(p)
+    
+    u = Usol[1]
+    Xmpc[k+1] = RD.discrete_dynamics(dmodel, Xmpc[k], u, t_mpc[k], dt)
+    global j += 1
+end
+
+## Plot all of the test data
+i = 1  # test data index
+tsim = 1.0
+times_sim = range(0,tsim,step=dt)
+x0 = initial_conditions_test[i]
+Xmpc, = simulatewithcontroller(dmodel, ctrl_mpc, x0, tsim, dt)
+p = plot(times_sim, reduce(hcat,Xmpc)', label="OSQP", c=[1 2], lw=1)
+
+##
+tsim = 1.0
+times_sim = range(0,tsim,step=dt)
+p = plot(times[1:length(times_sim)], reduce(hcat, Xref[1:length(times_sim)])', 
+    label="reference", lw=2
+)
+for i = 1:num_test
+    x0 = initial_conditions_test[i]
+    Xmpc, Umpc = simulatewithcontroller(
+        dmodel, ctrl_mpc, x0, tsim, dt
+    )
+    plot!(p,times_sim, reduce(hcat,Xmpc)', c=[1 2], s=:dash, label="", lw=1, legend=:bottom, ylim=(-4,4))
+end
+display(p)

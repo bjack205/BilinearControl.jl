@@ -1,3 +1,4 @@
+using OSQP
 
 ## Define some useful controllers
 abstract type AbstractController end
@@ -328,6 +329,9 @@ function solveqp!(ctrl::BilinearMPC, x, t)
     k = get_k(ctrl, t)
     build_qp!(ctrl, x, k)
     model = OSQP.Model()
+    if norm(ctrl.l) + norm(ctrl.u) > 1e8
+        error("Large bound detected")
+    end
     OSQP.setup!(model, P=ctrl.P, q=ctrl.q, A=ctrl.A, l=ctrl.l, u=ctrl.u, verbose=false)
     res = OSQP.solve!(model)  # TODO: implement warm-starting
     res.x
