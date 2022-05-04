@@ -369,11 +369,14 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
     X,U
 end
 
-function bilinearerror(model::EDMDModel, model0::RD.DiscreteDynamics, X, U)
+function bilinearerror(model::EDMDModel, X, U)
     dt = model.dt
-    map(1:length(U)) do k
-        uk = U[k]
-        zk = expandstate(model, X[k]) 
+    map(CartesianIndices(U)) do cind
+        k = cind[1]
+        i = cind[2]
+
+        uk = U[k,i]
+        zk = expandstate(model, X[k,i]) 
         zn = zero(zk)
         t = (k-1)*dt
         RD.discrete_dynamics!(model, zn, zk, uk, t, dt)
@@ -381,6 +384,7 @@ function bilinearerror(model::EDMDModel, model0::RD.DiscreteDynamics, X, U)
         xn - X[k+1]
     end
 end
+
 
 function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
     times = range(0, tf, step=dt)

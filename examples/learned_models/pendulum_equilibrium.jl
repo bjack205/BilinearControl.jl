@@ -71,12 +71,8 @@ model_lqr = EDMDModel(F,C,g,kf,dt,"pendulum")
 
 # Check performance on test data
 norm(F)
-maximum(
-    norm(bilinearerror(model_lqr, dmodel, X_test[:,i], U_test[:,i]), Inf) for i = 1:num_test
-)
-maximum(
-    norm(bilinearerror(model_lqr, dmodel, X_train[:,i], U_train[:,i]), Inf) for i = 1:num_traj
-)
+norm(bilinearerror(model_lqr, X_train, U_train)) / length(U_train)
+norm(bilinearerror(model_lqr, X_test, U_test)) / length(U_test)
 n = RD.state_dim(model_lqr)
 
 ## Generate MPC controller
@@ -89,6 +85,65 @@ Qmpc = Diagonal([1.0,0.1])
 Rmpc = Diagonal([1e-3])
 ctrl_mpc = BilinearMPC(
     model_lqr, Nmpc, initial_conditions[1], Qmpc, Rmpc, Xref, Uref, tref
+)
+
+# Test on test data
+tsim = 1.0
+times_sim = range(0,tsim,step=dt)
+p = plot(times_sim, reduce(hcat, Xref[1:length(times_sim)])', 
+    label=["θ" "ω"], lw=2
+)
+for i = 1:num_test
+    x0 = initial_conditions_test[i]
+    Xmpc, Umpc = simulatewithcontroller(
+        dmodel, ctrl_mpc, x0, tsim, dt
+    )
+    plot!(p,times_sim, reduce(hcat,Xmpc)', c=[1 2], s=:dash, label="", lw=1, legend=:bottom, ylim=(-4,4))
+end
+display(p)
+
+## Try it with ALTRO swing-up data
+model = RobotZoo.Pendulum()
+dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+
+datafile = joinpath(Problems.DATADIR, "pendulum_altro_trajectories.jld2")
+X_train_altro = load(datafile, "X_train")
+U_train_altro = load(datafile, "U_train")
+tf = load(datafile, "tf")
+dt = load(datafile, "dt")
+
+# Learn a model w/ the ALTRO data 
+model_bilinear = let X_train = [X_train X_train_altro[:,1:100]], U_train = [U_train U_train_altro[:,1:100]]
+    eigfuns = ["state", "sine", "cosine", "chebyshev"]
+    eigorders = [0,0,0,5]
+    Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
+
+    F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
+        ["ridge", "lasso"]; 
+        edmd_weights=[10.1], 
+        mapping_weights=[10.0], 
+        algorithm=:cholesky
+    );
+    EDMDModel(F,C,g,kf,dt,"pendulum")
+end
+
+norm(model_bilinear.A)
+norm(bilinearerror(model_bilinear, X_train_altro, U_train_altro)) / length(U_train)
+norm(bilinearerror(model_bilinear, X_train, U_train)) / length(U_train)
+norm(bilinearerror(model_bilinear, X_test, U_test)) / length(U_test)
+norm(bilinearerror(model_lqr, X_test, U_test)) / length(U_test)
+n = RD.state_dim(model_bilinear)
+
+## Generate MPC controller
+N = 1001
+Xref = [copy(xe) for k = 1:N]
+Uref = [copy(ue) for k = 1:N]
+tref = range(0,length=N,step=dt)
+Nmpc = 41
+Qmpc = Diagonal([10.0,0.1])
+Rmpc = Diagonal([1e-4])
+ctrl_mpc = BilinearMPC(
+    model_bilinear, Nmpc, initial_conditions[1], Qmpc, Rmpc, Xref, Uref, tref
 )
 
 # Test on test data
