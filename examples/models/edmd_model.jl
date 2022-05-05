@@ -58,6 +58,10 @@ expandstate(model::EDMDModel, x) = model.kf(x)
 originalstate(model::EDMDModel, z) = model.g*z
 originalstatedim(model::EDMDModel) = size(model.g, 1)
 
+originalstate(::RD.DiscreteDynamics, x) = x
+originalstatedim(model::RD.DiscreteDynamics) =  RD.state_dim(model)
+expandstate(::RD.DiscreteDynamics, x) = x
+
 ## Saved models
 const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
 BilinearPendulum() = EDMDModel(joinpath(DATADIR, "pendulum_eDMD_data.jld2"), name="pendulum")

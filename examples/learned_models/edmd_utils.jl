@@ -160,8 +160,8 @@ function getcontrol(ctrl::BilinearController, x, t)
 end
 
 
-struct BilinearMPC <: AbstractController
-    model::EDMDModel
+struct BilinearMPC{L} <: AbstractController
+    model::L
     Q::Diagonal{Float64,Vector{Float64}}
     R::Diagonal{Float64,Vector{Float64}}
     P::SparseMatrixCSC{Float64,Int}
@@ -179,7 +179,7 @@ struct BilinearMPC <: AbstractController
     d̄::Vector{Vector{Float64}}
     Nmpc::Int
 end
-function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
+function BilinearMPC(model::RD.DiscreteDynamics, Nmpc, x0, Q, R, Xref, Uref, times;
         x_min=fill(-Inf,length(x0)),
         x_max=fill(+Inf,length(x0)),
         u_min=fill(-Inf,length(Uref[1])),
@@ -195,7 +195,11 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
     Nc = Nmpc*n #+ (Nmpc-1)*n0 + Nu
 
     # QP Data
-    G = model.g
+    if model isa EDMDModel
+        G = model.g
+    else
+        G = I(n)
+    end
     P = blockdiag(kron(sparse(I,Nmpc,Nmpc),G'Q*G), kron(sparse(I,Nmpc-1,Nmpc-1), R))
     q = zeros(Ny+Nu)
     c = zeros(Nmpc)
@@ -211,7 +215,8 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
     Ā,B̄ = linearize(model, Yref, Uref, times)
     d̄ = map(1:N-1) do k
         dt = times[k+1] - times[k]
-        RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
+        d = RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
+        Vector(d)
     end
 
     # Bound constraints
@@ -225,7 +230,7 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
     l = [l; xlo; ulo]
     u = [u; xhi; uhi]
     
-    ctrl = BilinearMPC(model, Q, R, P, q, c, A, l, u, Xref, Uref, Yref, times, Ā, B̄, d̄, Nmpc)
+    ctrl = BilinearMPC(model, Q, R, P, q, c, A, l, u, Xref, Uref, Yref, collect(times), Ā, B̄, d̄, Nmpc)
     build_qp!(ctrl, Xref[1], 1)
 end
 
@@ -233,6 +238,7 @@ gettime(ctrl::BilinearMPC) = ctrl.times
 
 function build_qp!(ctrl::BilinearMPC, x0, kstart::Integer)
     model = ctrl.model
+    n = RD.state_dim(model)
 
     # Indices from reference trajectory
     kinds = kstart - 1 .+ (1:ctrl.Nmpc)
@@ -242,7 +248,12 @@ function build_qp!(ctrl::BilinearMPC, x0, kstart::Integer)
     Uref = ctrl.Uref
     Yref = ctrl.Yref
     Ā,B̄,d̄ = ctrl.Ā, ctrl.B̄, ctrl.d̄
-    G = ctrl.model.g
+
+    if model isa EDMDModel
+        G = model.g
+    else
+        G = I(n)
+    end
     Q,R = ctrl.Q, ctrl.R
 
     # Some useful sizes
