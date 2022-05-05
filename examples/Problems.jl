@@ -13,6 +13,7 @@ const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
 const FIGDIR = joinpath(dirname(pathof(BilinearControl)), "..", "images")
+const VISDIR = joinpath(@__DIR__, "visualization/") 
 
 import BilinearControl: DiscreteLinearModel
 
