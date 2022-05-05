@@ -12,6 +12,8 @@ using JLD2
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
+const FIGDIR = joinpath(dirname(pathof(BilinearControl)), "..", "images")
+
 import BilinearControl: DiscreteLinearModel
 
 # Include models
@@ -26,6 +28,7 @@ include(joinpath(model_dir, "integrator_models.jl"))
 include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
 include(joinpath(model_dir, "edmd_model.jl"))
+include("learned_models/edmd_utils.jl")
 
 # Problem constructors
 include("problems.jl")
@@ -45,6 +48,8 @@ export
     Swarm,
     BilinearCartpole,
     EDMDModel
+
+export BilinearMPC
 
 export expandstate, originalstate, originalstatedim
 

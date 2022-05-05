@@ -159,57 +159,6 @@ function getcontrol(ctrl::BilinearController, x, t)
     return u
 end
 
-mutable struct ALTROController{D} <: AbstractController
-    genprob::Function
-    distribution::D
-    tvlqr::TVLQRController
-    prob::TO.Problem{Float64}
-    opts::Altro.SolverOptions{Float64}
-    function ALTROController(genprob::Function, distribution::D; opts=Altro.SolverOptions()) where D
-        params = rand(distribution)
-        prob = genprob(params...)
-        n = RD.state_dim(prob,1)
-        m = RD.control_dim(prob,1)
-        N = TO.horizonlength(prob)
-        K = [zeros(m,n) for k = 1:N-1]
-        Xref = RD.states(prob)
-        Uref = RD.controls(prob)
-        time = RD.gettimes(prob)
-        tvlqr = TVLQRController(K, Xref, Uref, time)
-        new{D}(genprob, distribution, tvlqr, prob, opts)
-    end
-end
-
-function resetcontroller!(ctrl::ALTROController, x0)
-    params = rand(ctrl.distribution)
-    prob = ctrl.genprob(params...)
-    TO.set_initial_state!(prob, x0)
-    solver = Altro.ALTROSolver(prob, ctrl.opts)
-    solve!(solver)
-    status = Altro.status(solver)
-    if status != Altro.SOLVE_SUCCEEDED
-        @warn "ALTRO solve failed."
-    end
-    X = RD.states(solver)
-    U = RD.controls(solver)
-    t = RD.gettimes(prob)
-    K = Altro.get_ilqr(solver).K
-    N = TO.horizonlength(prob)
-    ctrl.prob = prob
-    resize!(ctrl.tvlqr.K, N-1)
-    resize!(ctrl.tvlqr.xref, N)
-    resize!(ctrl.tvlqr.uref, N-1)
-    resize!(ctrl.tvlqr.time, N)
-    copyto!(ctrl.tvlqr.K, K)
-    copyto!(ctrl.tvlqr.xref, X)
-    copyto!(ctrl.tvlqr.uref, U)
-    copyto!(ctrl.tvlqr.time, t)
-    ctrl
-end
-
-function getcontrol(ctrl::ALTROController, x, t)
-    getcontrol(ctrl.tvlqr, x, t)
-end
 
 struct BilinearMPC <: AbstractController
     model::EDMDModel
@@ -264,6 +213,8 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
         dt = times[k+1] - times[k]
         RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
     end
+
+    # Bound constraints
     xlo = repeat(x_min, Nmpc - 1)
     xhi = repeat(x_max, Nmpc - 1)
     ulo = repeat(u_min, Nmpc - 1)
@@ -273,17 +224,6 @@ function BilinearMPC(model::EDMDModel, Nmpc, x0, Q, R, Xref, Uref, times;
     A = [A; X; U]
     l = [l; xlo; ulo]
     u = [u; xhi; uhi]
-
-    # State and control bounds
-    # icu = Nmpc*n + (Nmpc-1)*n0 .+ (1:n)
-    # for k = 1:Nmpc-1
-    #     icx = Nmpc*n + k*n0 .+ (1:n0)  # start at k = 2
-    #     icu = Nmpc*n + (Nmpc-1)*n0 .+ (k-1)*m .+ (1:m)
-    #     l[icx] .= x_min
-    #     u[icx] .= x_max
-    #     l[icu] .= u_min
-    #     u[icu] .= u_max 
-    # end
     
     ctrl = BilinearMPC(model, Q, R, P, q, c, A, l, u, Xref, Uref, Yref, times, Ā, B̄, d̄, Nmpc)
     build_qp!(ctrl, Xref[1], 1)
@@ -350,7 +290,7 @@ function build_qp!(ctrl::BilinearMPC, x0, kstart::Integer)
     ctrl
 end
 
-function solveqp!(ctrl::BilinearMPC, x, t)
+function solveqp!(ctrl::BilinearMPC, x, t; x0=nothing)
     k = get_k(ctrl, t)
     build_qp!(ctrl, x, k)
     model = OSQP.Model()
@@ -359,6 +299,9 @@ function solveqp!(ctrl::BilinearMPC, x, t)
         error("Large state detected")
     end
     OSQP.setup!(model, P=ctrl.P, q=ctrl.q, A=ctrl.A, l=ctrl.l, u=ctrl.u, verbose=false)
+    if !isnothing(x0)
+        OSQP.warm_start_x!(model, x0)
+    end
     res = OSQP.solve!(model)  # TODO: implement warm-starting
     if res.info.status != :Solved
         @warn "OSQP didn't solve! Got status $(res.info.status)"
@@ -372,6 +315,25 @@ function getcontrol(ctrl::BilinearMPC, x, t)
     uind = Ny .+ (1:m)  # indices of first control
     z = solveqp!(ctrl, x, t)
     return z[uind]
+end
+
+function updatereference!(ctrl::BilinearMPC, Xref, Uref, tref)
+    @assert length(Xref) == length(ctrl.Xref) "Changing length of reference trajectory not supported yet."
+    Yref = map(x->expandstate(model, x), Xref)
+    Ā,B̄ = linearize(model, Yref, Uref, times)
+    d̄ = map(1:N-1) do k
+        dt = times[k+1] - times[k]
+        RD.discrete_dynamics(model, Yref[k], Uref[k], times[k], dt) - (Ā[k]*Yref[k] + B̄[k]*Uref[k])
+    end
+    for k = 1:N
+        ctrl.Ā[k] .= Ā[k]
+        ctrl.B̄[k] .= B̄[k]
+        ctrl.d̄[k] .= d̄[k]
+        ctrl.Xref[k] .= Xref[k]
+        ctrl.Uref[k] .= uref[k]
+    end
+    copyto!(ctrl.tref, tref)
+    ctrl
 end
 
 ## Simulation functions
