@@ -95,8 +95,8 @@ Random.seed!(1)
 model = RobotZoo.Cartpole()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 num_traj = 100
-tf = 5.0
-dt = 0.05
+tf = 3.0
+dt = 0.01
 
 # LQR Training data
 Random.seed!(1)
@@ -124,7 +124,7 @@ train_params = map(1:num_traj) do i
     Qv = 1e-2
     Rv = Qv * 10^rand(Uniform(-1,3.0))
     Qfv = Qv * 10^rand(Uniform(1,5.0)) 
-    u_bnd = rand(Uniform(3.0, 8.0))
+    u_bnd = rand(Uniform(4.5, 8.0))
     (zeros(4), Qv, Rv, Qfv, u_bnd, tf)
 end
 
@@ -145,22 +145,22 @@ U_train_altro = mapreduce(x->getindex(x,2), hcat, train_trajectories)
 test_params = [
     (zeros(4), 1e-3, 1e-2, 1e2, 10.0, tf),
     (zeros(4), 1e-3, 1e-2, 1e2, 5.0, tf),
-    (zeros(4), 1e-3, 1e-2, 1e2, 3.0, tf),
+    (zeros(4), 1e-3, 1e-2, 1e2, 4.5, tf),
     (zeros(4), 1e-3, 1e0, 1e2, 10.0, tf),
     (zeros(4), 1e-3, 1e-0, 1e2, 5.0, tf),
-    (zeros(4), 1e-3, 1e-0, 1e2, 3.0, tf),
+    (zeros(4), 1e-3, 1e-0, 1e2, 4.5, tf),
     (zeros(4), 1e-0, 1e-2, 1e2, 10.0, tf),
     (zeros(4), 1e-0, 1e-2, 1e2, 5.0, tf),
-    (zeros(4), 1e-0, 1e-1, 1e2, 3.0, tf),
+    (zeros(4), 1e-0, 1e-1, 1e2, 4.5, tf),
     (zeros(4), 1e-0, 1e-2, 1e-2, 10.0, tf),
 ]
-prob = gencartpoleproblem(test_params[end-1]...)
+prob = gencartpoleproblem(test_params[end]..., dt=dt)
 solver = ALTROSolver(prob)
 solve!(solver)
 visualize!(vis, model, tf, TO.states(solver))
 
 test_trajectories = map(test_params) do params
-    solver = Altro.solve!(ALTROSolver(gencartpoleproblem(params...), show_summary=false))
+    solver = Altro.solve!(ALTROSolver(gencartpoleproblem(params...; dt), show_summary=false))
     if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
         @show params
         @warn "ALTRO Solve failed"
@@ -200,14 +200,15 @@ X_test = load(altro_datafile, "X_test")
 U_test = load(altro_datafile, "U_test")
 tf = load(altro_datafile, "tf")
 dt = load(altro_datafile, "dt")
+times = range(0,tf,step=dt)
 
 eigfuns = ["state", "sine", "cosine", "sine", "cosine", "chebyshev"]
-eigorders = [0,0,0,2,2,2]
+eigorders = [0,0,0,2,2,6]
 Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
 
 F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
     ["ridge", "lasso"]; 
-    edmd_weights=[10.1], 
+    edmd_weights=[0.1], 
     mapping_weights=[0.0], 
     algorithm=:cholesky
 );
@@ -220,6 +221,14 @@ n0 = originalstatedim(model_bilinear)
 norm(bilinearerror(model_bilinear, X_train, U_train)) / length(U_train)
 norm(bilinearerror(model_bilinear, X_test, U_test)) / length(U_test)
 
+## Try simulating the training data
+i = 1
+Ysim = simulate(model_bilinear, U_train_lqr[:,i], expandstate(model_bilinear, X_train_lqr[1,i]), tf, dt)
+Xsim0 = simulate(dmodel, U_train_lqr[:,i], X_train_lqr[1,i], tf, dt)
+Xsim = map(x->originalstate(model_bilinear,x), Ysim)
+plot(times, reduce(hcat, Xsim0)[1:2,:]', c=[1 2])
+plot!(times, reduce(hcat, Xsim)[1:2,:]', c=[1 2], lw=2, s=:dash)
+
 ## Stabilizing MPC Controller
 xe = [0,pi,0,0]
 ue = [0.0] 
@@ -227,7 +236,7 @@ N = 1001
 Xref = [copy(xe) for k = 1:N]
 Uref = [copy(ue) for k = 1:N]
 tref = range(0,length=N,step=dt)
-Nmpc = 61
+Nmpc = 101
 Qmpc = Diagonal([20.1,10.,1e-2,1e-2])
 Rmpc = Diagonal([1e-4])
 ctrl_mpc = BilinearMPC(
@@ -256,8 +265,7 @@ zsol = solveqp!(ctrl_mpc0, x0, 1)
 X_osqp = map(eachcol(reshape(zsol[1:Nmpc*n0], n0, :))) do y
     originalstate(dmodel, y)
 end
-t_mpc = range(0,length=Nmpc,step=dt)
-plot!(t_mpc, reduce(hcat, X_osqp)[1:2,:]')
+plot!(times_mpc, reduce(hcat, X_osqp)[1:2,:]')
 
 ## Step through the MPC
 k = 1
@@ -270,10 +278,11 @@ uind = Nmpc*n .+ (1:m)  # indices of first control
 # X_osqp = map(eachcol(reshape(zsol[1:Nmpc*n], n, :))) do y
 #     originalstate(model_bilinear, y)
 # end
-X_osqp, U_osqp = let n = n0, ctrl=ctrl_mpc0
+X_osqp, U_osqp = let ctrl=ctrl_mpc, model=model_bilinear
+    n = RD.state_dim(model)
     zsol = solveqp!(ctrl, Xmpc[k], 1)
     X = map(eachcol(reshape(zsol[1:Nmpc*n], n, :))) do y
-        originalstate(dmodel, y)
+        originalstate(model, y)
     end
     U = tovecs(zsol[Nmpc*n + 1:end], m) 
     X,U
@@ -281,23 +290,12 @@ end
 p = plot(times_sim, reduce(hcat, Xref[1:length(times_sim)])[1:2,:]', 
     label=["x" "θ"], lw=2)
 plot!(p,times_mpc .+ (k-1)*dt, reduce(hcat, X_osqp)[1:2,:]', legend=:right, c=[1 2])
-Xsim = simulate(dmodel, U_osqp, Xmpc[k], t_mpc, dt)
+# Xsim = simulate(dmodel, U_osqp, Xmpc[k], t_mpc, dt)
+# plot!(p,times_mpc .+ (k-1)*dt, reduce(hcat, Xsim)[1:2,:]', legend=:right, c=[1 2])
 
-map(1:Nmpc-1) do k
-    norm(RD.discrete_dynamics(dmodel, X_osqp[k], U_osqp[k], times_sim[k], dt) - X_osqp[k+1])
-end
-t_ref = 10
-times_ref = range(0,t_ref, length=length(Xref))
-A,B = linearize(dmodel, Xref, Uref, times_ref)
-let x = X_osqp[1], u = U_osqp[1]
-    dx = x - xe
-    du = u - ue
-    A[1]*dx + B[1]*du + RD.discrete_dynamics(dmodel, xe, ue, 0.0, dt) - X_osqp[2]
-    RD.discrete_dynamics(dmodel, x, u, 0.0, dt) - X_osqp[2]
-end
-
+u = U_osqp[1]
 Xmpc[k+1] = RD.discrete_dynamics(dmodel, Xmpc[k], u, times_sim[k], dt)
-plot!(p,times_mpc .+ (k-1)*dt, reduce(hcat, Xsim)[1:2,:]', legend=:right, c=[1 2])
+# plot!(p,times_mpc .+ (k-1)*dt, reduce(hcat, Xsim)[1:2,:]', legend=:right, c=[1 2])
 k += 1
 display(p)
 
