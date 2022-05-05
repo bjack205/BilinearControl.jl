@@ -9,7 +9,7 @@ using Statistics
 import BilinearControl.RD
 
 using BilinearControl: getA, getB, getC, getD
-const Nu = 2
+Nu = 2
 function attitude_dynamics_test(::Val{Nu}) where Nu
     model = AttitudeDynamics{Nu}()
     n,m = RD.dims(model)

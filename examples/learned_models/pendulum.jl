@@ -208,6 +208,9 @@ RD.dims(model_bilinear)
 norm(bilinearerror(model_bilinear, X_train, U_train)) / length(U_train)
 norm(bilinearerror(model_bilinear, X_test, U_test)) / length(U_test)
 norm(bilinearerror(model_bilinear, X_test_lqr, U_test_lqr)) / length(U_test_lqr)
+jldsave(joinpath(Problems.DATADIR, "pendulum_eDMD_data.jld2"); 
+    A=F, C, g, dt, tf, eigfuns, eigorders
+)
 
 ## Stabilizing MPC Controller
 xe = [pi,0]
