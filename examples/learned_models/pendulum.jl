@@ -68,6 +68,16 @@ end
 # delete!(vis)
 # set_pendulum!(vis)
 
+## Visualization
+using MeshCat
+model = RobotZoo.Pendulum()
+visdir = joinpath(@__DIR__, "../../examples/visualization/")
+include(joinpath(visdir, "visualization.jl"))
+vis = Visualizer()
+open(vis)
+delete!(vis)
+set_pendulum!(vis)
+
 ## Generate ALTRO data
 model = RobotZoo.Pendulum()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
