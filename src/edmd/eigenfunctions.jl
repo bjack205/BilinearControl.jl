@@ -84,8 +84,8 @@ function monomial(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
 end
 
 state(xk::AbstractVector{<:AbstractFloat}) = xk
-sine(xk::AbstractVector{<:AbstractFloat}) = sin.(xk)
-cosine(xk::AbstractVector{<:AbstractFloat}) = cos.(xk)
+sine(xk::AbstractVector{<:AbstractFloat}; order=1) = sin.(order*xk)
+cosine(xk::AbstractVector{<:AbstractFloat}; order=1) = cos.(order*xk)
 
 state_transform(z::AbstractVector{<:AbstractFloat}, g) = g * z
 

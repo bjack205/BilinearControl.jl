@@ -5,6 +5,8 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
                            algorithm=:cholesky)
     
     (T, K) = (size(X, 1), size(X, 2))
+    @show T,K
+    @show issparse(X)
 
     λ = lambda
     if algorithm == :qdldl
@@ -14,7 +16,8 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
         b = QDLDL.solve(F, Y)
         return b
     elseif algorithm == :cholesky
-        P = Matrix(X'X) + 2λ * I
+        P = Symmetric(Matrix(X'X + 2λ * I))
+        @show cond(P)
         F = cholesky!(P)
         b = F \ (X'Y)
         return b
@@ -76,7 +79,7 @@ function LLS_fit(x::Matrix{Float64}, b::Matrix{Float64}, regression_type::String
 
     vec_b_T = Vector{Float64}(vec(b'))
     n = size(b, 1)
-    x_T_mat = kron(sparse(I,n,n), x')
+    x_T_mat = kron(sparse(I,n,n), sparse(x'))
 
     A_T_vec = linear_regression(vec_b_T, x_T_mat; gamma, lambda, kwargs...)
     
