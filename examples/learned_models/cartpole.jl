@@ -20,6 +20,7 @@ using QDLDL
 using Test
 
 include("edmd_utils.jl")
+include("cartpole_model.jl")
 
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
                             dt=0.05, constrained=true)
@@ -83,7 +84,7 @@ end
 # end
 
 ## Visualizer
-model = RobotZoo.Cartpole()
+model = Cartpole2()
 visdir = Problems.VISDIR
 include(joinpath(visdir, "visualization.jl"))
 vis = Visualizer()
@@ -93,7 +94,7 @@ set_cartpole!(vis)
 
 ## Generate Data 
 Random.seed!(1)
-model = RobotZoo.Cartpole()
+model = Cartpole2()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 num_traj = 100
 tf = 3.0
@@ -117,7 +118,7 @@ initial_conditions_lqr = [rand(x0_sampler) for _ in 1:num_lqr]
 X_train_lqr, U_train_lqr = create_data(dmodel, ctrl_lqr, initial_conditions_lqr, tf, dt)
 # @test mapreduce(x->norm(x-xe,Inf), max, X_train_lqr[end,:]) < 0.1
 @test mapreduce(x->norm(x[2]-xe[2],Inf), max, X_train_lqr[end,:]) < deg2rad(5)
-visualize!(vis, model, tf, X_train_lqr[:,2])
+visualize!(vis, RobotZoo.Cartpole(), tf, X_train_lqr[:,2])
 
 # ALTRO Training data
 Random.seed!(1)

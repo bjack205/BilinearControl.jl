@@ -320,9 +320,9 @@ version = "0.13.2"
 
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "SparseArrays", "StaticArrays"]
-git-tree-sha1 = "56956d1e4c1221000b7781104c58c34019792951"
+git-tree-sha1 = "51c8f36c81badaa0e9ec405dcbabaf345ed18c84"
 uuid = "6a86dc24-6348-571c-b903-95158fe2bd41"
-version = "2.11.0"
+version = "2.11.1"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]

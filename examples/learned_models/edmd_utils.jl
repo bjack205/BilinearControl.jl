@@ -445,3 +445,13 @@ function create_data(model::RD.DiscreteDynamics, ctrl::AbstractController,
     end
     X_sim, U_sim
 end
+
+function calc_error(model::RD.DiscreteDynamics, X, U, dt)
+    map(CartesianIndices(U)) do cind
+        k = cind[1]  # time index
+        j = cind[2]  # trajectory index
+        xn_true = X[k+1,j]
+        xn_nominal = RD.discrete_dynamics(model, X[k,j], U[k,j], (k-1)*dt, dt)
+        Vector(xn_true - xn_nominal)
+    end
+end

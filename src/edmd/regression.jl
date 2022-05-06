@@ -2,11 +2,12 @@
 function linear_regression(Y::AbstractVector{<:AbstractFloat}, 
                            X::AbstractMatrix{<:AbstractFloat}; 
                            gamma::Float64=0.0, lambda::Float64=0.0,
-                           algorithm=:cholesky)
+                           algorithm=:qr)
     
     (T, K) = (size(X, 1), size(X, 2))
     @show T,K
     @show issparse(X)
+    @show lambda
 
     λ = lambda
     if algorithm == :qdldl
@@ -109,12 +110,48 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
     # Z = Z_mat[:, 1:end-1]
     # Z_prime = Z_mat[:, 2:end]
         
-    dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights; kwargs...)
-    g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights; kwargs...)
+    # dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights; kwargs...)
+    # g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights; kwargs...)
+    dynamics_jacobians = fitA(Zu_mat, Zn_mat; rho=edmd_weights[1], kwargs...)
+    g = fitA(Z_mat, X_mat; rho=mapping_weights[1], kwargs...)
 
     A = dynamics_jacobians[:, 1:size(dynamics_jacobians)[1]]
     C = dynamics_jacobians[:, (size(dynamics_jacobians)[1] + 1):end]
 
     return A, C, Matrix(g)
 
+end
+
+function fiterror(A,C,g,kf, X,U)
+    P = size(X,2)
+    norm(map(CartesianIndices(U)) do cind 
+        k = cind[1]
+        j = cind[2]
+        x = X[k,j]
+        u = U[k,j]
+        y = kf(x)
+        xn = X[k+1,j]
+        yn = A*y + u[1]*C*y
+        norm(g*yn - xn)
+    end) / P
+end
+
+"""
+Finds `A` that minimizes 
+
+```math 
+|| Ax - b||_2^2 + \\rho ||A||_F
+```
+where `x` and `b` are vector or matrices and ``||A||_F`` is the Frobenius norm of ``A``.
+"""
+function fitA(x,b; rho=0.0, kwargs...)
+    n,p = size(x)
+    m = size(b,1)
+    if size(b,2) != p
+        throw(DimensionMismatch("x and b must have same number of columns."))
+    end
+    Â = kron(sparse(x'), sparse(I,m,m))
+    b̂ = vec(b)
+    x̂ = linear_regression(b̂, Â, lambda=rho; kwargs...)
+    return reshape(x̂,m,n)
 end
