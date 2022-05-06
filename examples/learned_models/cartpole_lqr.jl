@@ -18,9 +18,23 @@ using Altro
 using BilinearControl: Problems
 using QDLDL
 using Test
+using RecipesBase
 
 include("edmd_utils.jl")
 include("cartpole_model.jl")
+
+@userplot PlotStates 
+
+@recipe function f(ps::PlotStates; inds=1:length(ps.args[end][1]))
+    Xvec = ps.args[end]
+    if length(ps.args) == 1
+        times = 1:length(Xvecs)
+    else
+        times = ps.args[1]
+    end
+    Xmat = reduce(hcat,Xvec)[inds,:]'
+    (times,Xmat)
+end
 
 ## Visualizer
 model = Cartpole2()
@@ -75,8 +89,21 @@ F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
 BilinearControl.EDMD.fiterror(F,C,g,kf, X_train, U_train)
 BilinearControl.EDMD.fiterror(F,C,g,kf, X_test, U_test)
 
-## Compare linearization about equilibrium
-n0 = RD.state_dim(model)
-xe = zeros(n0)
+model_bilinear = EDMDModel(F,C,g,kf,dt,"cartpole")
+n,m = RD.dims(model_bilinear)
+n0 = originalstatedim(model_bilinear)
 
-length(U_train)
+## Compare linearization about equilibrium
+xe = zeros(n0)
+ue = zeros(m)
+ye = expandstate(model_bilinear, xe)
+
+ctrl_nom = ZeroController(model)
+ctrl_bil = ZeroController(model_bilinear)
+
+t_sim = 3.0
+times_sim = range(0,t_sim,step=dt)
+x0 = [0,deg2rad(20),0,0]
+Xsim_nom = simulatewithcontroller(dmodel, ctrl_nom, x0, t_sim, dt)
+
+plotstates(times_sim, Xsim_nom)
