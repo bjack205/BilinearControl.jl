@@ -16,6 +16,7 @@ using Random
 using JLD2
 using Altro
 using BilinearControl: Problems
+using QDLDL
 using Test
 
 include("edmd_utils.jl")
@@ -101,22 +102,22 @@ dt = 0.01
 # LQR Training data
 Random.seed!(1)
 num_lqr = 400
-Qlqr = Diagonal([0.1,10,1e-2,1e-2])
-Rlqr = Diagonal([1e-4])
+Qlqr = Diagonal([0.2,10,1e-2,1e-2])
+Rlqr = Diagonal([1e-3])
 xe = [0,pi,0,0]
 ue = [0.0]
 ctrl_lqr = LQRController(dmodel, Qlqr, Rlqr, xe, ue, dt)
 x0_sampler = Product([
-    Uniform(-0.5,0.5),
+    Uniform(-1.0,1.0),
     Uniform(pi-pi/3,pi+pi/3),
     Uniform(-.5,.5),
     Uniform(-.5,.5),
 ])
 initial_conditions_lqr = [rand(x0_sampler) for _ in 1:num_lqr]
 X_train_lqr, U_train_lqr = create_data(dmodel, ctrl_lqr, initial_conditions_lqr, tf, dt)
-@test mapreduce(x->norm(x-xe,Inf), max, X_train_lqr[end,:]) < 0.1
-@test mapreduce(x->norm(x[2]-xe[2],Inf), max, X_train_lqr[end,:]) < deg2rad(1)
-visualize!(vis, model, tf, X_train_lqr[:,8])
+# @test mapreduce(x->norm(x-xe,Inf), max, X_train_lqr[end,:]) < 0.1
+@test mapreduce(x->norm(x[2]-xe[2],Inf), max, X_train_lqr[end,:]) < deg2rad(5)
+visualize!(vis, model, tf, X_train_lqr[:,2])
 
 # ALTRO Training data
 Random.seed!(1)
@@ -194,24 +195,25 @@ X_train_altro = load(altro_datafile, "X_train")
 U_train_altro = load(altro_datafile, "U_train")
 X_train_lqr = load(altro_datafile, "X_lqr")
 U_train_lqr = load(altro_datafile, "U_lqr")
-X_train = [X_train_altro[:,1:0] X_train_lqr[:,1:400]]
-U_train = [U_train_altro[:,1:0] U_train_lqr[:,1:400]]
+X_train = [X_train_altro[:,1:0] X_train_lqr[:,1:90]]
+U_train = [U_train_altro[:,1:0] U_train_lqr[:,1:90]]
 X_test = load(altro_datafile, "X_test")
 U_test = load(altro_datafile, "U_test")
 tf = load(altro_datafile, "tf")
 dt = load(altro_datafile, "dt")
 times = range(0,tf,step=dt)
 
-eigfuns = ["state", "sine", "cosine", "sine", "cosine", "chebyshev"]
-eigorders = [0,0,0,2,2,6]
+eigfuns = ["monomial", "sine", "cosine", "sine", "cosine", "sine", "sine", "sine", "sine"]
+eigorders = [4,0,0,0,2,2,3,4,6,8]
 Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders)
 
 F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
     ["ridge", "lasso"]; 
-    edmd_weights=[0.1], 
-    mapping_weights=[0.0], 
-    algorithm=:cholesky
+    edmd_weights=[100.1], 
+    mapping_weights=[0.1], 
+    algorithm=:qr
 );
+length(U_train)
 
 norm(F)
 model_bilinear = EDMDModel(F,C,g,kf,dt,"cartpole")
@@ -226,7 +228,8 @@ i = 1
 Ysim = simulate(model_bilinear, U_train_lqr[:,i], expandstate(model_bilinear, X_train_lqr[1,i]), tf, dt)
 Xsim0 = simulate(dmodel, U_train_lqr[:,i], X_train_lqr[1,i], tf, dt)
 Xsim = map(x->originalstate(model_bilinear,x), Ysim)
-plot(times, reduce(hcat, Xsim0)[1:2,:]', c=[1 2])
+plot(times, reduce(hcat, X_train_lqr[:,i])[1:2,:]', c=[1 2])
+plot!(times, reduce(hcat, Xsim0)[1:2,:]', c=[1 2], s=:dot)
 plot!(times, reduce(hcat, Xsim)[1:2,:]', c=[1 2], lw=2, s=:dash)
 
 ## Stabilizing MPC Controller
@@ -243,6 +246,87 @@ ctrl_mpc = BilinearMPC(
     model_bilinear, Nmpc, Xref[1], Qmpc, Rmpc, Xref, Uref, tref
 )
 
+## Build the QP
+function solveqp!(y0; Nmpc=101)
+    # Qmpc = Diagonal([0.3,5.,1e-1,1e-1])
+    # Rmpc = Diagonal([1e-3])
+    Qmpc = Diagonal([0.2,10,1e-2,1e-2])
+    Rmpc = Diagonal([1e-3])
+
+    # dx0 = x - xe
+    if length(y0) == n0
+        println("  Converting original state.")
+        dy0 = expandstate(model_bilinear, y0) - ye
+    else
+        dy0 = y0 - ye 
+    end
+    Nx = Nmpc*n
+    Np = Nmpc*n + (Nmpc-1)*m
+    Nd = Nmpc*n
+    G = spdiagm(n0,n,1=>ones(n0))
+    Q = G'Qmpc*G + I*1e-8
+    R = copy(Rmpc)
+    P = blockdiag(kron(I(Nmpc), Q), kron(I(Nmpc-1), sparse(R)))
+    q = zeros(Np)
+    Ā = ctrl_mpc.Ā[1]
+    B̄ = ctrl_mpc.B̄[1]
+    A = sparse(-1.0I, Nmpc*n, Np)
+    A += hcat(
+        kron(spdiagm(Nmpc, Nmpc,-1=>ones(Nmpc-1)), Ā), 
+        kron(spdiagm(Nmpc, Nmpc-1,-1=>ones(Nmpc-1)), B̄)
+    )
+    b = [-dy0; zeros((Nmpc-1)*n)]
+
+    H = [P A'; A sparse(-1e-8I,Nd,Nd)]
+    g = [q;b]
+    F = QDLDL.qdldl(triu(H))
+    z = QDLDL.solve(F, g)
+    # z = H\g
+    u = z[Nx .+ (1:m)]
+    return u, z
+end
+
+Nmpc = 51
+t_mpc = (Nmpc-1)*dt
+t_sim = 1.0
+times_sim = range(0,t_sim,step=dt)
+times_mpc = range(0,t_mpc,step=dt)
+ye = expandstate(model_bilinear, xe)
+
+x0 = [0.2,pi-deg2rad(-20),0,0]
+y0 = expandstate(model_bilinear, x0) 
+Ysim = [copy(y0) for t in times_sim]
+Xsim = [copy(x0) for t in times_sim]
+Xsim0 = [copy(x0) for t in times_sim]
+Usim = [zeros(m) for t in times_sim]
+
+for k = 1:length(times_sim)-1
+    @show k
+    u,zsol = solveqp!(Ysim[k]; Nmpc)
+    # u,zsol = solveqp!(Xsim0[k]; Nmpc)
+    Usim[k] = u
+    Xsim0[k+1] = RD.discrete_dynamics(dmodel, Xsim0[k], u, times_sim[k], dt)
+    Ysim[k+1] = RD.discrete_dynamics(model_bilinear, Ysim[k], u, times_sim[k], dt)
+    Xsim[k+1] = originalstate(model_bilinear, Ysim[k+1])
+    X_qp = map(eachcol(reshape(zsol[1:Nmpc*n], n, :))) do dy
+        originalstate(model_bilinear, ye + dy)
+    end
+    t0 = (k-1)*dt
+    p = plot(times_mpc .+ t0, reduce(hcat, X_qp)[1:2,:]', xlim=(0,t0+t_mpc))
+    display(p)
+
+    # Ysim[k+1] = RD.discrete_dynamics(model_bilinear, Ysim[k], u, times_sim[k], dt)
+    # Xsim[k+1] = originalstate(model_bilinear, Ysim[k+1])
+end
+
+visualize!(vis, model, t_sim[end], Xsim)
+visualize!(vis, model, t_sim[end], Xsim0)
+Xsim[1]
+Xsim[2]
+Usim[2]
+plot(times_sim, reduce(hcat, Usim)')
+
+##
 ctrl_mpc0 = BilinearMPC(
     dmodel, Nmpc, Xref[1], Qmpc, Rmpc, Xref, Uref, tref
 )
@@ -260,6 +344,7 @@ end
 t_mpc = range(0,length=Nmpc,step=dt)
 plot(t_mpc, reduce(hcat, X_osqp)[1:2,:]')
 visualize!(vis, model, t_mpc[end], X_osqp)
+X_osqp[end]
 
 zsol = solveqp!(ctrl_mpc0, x0, 1)
 X_osqp = map(eachcol(reshape(zsol[1:Nmpc*n0], n0, :))) do y

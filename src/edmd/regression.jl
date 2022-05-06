@@ -22,8 +22,8 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
         b = F \ (X'Y)
         return b
     elseif algorithm == :qr
-        F = qr(X)
-        b = F \ Y
+        F = qr([X; sqrt(λ)*I])
+        b = F \ [Y; zeros(K)]
         return b
     elseif algorithm == :convex
         Q = X'X / T
