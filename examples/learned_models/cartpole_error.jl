@@ -72,7 +72,6 @@ initial_conditions_lqr = [rand(x0_sampler) for _ in 1:num_lqr]
 t_train = 2.0
 X_train_lqr, U_train_lqr = create_data(model_true, ctrl_lqr, initial_conditions_lqr, t_train, dt)
 visualize!(vis, model0, t_train, X_train_lqr[:,4])
-@test mapreduce(x->norm(x[2]-xe[2],Inf), max, X_train_lqr[end,:]) < deg2rad(10)
 
 # Calculate "error" output
 X_err = calc_error(model_nominal, X_train_lqr, U_train_lqr, dt)

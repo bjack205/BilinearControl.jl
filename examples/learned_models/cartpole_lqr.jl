@@ -93,17 +93,46 @@ model_bilinear = EDMDModel(F,C,g,kf,dt,"cartpole")
 n,m = RD.dims(model_bilinear)
 n0 = originalstatedim(model_bilinear)
 
-## Compare linearization about equilibrium
-xe = zeros(n0)
+## Compare linearizations about equilibrium 
+xe = [0,pi,0,0.] 
 ue = zeros(m)
+ze = RD.KnotPoint{n0,m}(xe,ue,0.0,dt)
 ye = expandstate(model_bilinear, xe)
 
-ctrl_nom = ZeroController(model)
-ctrl_bil = ZeroController(model_bilinear)
+J = zeros(n0,n0+m)
+xn = zeros(n0)
+RD.jacobian!(RD.InPlace(), RD.ForwardAD(), dmodel, J, xn, ze)
+A_nom = J[:,1:n0]
+B_nom = J[:,n0+1:end]
 
-t_sim = 3.0
+function dynamics_bilinear(x,u,t,dt)
+    y = expandstate(model_bilinear, x)
+    yn = zero(y)
+    RD.discrete_dynamics!(model_bilinear, yn, y, u, t, dt)
+    originalstate(model_bilinear, yn)
+end
+
+A_bil = FiniteDiff.finite_difference_jacobian(x->dynamics_bilinear(x,ue,0.0,dt), xe)
+B_bil = FiniteDiff.finite_difference_jacobian(u->dynamics_bilinear(xe,u,0.0,dt), ue)
+[A_nom zeros(n0) A_bil]
+[B_nom zeros(n0) B_bil]
+sign.(A_nom) ≈ sign.(A_bil)
+sign.(B_nom) ≈ sign.(B_bil)
+
+# Design a stabilizing LQR controller for both
+Qlqr = Diagonal([1.0,10.0,1e-2,1e-2])
+Rlqr = Diagonal([1e-4])
+K_nom = dlqr(A_nom, B_nom, Qlqr, Rlqr)
+K_bil = dlqr(A_bil, B_bil, Qlqr, Rlqr)
+maximum(abs.(eigvals(A_nom - B_nom*K_nom))) < 1.0
+maximum(abs.(eigvals(A_bil - B_bil*K_bil))) < 1.0
+maximum(abs.(eigvals(A_nom - B_nom*K_bil))) < 1.0  # unstable!
+
+# Simulate nominal model with LQR gain from bilinear model
+ctrl_lqr = LQRController(K_bil, xe, ue)
+
+t_sim = 10.0
 times_sim = range(0,t_sim,step=dt)
-x0 = [0,deg2rad(20),0,0]
-Xsim_nom = simulatewithcontroller(dmodel, ctrl_nom, x0, t_sim, dt)
-
-plotstates(times_sim, Xsim_nom)
+x0 = [0,pi-deg2rad(1),0,0]
+Xsim_lqr, = simulatewithcontroller(dmodel, ctrl_lqr, x0, t_sim, dt)
+plotstates(times_sim, Xsim_lqr, inds=1:2)

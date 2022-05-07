@@ -1,10 +1,10 @@
-function hermite(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
+function hermite(x::AbstractVector{T}; order::Int64 = 0) where T
 
     if order == 0
-        return Float64[]
+        return T[]
     end
     
-    T0 = ones(length(x))
+    T0 = ones(T, length(x))
     T1 = 2 .* x
 
     hermite_poly = [T0]
@@ -23,13 +23,13 @@ function hermite(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
     
 end
 
-function chebyshev(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
+function chebyshev(x::AbstractVector{T}; order::Int64 = 0) where T
 
     if order == 0
-        return Float64[]
+        return T[]
     end
     
-    T0 = ones(length(x))
+    T0 = ones(T,length(x))
     T1 = x
 
     chebyshev_poly = [T0]
@@ -48,14 +48,14 @@ function chebyshev(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
     
 end
 
-function monomial(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
+function monomial(x::AbstractVector{T}; order::Int64 = 0) where T
 
     if order == 0
-        return Float64[]
+        return T[]
     end
 
     monomials = [x]
-    row_start_ind = ones(length(x))
+    row_start_ind = ones(T,length(x))
 
     for p in 2:order
 
@@ -83,13 +83,13 @@ function monomial(x::AbstractVector{<:AbstractFloat}; order::Int64 = 0)
         
 end
 
-state(xk::AbstractVector{<:AbstractFloat}) = xk
-sine(xk::AbstractVector{<:AbstractFloat}; order=1) = sin.(order*xk)
-cosine(xk::AbstractVector{<:AbstractFloat}; order=1) = cos.(order*xk)
+state(xk::AbstractVector) = xk
+sine(xk::AbstractVector; order=1) = sin.(order*xk)
+cosine(xk::AbstractVector; order=1) = cos.(order*xk)
 
-state_transform(z::AbstractVector{<:AbstractFloat}, g) = g * z
+state_transform(z::AbstractVector, g) = g * z
 
-function koopman_transform(x::AbstractVector{<:AbstractFloat}, function_list::Vector{String}, 
+function koopman_transform(x::AbstractVector, function_list::Vector{String}, 
     order_list::Vector{Int64})
 
     num_func = length(function_list)

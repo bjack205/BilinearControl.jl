@@ -39,6 +39,7 @@ getcontrol(ctrl::RandConstController, x, t) = ctrl.u
 
 struct ZeroController <: AbstractController 
     m::Int
+    ZeroController(m::Int) = new(m)
     ZeroController(model::RD.AbstractModel) = new(RD.control_dim(model))
 end
 getcontrol(ctrl::ZeroController, x, t) = zeros(ctrl.m)
