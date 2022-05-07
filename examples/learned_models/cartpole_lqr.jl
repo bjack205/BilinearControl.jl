@@ -23,6 +23,8 @@ using RecipesBase
 include("edmd_utils.jl")
 include("cartpole_model.jl")
 
+matdensity(A) = nnz(sparse(A)) / length(A)
+
 @userplot PlotStates 
 
 @recipe function f(ps::PlotStates; inds=1:length(ps.args[end][1]))
@@ -50,8 +52,9 @@ Random.seed!(1)
 model = Cartpole2()
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 num_traj = 100
-tf = 3.0
-dt = 0.01
+tf = 2.0
+dt = 0.02
+times = range(0,tf,step=dt)
 
 # LQR Training data
 Random.seed!(1)
@@ -71,7 +74,7 @@ initial_conditions_lqr = [rand(x0_sampler) for _ in 1:num_lqr]
 X_train, U_train = create_data(dmodel, ctrl_lqr, initial_conditions_lqr, tf, dt)
 initial_conditions_test = [rand(x0_sampler) for _ in 1:num_lqr]
 X_test, U_test = create_data(dmodel, ctrl_lqr, initial_conditions_test, tf, dt)
-@test mapreduce(x->norm(x[2]-xe[2],Inf), max, X_train[end,:]) < deg2rad(5)
+@test mapreduce(x->norm(x[2]-xe[2],Inf), max, X_train[end,:]) < deg2rad(10)
 # visualize!(vis, RobotZoo.Cartpole(), tf, X_train_lqr[:,2])
 
 ## Fit the Data
@@ -83,7 +86,7 @@ Z_test, Zu_test, kf = build_eigenfunctions(X_test, U_test, eigfuns, eigorders)
 F, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
     ["ridge", "lasso"]; 
     edmd_weights=[10.1], 
-    mapping_weights=[0.1], 
+    mapping_weights=[0.0], 
     algorithm=:qr
 );
 BilinearControl.EDMD.fiterror(F,C,g,kf, X_train, U_train)
@@ -136,3 +139,40 @@ times_sim = range(0,t_sim,step=dt)
 x0 = [0,pi-deg2rad(1),0,0]
 Xsim_lqr, = simulatewithcontroller(dmodel, ctrl_lqr, x0, t_sim, dt)
 plotstates(times_sim, Xsim_lqr, inds=1:2)
+
+#############################################
+## Train with derivative info
+#############################################
+
+# Generate extra data from training data
+xn = zeros(n0)
+jacobians = map(CartesianIndices(U_train)) do cind
+    k = cind[1]
+    x = X_train[cind]
+    u = U_train[cind]
+    z = RD.KnotPoint{n0,m}(x,u,times[k],dt)
+    J = zeros(n0,n0+m)
+    RD.jacobian!(
+        RD.InPlace(), RD.ForwardAD(), dmodel, J, xn, z 
+    )
+    J
+end
+A_train = map(J->J[:,1:n0], jacobians)
+B_train = map(J->J[:,n0+1:end], jacobians)
+Z_train = map(kf, X_train)
+F_train = map(@view X_train[1:end-1,:]) do x
+    sparse(ForwardDiff.jacobian(x->expandstate(model_bilinear,x), x))
+end
+model_bilinear.g
+# F = map(Finit)
+@test size(A_train[1]) == (n0,n0)
+@test size(B_train[1]) == (n0,m)
+@test size(Z_train[1]) == (n,)
+@test size(F_train[1]) == (n,n0)
+
+G = spdiagm(n0,n,1=>ones(n0)) 
+@test norm(G - model_bilinear.g) < 1e-8
+W,s = BilinearControl.EDMD.build_edmd_data(
+    Z_train, U_train, A_train, B_train, F_train, model_bilinear.g
+)
+Wsparse = sparse(W)

@@ -122,6 +122,55 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
 
 end
 
+function build_edmd_data(X,U, A,B,F,G; verbose=true)
+    if size(A) != size(B) != size(F)
+        throw(DimensionMismatch("A,B, and F must all have the same dimension."))
+    end
+    n0 = size(A[1],1)
+    n = length(X[1])
+    m = length(U[1])
+    p = n+m + n*m     # number of features
+    N,T = size(X)
+    P = (N-1)*T
+    verbose && println("Concatentating data")
+    Uj = reduce(hcat, U)
+    Xj = reduce(hcat, X[1:end-1,:])
+    Xn = reduce(hcat, X[2:end,:])
+    Amat = reduce(hcat, A)
+    Bmat = reduce(hcat, B)
+    @assert size(Xn,2) == size(Xj,2) == P
+    verbose && println("Creating feature matrix")
+    Z = mapreduce(hcat, 1:P) do j
+        x = Xj[:,j]
+        u = Uj[:,j]
+        [x; u; vec(x*u')]
+    end
+    @assert size(Z) == (p,P)
+    verbose && println("Creating state Jacobian matrix")
+    Ahat = mapreduce(hcat, 1:P) do j
+        u = U[j] 
+        In = sparse(I,n,n)
+        vcat(sparse(I,n,n), spzeros(m,n), reduce(vcat, In*ui for ui in u)) * F[j] 
+    end
+    @assert size(Ahat) == (p,P*n0)
+    verbose && println("Creating control Jacobian matrix")
+    Bhat = mapreduce(hcat, 1:P) do j
+        xB = spzeros(n,m)
+        xB[:,1] .= X[j]
+        vcat(spzeros(n,m), sparse(I,m,m), reduce(vcat, circshift(xB, (0,i)) for i = 1:m))
+    end
+    @assert size(Bhat) == (p,P*m)
+
+    verbose && println("Creating least-squares data")
+    W = ApplyArray(vcat,
+        ApplyArray(kron, Xj', sparse(I,n,n)),
+        ApplyArray(kron, Ahat', G),
+        ApplyArray(kron, Bhat', G),
+    ) 
+    s = vcat(vec(Xn), vec(Amat), vec(Bmat))
+    W,s
+end
+
 function fiterror(A,C,g,kf, X,U)
     P = size(X,2)
     norm(map(CartesianIndices(U)) do cind 

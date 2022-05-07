@@ -7,6 +7,7 @@ using Convex
 using COSMO
 import QDLDL
 using SparseArrays
+using LazyArrays
 
 include("eigenfunctions.jl")
 include("regression.jl")
