@@ -86,7 +86,7 @@ function dlqr(A,B,Q,R; max_iters=200, tol=1e-6, verbose=false)
         end
         K_prev .= K
     end
-    return K
+    return K,P
 end
 
 function linearize(model::RD.DiscreteDynamics, X, U, times)
@@ -119,7 +119,7 @@ function tvlqr(A,B,Q,R)
     P = [zeros(n,n) for k = 1:N]
     K = [zeros(m,n) for k = 1:N-1]
     
-    P[end] .= dlqr(A[end], B[end], Q[end], R[end])
+    P[end] .= dlqr(A[end], B[end], Q[end], R[end])[2]
     for k = reverse(1:N-1) 
         K[k] .= (R[k] + B[k]'P[k+1]*B[k])\(B[k]'P[k+1]*A[k])
         P[k] .= Q[k] + A[k]'P[k+1]*A[k] - A[k]'P[k+1]*B[k]*K[k]
@@ -141,7 +141,7 @@ function TVLQRController(model::RD.DiscreteDynamics, Q::Diagonal, R::Diagonal, X
     Rs = [R for t in times]
     A,B = linearize(model, Xref, Uref, times)
     K,_ = tvlqr(A,B,Qs,Rs)
-    TVLQRController(K, Xref, URef, times)
+    TVLQRController(K, Xref, Uref, times)
 end
 
 gettime(ctrl::TVLQRController) = ctrl.time
@@ -354,7 +354,7 @@ function updatereference!(ctrl::BilinearMPC, Xref, Uref, tref)
     ctrl
 end
 
-mutable struct StraightLineController{L,D}
+mutable struct StraightLineController{L,D} <: AbstractController
     model::L
     Q::Diagonal{Float64,Vector{Float64}}
     R::Diagonal{Float64,Vector{Float64}}
@@ -363,25 +363,26 @@ mutable struct StraightLineController{L,D}
     dx::D
     Uref::Vector{Vector{Float64}}
     tvlqr::TVLQRController
-    function StraightLineController(model::RD.DiscreteDynamics, Q::Diagonal, R::Diagonal, 
-                                    tf, dt, dx::D, u0::Vector{<:Real}) where D
+    function StraightLineController(model::L, Q::Diagonal, R::Diagonal, 
+                                    tf, dt, dx::D, u0::Vector{<:Real}) where {L<:RD.DiscreteDynamics,D}
         times = range(0,tf,step=dt)
         n = RD.state_dim(model)
         Xref = [zeros(n) for t in times]
         Uref = [u0 for t in times]
-        tvlqr = TVLQRController(model, Q, R, Xref, URef, times)
+        tvlqr = TVLQRController(model, Q, R, Xref, Uref, times)
         new{L,D}(model, Q, R, tf, dt, dx, Uref, tvlqr)
     end
 end
 
 function resetcontroller!(ctrl::StraightLineController, x0, t)
     # Select a random new final position
-    dx = xf - x0
-    Xref = map(range(0,1,length=ctrl.Nsample)) do θ
+    dx = rand(ctrl.dx) 
+    Nsample = length(ctrl.Uref)
+    Xref = map(range(0,1,length=Nsample)) do θ
         x0 .+ θ .* dx  # Assumes Euclidean states
     end
-    times = t .+ range(0,ctrl.tf,step=dt)
-    ctrl.tvlqr = TVLQRController(model, ctrl.Q, ctrl.R, Xref, Uref, times)
+    times = t .+ range(0,ctrl.tf,step=ctrl.dt)
+    ctrl.tvlqr = TVLQRController(ctrl.model, ctrl.Q, ctrl.R, Xref, ctrl.Uref, times)
     ctrl
 end
 

@@ -133,6 +133,30 @@ function visualize!(vis, model::RobotZoo.Pendulum, x::AbstractVector)
     settransform!(vis["robot","cart","pole","geom"], LinearMap(UnitQuaternion(q)))
 end
 
+function _set_mesh!(vis, model::L;
+        scaling=1.0, color=colorant"black"
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor}} 
+    urdf_folder = joinpath(@__DIR__, "..", "data", "meshes")
+    # if scaling != 1.0
+    #     quad_scaling = 0.085 * scaling
+    obj = joinpath(urdf_folder, "quadrotor_scaled.obj")
+    if scaling != 1.0
+        error("Scaling not implemented after switching to MeshCat 0.12")
+    end
+    robot_obj = MeshFileGeometry(obj)
+    mat = MeshPhongMaterial(color=color)
+    setobject!(vis["geom"], robot_obj, mat)
+    if hasfield(L, :ned)
+        model.ned && settransform!(vis["geom"], LinearMap(RotX(pi)))
+    end
+end
+
+function visualize!(vis, model::RobotZoo.PlanarQuadrotor, x::StaticVector, addrobot::Bool = true)
+    py,pz = x[1], x[2]
+    θ = x[3]
+    settransform!(vis, compose(Translation(0,py,pz), LinearMap(RotX(θ))))
+end
+
 #############################################
 # Generic Methods
 #############################################
