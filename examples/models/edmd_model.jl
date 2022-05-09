@@ -87,3 +87,29 @@ expandstate(::RD.DiscreteDynamics, x) = x
 ## Saved models
 const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
 BilinearPendulum() = EDMDModel(joinpath(DATADIR, "pendulum_eDMD_data.jld2"), name="pendulum")
+
+struct EDMDErrorModel{L} <: RD.DiscreteDynamics
+    nominal::L
+    err::EDMDModel
+end
+RD.state_dim(model::EDMDErrorModel) = RD.state_dim(model.nominal)
+RD.control_dim(model::EDMDErrorModel) = RD.control_dim(model.nominal)
+RD.default_diffmethod(model::EDMDErrorModel) = RD.default_diffmethod(model.nominal)
+RD.default_signature(model::EDMDErrorModel) = RD.default_signature(model.nominal)
+
+function RD.discrete_dynamics(model::EDMDErrorModel, x, u, t, dt)
+    y = expandstate(model.err, x)
+    xn = RD.discrete_dynamics(model.nominal, x, u, t, dt)
+    xn += originalstate(model.err, RD.discrete_dynamics(model.err, y, u, t, dt))
+    xn
+end
+
+function RD.discrete_dynamics!(model::EDMDErrorModel, xn, x, u, t, dt)
+    y = expandstate(model.err, x)
+    yn = zero(y)
+    RD.discrete_dynamics(model.nominal, xn, x, u, t, dt)
+    RD.discrete_dynamics!(model.err, xn, y, u, t, dt)
+    xn_err = originalstate(model.err, yn) 
+    xn .+= xn_err
+    nothing
+end

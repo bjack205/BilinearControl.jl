@@ -50,6 +50,7 @@ export
     Swarm,
     BilinearCartpole,
     EDMDModel,
+    EDMDErrorModel,
     Cartpole2
 
 export BilinearMPC

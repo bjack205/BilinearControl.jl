@@ -199,6 +199,33 @@ function fiterror(A,B,C,g,kf, X,U)
     end) / P
 end
 
+function fiterror(A,B,C,g,kf, X,U,Xn)
+    P = size(X,2)
+    norm(map(CartesianIndices(U)) do cind 
+        k = cind[1]
+        j = cind[2]
+        x = X[k,j]
+        u = U[k,j]
+        y = kf(x)
+        xn = Xn[k,j]
+        yn = A*y + B*u + u[1]*C*y
+        norm(g*yn - xn)
+    end) / P
+end
+
+function fiterror(model::RD.DiscreteDynamics, dt, X, U)
+    P = size(X,2)
+    norm(map(CartesianIndices(U)) do cind 
+        k = cind[1]
+        j = cind[2]
+        x = X[k,j]
+        u = U[k,j]
+        xn = X[k+1,j]
+        xn_ = RD.discrete_dynamics(model, x, u, (k-1)*dt, dt)
+        norm(xn - xn_)
+    end) / P
+end
+
 """
 Finds `A` that minimizes 
 
