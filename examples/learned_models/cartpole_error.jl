@@ -109,8 +109,10 @@ W,s,Wg,sg = let U = U_train, X = X_train, Xe = Xerr_train
     W,s, Wg,sg
 end
 W
-@time F = qr(W);
-@time x = F\s
+rho = 1e1
+p = size(W,2)
+@time F = qr([W; sqrt(rho) * sparse(I,p,p)]);
+@time x = F\[s; zeros(p)]
 norm(W*x - s)
 
 @time Fg = qr(Wg)
@@ -138,5 +140,8 @@ Xsim_tru = simulate(model_true, U, x0, t_sim, dt)
 Xsim_lrn = simulate(model_learned, U, x0, t_sim, dt)
 
 # plot(times_sim, reduce(hcat, Xsim_nom)[1:2,:]', c=[1 2], label="nominal")
-plot(times_sim, reduce(hcat, Xsim_tru)[1:2,:]', c=[1 2], s=:solid, label="true")
+plot(times_sim, reduce(hcat, Xsim_tru)[1:2,:]', c=[1 2], s=:solid, label="true",
+    xlabel="time (s)", ylabel="states", legend=:outerright
+)
 plot!(times_sim, reduce(hcat, Xsim_lrn)[1:2,:]', c=[1 2], s=:dash, label="learned")
+plot!(times_sim, reduce(hcat, Xsim_nom)[1:2,:]', c=[1 2], s=:dot, w=2, label="nominal")
