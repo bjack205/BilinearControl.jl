@@ -3,6 +3,7 @@ using LinearAlgebra
 using StaticArrays
 using Colors
 using MeshCat
+using RobotZoo
 import RobotDynamics as RD
 import BilinearControl.Problems: orientation, translation
 

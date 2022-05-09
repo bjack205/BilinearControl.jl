@@ -9,6 +9,7 @@ using Rotations
 using BilinearControl
 using COSMO
 using JLD2
+using ForwardDiff, FiniteDiff
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
@@ -48,7 +49,8 @@ export
     DoubleIntegrator,
     Swarm,
     BilinearCartpole,
-    EDMDModel
+    EDMDModel,
+    Cartpole2
 
 export BilinearMPC
 

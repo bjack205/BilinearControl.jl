@@ -2,12 +2,13 @@ module BilinearControl
 
 export BilinearADMM, Problems, RiccatiSolver, TOQP, DiscreteLinearModel
 
-export extractstatevec, extractcontrolvec, iterations, tovecs
+export extractstatevec, extractcontrolvec, iterations, tovecs, plotstates, plotstates!
 
 using LinearAlgebra
 using SparseArrays
 using StaticArrays
 using OSQP
+using RecipesBase
 import Convex
 import COSMO
 import IterativeSolvers 
