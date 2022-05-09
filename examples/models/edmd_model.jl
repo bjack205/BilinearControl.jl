@@ -50,7 +50,7 @@ RD.default_signature(::EDMDModel) = RD.InPlace()
 
 function RD.discrete_dynamics(model::EDMDModel, x, u, t, h)
     @assert h ≈ model.dt "Timestep must be $(model.dt)."
-    return model.A*x .+ model.C*x .* u[1]
+    return model.A*x .+ model.B*u .+ sum(model.C[i]*x .* u[i] for i = 1:length(u))
 end
 
 function RD.discrete_dynamics!(model::EDMDModel, xn, x, u, t, h)
@@ -66,9 +66,13 @@ end
 function RD.jacobian!(model::EDMDModel, J, xn, x, u, t, h)
     @assert h ≈ model.dt "Timestep must be $(model.dt)."
     n,m = RD.dims(model)
-    J[:,1:n] .= model.A .+ model.C .* u[1]
-    Ju = view(J, :, n+1)
-    mul!(Ju, model.C, x)
+    J[:,1:n] .= model.A
+    J[:,n .+ (1:m)] .= model.B
+    for i = 1:m
+       J[:,1:n] .+= model.C[i] .* u[i]
+       Ju = view(J, :, n+i)
+       mul!(Ju, model.C[i], x, true, true)
+    end
     nothing
 end
 

@@ -743,8 +743,8 @@ version = "0.3.0+0"
 
 [[deps.RobotDynamics]]
 deps = ["FiniteDiff", "ForwardDiff", "LinearAlgebra", "RecipesBase", "Rotations", "SparseArrays", "StaticArrays"]
-git-tree-sha1 = "3216a08893b89047979179581108841a9b0bc180"
-repo-rev = "master"
+git-tree-sha1 = "60baa0be3faa8288b705b023e54a845d25b77f88"
+repo-rev = "bilinear"
 repo-url = "https://github.com/RoboticExplorationLab/RobotDynamics.jl.git"
 uuid = "38ceca67-d8d3-44e8-9852-78a5596522e1"
 version = "0.4.6"
