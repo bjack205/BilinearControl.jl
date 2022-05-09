@@ -1,15 +1,30 @@
 
 struct EDMDModel <: RD.DiscreteDynamics
     A::Matrix{Float64}
-    C::Matrix{Float64}
+    B::Matrix{Float64}
+    C::Vector{Matrix{Float64}}
     g::Matrix{Float64}  # mapping from extended to original states
     kf::Function
     dt::Float64
     name::String
-    function EDMDModel(A::AbstractMatrix, C::AbstractMatrix, g::AbstractMatrix, 
-                       kf::Function, dt::AbstractFloat, name::AbstractString)
-        new(A,C,g,kf,dt,name)
+    function EDMDModel(A::AbstractMatrix, B::AbstractMatrix, C::Vector{<:AbstractMatrix}, 
+                       g::AbstractMatrix, kf::Function, dt::AbstractFloat, 
+                       name::AbstractString)
+
+        p,n = size(A)
+        m = size(B,2)
+        m == length(C) || throw(DimensionMismatch("Length of C must be m. Expected $m, got $(length(C))"))
+        p == size(B,1) || throw(DimensionMismatch("B should have the same number of rows as A."))
+        all(c->size(c) == (p,n), C) || throw(DimensionMismatch("All C matrices should be the same size as A."))
+        new(A,B,C,g,kf,dt,name)
     end
+end
+function EDMDModel(A::AbstractMatrix, C::AbstractMatrix, g::AbstractMatrix, 
+                    kf::Function, dt::AbstractFloat, name::AbstractString)
+    n = size(A,2)
+    m = 1
+    B = zeros(n,m)
+    EDMDModel(A,B,[C],g,kf,dt,name)
 end
 
 function EDMDModel(datafile::String; name=splitext(datafile)[1])
@@ -41,7 +56,10 @@ end
 function RD.discrete_dynamics!(model::EDMDModel, xn, x, u, t, h)
     @assert h ≈ model.dt "Timestep must be $(model.dt)."
     mul!(xn, model.A, x)
-    mul!(xn, model.C, x, u[1], true)
+    mul!(xn, model.B, u, true, true)
+    for i = 1:length(u)
+        mul!(xn, model.C[i], x, u[i], true)
+    end
     nothing
 end
 

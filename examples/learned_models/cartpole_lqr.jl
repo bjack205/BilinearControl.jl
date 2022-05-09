@@ -175,4 +175,64 @@ G = spdiagm(n0,n,1=>ones(n0))
 W,s = BilinearControl.EDMD.build_edmd_data(
     Z_train, U_train, A_train, B_train, F_train, model_bilinear.g
 )
-Wsparse = sparse(W)
+
+using IterativeSolvers
+@time Wsparse = sparse(W)
+@time x_lsmr = IterativeSolvers.lsmr(Wsparse,s)
+norm(Wsparse*x_lsmr - s)
+@time F = qr(Wsparse);
+@time x = F \ s 
+norm(Wsparse*x - s)
+
+# Extract out bilinear dynamics
+n = length(Z_train[1])
+E = reshape(x,n,:)
+A = E[:,1:n]
+B = E[:,n .+ (1:m)]
+C = E[:,n+m .+ (1:n*m)]
+
+BilinearControl.EDMD.fiterror(A,B,C,g,kf, X_train, U_train)
+BilinearControl.EDMD.fiterror(A,B,C,g,kf, X_test, U_test)
+jldsave(joinpath(Problems.DATADIR,"cartpole_eDMD_jac_data.jld2"); A,B,C,g, eigfuns, eigorders, dt)
+
+## Create and test new EDMD model
+cartpole_data = load(joinpath(Problems.DATADIR, "cartpole_eDMD_jac_data.jld2"))
+A = cartpole_data["A"]
+B = cartpole_data["B"]
+C = cartpole_data["C"]
+g = cartpole_data["g"]
+dt = cartpole_data["dt"]
+model_bilinear2 = EDMDModel(A,B,[C],g,kf,dt,"cartpole")
+n,m = RD.dims(model_bilinear)
+n0 = originalstatedim(model_bilinear)
+
+# Get A,B for original system
+function dynamics_bilinear2(x,u,t,dt)
+    y = expandstate(model_bilinear2, x)
+    yn = zero(y)
+    RD.discrete_dynamics!(model_bilinear2, yn, y, u, t, dt)
+    originalstate(model_bilinear2, yn)
+end
+dynamics_bilinear2(xe,ue,0.0,dt)
+A_bil2 = FiniteDiff.finite_difference_jacobian(x->dynamics_bilinear2(x,ue,0.0,dt), xe)
+B_bil2 = FiniteDiff.finite_difference_jacobian(u->dynamics_bilinear2(xe,u,0.0,dt), ue)
+[A_nom zeros(n0) A_bil2]
+[B_nom zeros(n0) B_bil2]
+sign.(A_nom) ≈ sign.(A_bil2)
+sign.(B_nom) ≈ sign.(B_bil2)
+
+# Design a stabilizing LQR controller for both
+Qlqr = Diagonal([1.0,10.0,1e-2,1e-2])
+Rlqr = Diagonal([1e-4])
+K_nom = dlqr(A_nom, B_nom, Qlqr, Rlqr)
+K_bil2 = dlqr(A_bil2, B_bil2, Qlqr, Rlqr)
+maximum(abs.(eigvals(A_nom - B_nom*K_nom))) < 1.0
+maximum(abs.(eigvals(A_bil2 - B_bil2*K_bil2))) < 1.0
+maximum(abs.(eigvals(A_nom - B_nom*K_bil2))) < 1.0  # unstable!
+
+ctrl_lqr2 = LQRController(K_bil2, xe, ue)
+t_sim = 10.0
+times_sim = range(0,t_sim,step=dt)
+x0 = [0.4,pi-deg2rad(40),0,0]
+Xsim_lqr2, = simulatewithcontroller(dmodel, ctrl_lqr2, x0, t_sim, dt)
+plotstates(times_sim, Xsim_lqr2, inds=1:2)

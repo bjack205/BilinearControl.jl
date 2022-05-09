@@ -163,7 +163,7 @@ function build_edmd_data(X,U, A,B,F,G; verbose=true)
 
     verbose && println("Creating least-squares data")
     W = ApplyArray(vcat,
-        ApplyArray(kron, Xj', sparse(I,n,n)),
+        ApplyArray(kron, Z', sparse(I,n,n)),
         ApplyArray(kron, Ahat', G),
         ApplyArray(kron, Bhat', G),
     ) 
@@ -181,6 +181,20 @@ function fiterror(A,C,g,kf, X,U)
         y = kf(x)
         xn = X[k+1,j]
         yn = A*y + u[1]*C*y
+        norm(g*yn - xn)
+    end) / P
+end
+
+function fiterror(A,B,C,g,kf, X,U)
+    P = size(X,2)
+    norm(map(CartesianIndices(U)) do cind 
+        k = cind[1]
+        j = cind[2]
+        x = X[k,j]
+        u = U[k,j]
+        y = kf(x)
+        xn = X[k+1,j]
+        yn = A*y + B*u + u[1]*C*y
         norm(g*yn - xn)
     end) / P
 end
