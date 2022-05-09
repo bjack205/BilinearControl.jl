@@ -233,6 +233,8 @@ maximum(abs.(eigvals(A_nom - B_nom*K_bil2))) < 1.0  # unstable!
 ctrl_lqr2 = LQRController(K_bil2, xe, ue)
 t_sim = 10.0
 times_sim = range(0,t_sim,step=dt)
-x0 = [0.4,pi-deg2rad(40),0,0]
+x0 = [-0.4,pi-deg2rad(40),0,0]
 Xsim_lqr2, = simulatewithcontroller(dmodel, ctrl_lqr2, x0, t_sim, dt)
 plotstates(times_sim, Xsim_lqr2, inds=1:2)
+Xsim_lqr2
+visualize!(vis, model, t_sim, Xsim_lqr2)

@@ -96,7 +96,7 @@ function set_cartpole!(vis0; model=RobotZoo.Cartpole(),
     settransform!(vis["cart","pole"], Translation(0.75*dim[1],0,dim[3]/2))
 end
 
-function visualize!(vis, model::RobotZoo.Cartpole, x::AbstractVector)
+function visualize!(vis, model::Union{RobotZoo.Cartpole, Cartpole2}, x::AbstractVector)
     y = x[1]
     θ = x[2]
     q = expm((pi-θ) * @SVector [1,0,0])
