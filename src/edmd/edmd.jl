@@ -8,6 +8,7 @@ using COSMO
 import QDLDL
 using SparseArrays
 using LazyArrays
+import RobotDynamics as RD
 
 include("eigenfunctions.jl")
 include("regression.jl")
