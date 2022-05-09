@@ -2,19 +2,20 @@ module BilinearControl
 
 export BilinearADMM, Problems, RiccatiSolver, TOQP, DiscreteLinearModel
 
-export extractstatevec, extractcontrolvec, iterations, tovecs
+export extractstatevec, extractcontrolvec, iterations, tovecs, plotstates, plotstates!
 
 using LinearAlgebra
 using SparseArrays
 using StaticArrays
 using OSQP
+using RecipesBase
 import Convex
 import COSMO
 import IterativeSolvers 
 import RobotDynamics as RD
 import TrajectoryOptimization as TO
 import COSMOAccelerators
-import Ipopt
+# import Ipopt
 import MathOptInterface as MOI
 
 import RobotDynamics: state_dim, control_dim
@@ -30,7 +31,7 @@ include("trajopt_interface.jl")
 include("mpc.jl")
 
 # include("sparseblocks.jl")
-include("moi.jl")
+# include("moi.jl")
 
 include("gen_controllable.jl")
 include("linear_model.jl")

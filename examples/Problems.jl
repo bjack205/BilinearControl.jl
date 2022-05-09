@@ -9,10 +9,12 @@ using Rotations
 using BilinearControl
 using COSMO
 using JLD2
+using ForwardDiff, FiniteDiff
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
 const FIGDIR = joinpath(dirname(pathof(BilinearControl)), "..", "images")
+const VISDIR = joinpath(@__DIR__, "visualization/") 
 
 import BilinearControl: DiscreteLinearModel
 
@@ -47,7 +49,8 @@ export
     DoubleIntegrator,
     Swarm,
     BilinearCartpole,
-    EDMDModel
+    EDMDModel,
+    Cartpole2
 
 export BilinearMPC
 
