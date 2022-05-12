@@ -138,6 +138,10 @@ struct TVLQRController <: AbstractController
     time::Vector{Float64}
 end
 
+function TVLQRController(A, B, Q, R, xref, uref, time)
+    K, _ = tvlqr(A,B,Q,R)
+    TVLQRController(K, xref, uref, time)
+end
 gettime(ctrl::TVLQRController) = ctrl.time
 
 function getcontrol(ctrl::TVLQRController, x, t)
