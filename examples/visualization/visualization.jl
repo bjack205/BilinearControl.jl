@@ -53,15 +53,35 @@ end
 # Quadrotor 
 #############################################
 
-function setquadrotor!(vis;scale=1/8, color=colorant"black")
-    meshfile = joinpath(@__DIR__, "AR_Drone.obj")
-    obj = MeshFileGeometry(meshfile)
+# function setquadrotor!(vis;scale=1.0, color=colorant"black")
+    # meshfile = joinpath(@__DIR__, "quadrotor_scaled.obj")
+    # obj = MeshFileGeometry(meshfile)
+    # mat = MeshPhongMaterial(color=color)
+    # setobject!(vis["robot"]["geometry"], obj, mat)
+    # settransform!(vis["robot"]["geometry"], compose(
+    #     Translation(0,0,-10*scale), 
+    #     LinearMap(scale*RotZ(-pi/2)*RotX(pi/2))
+    # ))
+    # urdf_folder = joinpath(@__DIR__, "..", "data", "meshes")
+# end
+
+function set_quadrotor!(vis, model::L;
+    scaling=1.0, color=colorant"black"
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor}}
+     
+    urdf_folder = @__DIR__
+    # if scaling != 1.0
+    #     quad_scaling = 0.085 * scaling
+    obj = joinpath(urdf_folder, "quadrotor_scaled.obj")
+    if scaling != 1.0
+        error("Scaling not implemented after switching to MeshCat 0.12")
+    end
+    robot_obj = MeshFileGeometry(obj)
     mat = MeshPhongMaterial(color=color)
-    setobject!(vis["robot"]["geometry"], obj, mat)
-    settransform!(vis["robot"]["geometry"], compose(
-        Translation(0,0,-10*scale), 
-        LinearMap(scale*RotZ(-pi/2)*RotX(pi/2))
-    ))
+    setobject!(vis["robot"]["geom"], robot_obj, mat)
+    if hasfield(L, :ned)
+        model.ned && settransform!(vis["robot"]["geom"], LinearMap(RotX(pi)))
+    end
 end
 
 function defcolor(c1, c2, c1def, c2def)
@@ -72,6 +92,12 @@ function defcolor(c1, c2, c1def, c2def)
         c2 = isnothing(c2) ? c2def : c2
     end
     c1,c2
+end
+
+function visualize!(vis, model::RobotZoo.PlanarQuadrotor, x::StaticVector)
+    py,pz = x[1], x[2]
+    θ = x[3]
+    settransform!(vis["robot"], compose(Translation(0,py,pz), LinearMap(RotX(-θ))))
 end
 
 #############################################
