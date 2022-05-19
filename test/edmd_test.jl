@@ -1,5 +1,5 @@
 
-function simulate_bilinear(F, C, g, x0, z0, U)
+function simulate_bilinear(F, B, C, g, x0, z0, U)
     
     x = x0
     z = z0
@@ -10,7 +10,7 @@ function simulate_bilinear(F, C, g, x0, z0, U)
 
         u = U[k]
         
-        z = F * z + (C * z) .* u
+        z = F * z + B * u + (C * z) .* u
         x = g * z
 
         push!(Z, z)
@@ -45,7 +45,7 @@ n,m = RD.dims(model)
 Z_sim, Zu_sim, kf = BilinearControl.EDMD.build_eigenfunctions(
     X_ref, U_ref, ["state", "sine", "cosine"], [0,0,0]
 )
-F, C, g = BilinearControl.EDMD.learn_bilinear_model(
+F, B, C, g = BilinearControl.EDMD.learn_bilinear_model(
     X_ref, Z_sim, Zu_sim, ["lasso", "lasso"]; 
     edmd_weights=[0.0], mapping_weights=[0.0]
 )
@@ -55,7 +55,7 @@ F, C, g = BilinearControl.EDMD.learn_bilinear_model(
 
 ## Compare solutions
 z0 = kf(x0)
-bi_X, bi_Z = simulate_bilinear(F, C, g, x0, z0, U_ref)
+bi_X, bi_Z = simulate_bilinear(F, B, C, g, x0, z0, U_ref)
 
 # Test that the discrete dynamics match
 @test all(1:length(U_ref)) do k
