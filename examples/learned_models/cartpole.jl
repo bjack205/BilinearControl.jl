@@ -24,7 +24,7 @@ include("cartpole_model.jl")
 
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
                             dt=0.05, constrained=true)
-    model = RobotZoo.Cartpole()
+    model = Cartpole2()
     dmodel = RD.DiscretizedDynamics{RD.RK4}(model) 
     n,m = RD.dims(model)
     N = round(Int, tf/dt) + 1
@@ -158,7 +158,7 @@ test_params = [
 ]
 prob = gencartpoleproblem(test_params[end]..., dt=dt)
 solver = ALTROSolver(prob)
-solve!(solver)
+Altro.solve!(solver)
 visualize!(vis, model, tf, TO.states(solver))
 
 test_trajectories = map(test_params) do params

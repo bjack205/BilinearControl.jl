@@ -112,14 +112,25 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
         
     # dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights; kwargs...)
     # g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights; kwargs...)
+
+    num_Z = size(Z_mat,1)
+    num_U = mod(size(Zu_mat,1), num_Z)
+
     dynamics_jacobians = fitA(Zu_mat, Zn_mat; rho=edmd_weights[1], kwargs...)
     g = fitA(Z_mat, X_mat; rho=mapping_weights[1], kwargs...)
+    
+    A = dynamics_jacobians[:, 1:size(dynamics_jacobians, 1)]
+    B = dynamics_jacobians[:, (size(dynamics_jacobians, 1)+1):(size(dynamics_jacobians, 1)+num_U)]
+    C = dynamics_jacobians[:, (size(dynamics_jacobians, 1)+num_U+1):end]
+    
+    C_list = Matrix{Float64}[]
+    
+    for i in 1:num_U
+        C_i = C[:, (i-1)*num_Z+1:i*num_Z]
+        push!(C_list, C_i)
+    end
 
-    A = dynamics_jacobians[:, 1:size(dynamics_jacobians)[1]]
-    C = dynamics_jacobians[:, (size(dynamics_jacobians)[1] + 1):end]
-
-    return A, C, Matrix(g)
-
+    return A, B, C_list, Matrix(g)
 end
 
 function build_edmd_data(X,U, A,B,F,G; verbose=true)
@@ -171,7 +182,7 @@ function build_edmd_data(X,U, A,B,F,G; verbose=true)
     W,s
 end
 
-function fiterror(A,C,g,kf, X,U)
+function fiterror(A,B,C,g,kf, X,U)
     P = size(X,2)
     norm(map(CartesianIndices(U)) do cind 
         k = cind[1]
@@ -180,7 +191,8 @@ function fiterror(A,C,g,kf, X,U)
         u = U[k,j]
         y = kf(x)
         xn = X[k+1,j]
-        yn = A*y + u[1]*C*y
+        # yn = A*y + u[1]*C*y
+        yn = A*y + B*u + sum(C[i]*y .* u[i] for i = 1:length(u))
         norm(g*yn - xn)
     end) / P
 end
@@ -194,7 +206,8 @@ function fiterror(A,B,C,g,kf, X,U)
         u = U[k,j]
         y = kf(x)
         xn = X[k+1,j]
-        yn = A*y + B*u + u[1]*C*y
+        # yn = A*y + B*u + u[1]*C*y
+        yn = A*y + B*u + sum(C[i]*y .* u[i] for i = 1:length(u))
         norm(g*yn - xn)
     end) / P
 end

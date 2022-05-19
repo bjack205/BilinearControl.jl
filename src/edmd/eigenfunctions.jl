@@ -137,7 +137,7 @@ function build_eigenfunctions(X::VecOrMat{<:AbstractVector{<:AbstractFloat}},
 
     Z = map(kf, X)
     Zu = map(zip(CartesianIndices(U), U)) do (cind,u)
-        vcat(Z[cind], vec(Z[cind]*u')) 
+        vcat(Z[cind], u, vec(Z[cind]*u')) 
     end
     return Z, Zu, kf
 end
