@@ -94,7 +94,7 @@ function defcolor(c1, c2, c1def, c2def)
     c1,c2
 end
 
-function visualize!(vis, model::RobotZoo.PlanarQuadrotor, x::StaticVector)
+function visualize!(vis, model::RobotZoo.PlanarQuadrotor, x::AbstractVector)
     py,pz = x[1], x[2]
     θ = x[3]
     settransform!(vis["robot"], compose(Translation(0,py,pz), LinearMap(RotX(-θ))))
