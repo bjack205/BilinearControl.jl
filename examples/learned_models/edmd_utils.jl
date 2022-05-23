@@ -37,6 +37,16 @@ resetcontroller!(ctrl::RandConstController, x0) = rand!(ctrl.distribution, ctrl.
 
 getcontrol(ctrl::RandConstController, x, t) = ctrl.u
 
+struct ConstController <: AbstractController 
+    u::Vector{Float64}
+    function ConstController(u::AbstractVector)
+        new(u)
+    end
+end
+getcontrol(ctrl::ConstController, x, t) = ctrl.u
+
+
+
 struct ZeroController <: AbstractController 
     m::Int
     ZeroController(m::Int) = new(m)
