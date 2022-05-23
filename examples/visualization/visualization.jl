@@ -160,6 +160,31 @@ function visualize!(vis, model::RobotZoo.Pendulum, x::AbstractVector)
 end
 
 #############################################
+# Rover 
+#############################################
+
+function set_rover!(vis, model::RoverKinematics; tire_width=0.2)
+    r = model.radius
+    h = model.height
+    w = model.width
+    l = model.length
+    dim = Vec(l,w,h)
+    body = Rect3D(-dim, 2dim)
+    wheel = Cylinder(Point3(0,tire_width,0), Point(0,-tire_width, 0), r)
+    black_mat = MeshPhongMaterial(color=colorant"black")
+    setobject!(vis["geometry"]["body"], body)
+    setobject!(vis["geometry"]["wheel_fl"], wheel, black_mat)
+    setobject!(vis["geometry"]["wheel_fr"], wheel, black_mat)
+    setobject!(vis["geometry"]["wheel_rl"], wheel, black_mat)
+    setobject!(vis["geometry"]["wheel_rr"], wheel, black_mat)
+    settransform!(vis["geometry"]["wheel_fl"], Translation(+l,+w,-h))
+    settransform!(vis["geometry"]["wheel_fr"], Translation(-l,+w,-h))
+    settransform!(vis["geometry"]["wheel_rl"], Translation(+l,-w,-h))
+    settransform!(vis["geometry"]["wheel_rr"], Translation(-l,-w,-h))
+    settransform!(vis["geometry"], Translation(0,0,h+r))
+end
+
+#############################################
 # Generic Methods
 #############################################
 

@@ -30,6 +30,7 @@ include(joinpath(model_dir, "integrator_models.jl"))
 include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
 include(joinpath(model_dir, "edmd_model.jl"))
+include(joinpath(model_dir, "rover_model.jl"))
 include("learned_models/edmd_utils.jl")
 
 # Problem constructors
@@ -51,7 +52,8 @@ export
     BilinearCartpole,
     EDMDModel,
     EDMDErrorModel,
-    Cartpole2
+    Cartpole2,
+    RoverKinematics
 
 export BilinearMPC
 
