@@ -19,7 +19,7 @@ const quad_arm_len = 0.28
 const quad_min_throttle = 1148.0
 const quad_max_throttle = 1832.0
 
-RD.@autodiff struct RexQuadrotor{R} <: RD.RigidBody{R}
+RD.@autodiff struct RexQuadrotor <: RD.RigidBody{MRP}
     mass::Float64
     J::SMatrix{3,3,Float64,9}
     Jinv::SMatrix{3,3,Float64,9}
@@ -33,7 +33,7 @@ end
 
 RD.control_dim(::RexQuadrotor) = 4
 
-function RexQuadrotor{R}(;
+function RexQuadrotor(;
         mass=quad_mass,
         J=quad_inertia,
         gravity=SVector(0,0,-9.81),
@@ -42,11 +42,9 @@ function RexQuadrotor{R}(;
         km=quad_motor_km,
         bf=quad_motor_bf,
         bm=quad_motor_bm
-    ) where R
-    RexQuadrotor{R}(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm)
+    )
+    RexQuadrotor(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm)
 end
-
-(::Type{RexQuadrotor})(;kwargs...) = RexQuadrotor{MRP{Float64}}(;kwargs...)
 
 # %%
 function trim_controls(model::RexQuadrotor)
@@ -134,7 +132,7 @@ function dynamics_rk4(model::RexQuadrotor, x, u, dt)
     k4 = dynamics(model, x + dt * k3, u)
     tmp = Vector(x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4))
 
-    tmp[4:6] .= Rotations.params(Rotations.MRP(tmp[4], tmp[5], tmp[6]))
+    # tmp[4:6] .= Rotations.params(Rotations.MRP(tmp[4], tmp[5], tmp[6]))
 
     return SVector{12}(tmp)
 end
