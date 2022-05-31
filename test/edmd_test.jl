@@ -1,5 +1,5 @@
 
-function simulate_bilinear(F, C, g, x0, z0, U)
+function simulate_bilinear(F, B, C, g, x0, z0, U)
     
     x = x0
     z = z0
@@ -10,7 +10,7 @@ function simulate_bilinear(F, C, g, x0, z0, U)
 
         u = U[k]
         
-        z = F * z + (C * z) .* u
+        z = F * z + B * u + (C[1] * z) .* u
         x = g * z
 
         push!(Z, z)
@@ -45,7 +45,7 @@ n,m = RD.dims(model)
 Z_sim, Zu_sim, kf = BilinearControl.EDMD.build_eigenfunctions(
     X_ref, U_ref, ["state", "sine", "cosine"], [0,0,0]
 )
-F, C, g = BilinearControl.EDMD.learn_bilinear_model(
+F, B, C, g = BilinearControl.EDMD.learn_bilinear_model(
     X_ref, Z_sim, Zu_sim, ["lasso", "lasso"]; 
     edmd_weights=[0.0], mapping_weights=[0.0]
 )
@@ -55,7 +55,7 @@ F, C, g = BilinearControl.EDMD.learn_bilinear_model(
 
 ## Compare solutions
 z0 = kf(x0)
-bi_X, bi_Z = simulate_bilinear(F, C, g, x0, z0, U_ref)
+bi_X, bi_Z = simulate_bilinear(F, B, C, g, x0, z0, U_ref)
 
 # Test that the discrete dynamics match
 @test all(1:length(U_ref)) do k
@@ -64,7 +64,7 @@ bi_X, bi_Z = simulate_bilinear(F, C, g, x0, z0, U_ref)
     x = g * bi_Z[k]
     u = U_ref[k]
     xn0 = RD.discrete_dynamics(dmodel, x, U_ref[k], 0, h)
-    zn = F*z + C*z * u[1]
+    zn = F*z + B*u + C[1]*z * u[1]
     xn_bilinear = g*zn
     norm(xn0 - xn_bilinear) < 5e-2 
 end
@@ -74,7 +74,7 @@ end
 
 ## Load Bilinear Cartpole Model
 # model_bilinear = Problems.BilinearCartpole()
-model_bilinear = Problems.EDMDModel(F,C,g,kf,dt, "cartpole")
+model_bilinear = Problems.EDMDModel(F,B,C,g,kf,dt, "cartpole")
 @test RD.discrete_dynamics(model_bilinear, bi_Z[1], U_ref[1], 0.0, dt) ≈ 
     bi_Z[2]
 
@@ -83,7 +83,7 @@ J = zeros(n2, n2+m2)
 y = zeros(n2)
 z2 = KnotPoint(n2,m2,[bi_Z[1]; U_ref[1]], 0.0, dt)
 RD.jacobian!(RD.InPlace(), RD.UserDefined(), model_bilinear, J, y, z2)
-@test J ≈ [F+C*U_ref[1][1] C*bi_Z[1]]
+@test J ≈ [F+B*U_ref[1][1]+C[1]*U_ref[1][1] C[1]*bi_Z[1]]
 
 Jfd = zero(J)
 FiniteDiff.finite_difference_jacobian!(Jfd, 

@@ -19,32 +19,41 @@ struct EDMDModel <: RD.DiscreteDynamics
         new(A,B,C,g,kf,dt,name)
     end
 end
-function EDMDModel(A::AbstractMatrix, C::AbstractMatrix, g::AbstractMatrix, 
+
+function EDMDModel(A::AbstractMatrix, B::AbstractMatrix, C::Vector{<:AbstractMatrix}, g::AbstractMatrix, 
+    kf::Function, dt::AbstractFloat, name::AbstractString)
+n = size(A,2)
+m = size(C)
+EDMDModel(A,B,C,g,kf,dt,name)
+end
+
+function EDMDModel(A::AbstractMatrix, C::Vector{<:AbstractMatrix}, g::AbstractMatrix, 
                     kf::Function, dt::AbstractFloat, name::AbstractString)
     n = size(A,2)
-    m = 1
+    m = size(C,1)
     B = zeros(n,m)
-    EDMDModel(A,B,[C],g,kf,dt,name)
+    EDMDModel(A,B,C,g,kf,dt,name)
 end
 
 function EDMDModel(datafile::String; name=splitext(datafile)[1])
     data = load(datafile)
     A = Matrix(data["A"])
+    B = Matrix(data["B"])
     C = Matrix(data["C"])
     g = Matrix(data["g"])
     dt = data["dt"]
     eigfuns = data["eigfuns"]
     eigorders = data["eigorders"]
     kf(x) = BilinearControl.EDMD.koopman_transform(Vector(x), eigfuns, eigorders)
-    EDMDModel(A, C, g, kf, dt, name)
+    EDMDModel(A, B, C, g, kf, dt, name)
 end
 
-Base.copy(model::EDMDModel) = EDMDModel(copy(model.A), copy(model.C), copy(model.g), 
+Base.copy(model::EDMDModel) = EDMDModel(copy(model.A), copy(model.B), copy(model.C), copy(model.g), 
                                         model.kf, model.dt, model.name)
 
 RD.output_dim(model::EDMDModel) = size(model.A,1)
 RD.state_dim(model::EDMDModel) = size(model.A,2)
-RD.control_dim(model::EDMDModel) = 1
+RD.control_dim(model::EDMDModel) = size(model.B,2)
 RD.default_diffmethod(::EDMDModel) = RD.UserDefined()
 RD.default_signature(::EDMDModel) = RD.InPlace()
 
@@ -87,6 +96,7 @@ expandstate(::RD.DiscreteDynamics, x) = x
 ## Saved models
 const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
 BilinearPendulum() = EDMDModel(joinpath(DATADIR, "pendulum_eDMD_data.jld2"), name="pendulum")
+BilinearCartpole() = EDMDModel(joinpath(DATADIR, "cartpole_eDMD_data.jld2"), name="cartpole")
 
 struct EDMDErrorModel{L} <: RD.DiscreteDynamics
     nominal::L
