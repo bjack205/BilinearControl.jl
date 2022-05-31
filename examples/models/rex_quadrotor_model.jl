@@ -5,9 +5,9 @@ using LinearAlgebra
 # using JSON
 using StaticArrays
 using Printf
-using RobotDynamics: ContinuousDynamics, RigidBody, LieGroupModel, @autodiff
-using RobotDynamics: dynamics!, dynamics, jacobian!, forces, moments, wrenches, inertia, inertia_inv, orientation
-using RobotDynamics: state_dim, control_dim
+using RobotDynamics
+
+const RD = RobotDynamics
 
 const quad_mass = 2.0
 const quad_inertia = SMatrix{3,3,Float64,9}([0.01566089 0.00000318037 0; 0.00000318037 0.01562078 0; 0 0 0.02226868])
@@ -19,7 +19,7 @@ const quad_arm_len = 0.28
 const quad_min_throttle = 1148.0
 const quad_max_throttle = 1832.0
 
-@autodiff struct RexQuadrotor{R} <: RigidBody{R}
+RD.@autodiff struct RexQuadrotor{R} <: RD.RigidBody{R}
     mass::Float64
     J::SMatrix{3,3,Float64,9}
     Jinv::SMatrix{3,3,Float64,9}
@@ -31,8 +31,7 @@ const quad_max_throttle = 1832.0
     bm::Float64
 end
 
-RobotDynamics.state_dim(::RexQuadrotor) = 6
-RobotDynamics.control_dim(::RexQuadrotor) = 4
+RD.control_dim(::RexQuadrotor) = 4
 
 function RexQuadrotor{R}(;
         mass=quad_mass,
@@ -44,7 +43,7 @@ function RexQuadrotor{R}(;
         bf=quad_motor_bf,
         bm=quad_motor_bm
     ) where R
-    RexQuadrotor(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm)
+    RexQuadrotor{R}(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm)
 end
 
 (::Type{RexQuadrotor})(;kwargs...) = RexQuadrotor{MRP{Float64}}(;kwargs...)
@@ -63,21 +62,23 @@ end
 
 HOVER_STATE = let
     r0 = [-0.02, 0.17, 1.70]
-    q0 = [1., 0, 0, 0]
+    q0 = [0.0, 0.0, 0.0]
     v0 = [0.0; 0.0; 0.0]
     ω0 = [0.0; 0.0; 0.0]
     [r0; q0; v0; ω0]
     end
 
-  HOVER_INPUT = trim_controls(RexQuadrotor())
+HOVER_INPUT = let
+    trim_controls(RexQuadrotor())
+    end
 
 """
 * `x` - Quadrotor state
 * `u` - Motor PWM commands
 """
 
-function forces(model::RexQuadrotor, x, u)
-    q = Rotations.MRP(x[4:6])
+function RD.forces(model::RexQuadrotor, x, u)
+    q = Rotations.MRP(x[4], x[5], x[6])
     kf = model.kf
     bf = model.bf
 
@@ -91,7 +92,7 @@ function forces(model::RexQuadrotor, x, u)
     return force
 end
 
-function moments(model::RexQuadrotor, x, u)
+function RD.moments(model::RexQuadrotor, x, u)
     km = model.km
     bm = model.bm
     kf = model.kf
@@ -110,32 +111,42 @@ function moments(model::RexQuadrotor, x, u)
     return torque
 end
 
-function cont_dynamics(model::RexQuadrotor, x, u)
+function dynamics(model::RexQuadrotor, x, u)
     p = x[1:3]
-    q = Rotations.MRP(x[4:6])
-    v = x[8:10]
-    ω = x[11:13]
+    q = Rotations.MRP(x[4], x[5], x[6])
+    v = x[7:9]
+    ω = x[10:12]
     m = model.mass
     J = model.J
 
     dp = q * v
     dq = Rotations.kinematics(q, ω)
-    dv = 1/m * forces(model, x, u) - cross(ω, v)
-    dω = J \ (moments(model, x, u) - cross(ω, J * ω))
+    dv = 1/m * RD.forces(model, x, u) - cross(ω, v)
+    dω = J \ (RD.moments(model, x, u) - cross(ω, J * ω))
 
     return [dp; dq; dv; dω]
 end
 
 function dynamics_rk4(model::RexQuadrotor, x, u, dt)
-    k1 = cont_dynamics(model, x, u)
-    k2 = cont_dynamics(model, x + 0.5 * dt * k1, u)
-    k3 = cont_dynamics(model, x + 0.5 * dt * k2, u)
-    k4 = cont_dynamics(model, x + dt * k3, u)
-    tmp = x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4)
+    k1 = dynamics(model, x, u)
+    k2 = dynamics(model, x + 0.5 * dt * k1, u)
+    k3 = dynamics(model, x + 0.5 * dt * k2, u)
+    k4 = dynamics(model, x + dt * k3, u)
+    tmp = Vector(x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4))
 
-    tmp[4:6] .= Rotations.params(Rotations.MRP(tmp[4:6]))
+    tmp[4:6] .= Rotations.params(Rotations.MRP(tmp[4], tmp[5], tmp[6]))
 
-    return tmp
+    return SVector{12}(tmp)
+end
+
+RD.inertia(model::RexQuadrotor) = model.J
+RD.inertia_inv(model::RexQuadrotor) = model.Jinv
+RD.mass(model::RexQuadrotor) = model.mass
+
+function Base.zeros(model::RexQuadrotor{R}) where R
+    x = RD.build_state(model, zero(RBState))
+    u = @SVector fill(-model.mass*model.gravity[end]/4, 4)
+    return x,u
 end
 
 # function state_error(x2, x1)
