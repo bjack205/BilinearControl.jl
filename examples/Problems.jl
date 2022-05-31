@@ -30,6 +30,7 @@ include(joinpath(model_dir, "integrator_models.jl"))
 include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
 include(joinpath(model_dir, "edmd_model.jl"))
+include(joinpath(model_dir, "rex_quadrotor.jl"))
 include("learned_models/edmd_utils.jl")
 
 # Problem constructors

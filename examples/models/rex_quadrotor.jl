@@ -2,15 +2,15 @@ using Rotations
 using ForwardDiff
 using LinearAlgebra
 # using ControlSystems
-using JSON
+# using JSON
 using StaticArrays
 using Printf
 using RobotDynamics: ContinuousDynamics, RigidBody, LieGroupModel, @autodiff
-import RobotDynamics: dynamics!, dynamics, jacobian!, forces, moments, wrenches, inertia, inertia_inv, orientation
-import RobotDynamics: state_dim, control_dim
+using RobotDynamics: dynamics!, dynamics, jacobian!, forces, moments, wrenches, inertia, inertia_inv, orientation
+using RobotDynamics: state_dim, control_dim
 
 const quad_mass = 2.0
-const quad_inertia = SMatrix{3, 3}([0.01566089 0.00000318037 0; 0.00000318037 0.01562078 0; 0 0 0.02226868])
+const quad_inertia = SMatrix{3,3,Float64,9}([0.01566089 0.00000318037 0; 0.00000318037 0.01562078 0; 0 0 0.02226868])
 const quad_motor_kf = 0.0244101
 const quad_motor_bf = -30.48576
 const quad_motor_km = 0.00029958
@@ -19,7 +19,7 @@ const quad_arm_len = 0.28
 const quad_min_throttle = 1148.0
 const quad_max_throttle = 1832.0
 
-@autodiff struct RexQuadrotor <: RigidBody
+@autodiff struct RexQuadrotor{R} <: RigidBody{R}
     mass::Float64
     J::SMatrix{3,3,Float64,9}
     Jinv::SMatrix{3,3,Float64,9}
@@ -31,9 +31,10 @@ const quad_max_throttle = 1832.0
     bm::Float64
 end
 
-control_dim(::RexQuadrotor) = 4
+RobotDynamics.state_dim(::RexQuadrotor) = 6
+RobotDynamics.control_dim(::RexQuadrotor) = 4
 
-function RexQuadrotor(;
+function RexQuadrotor{R}(;
         mass=quad_mass,
         J=quad_inertia,
         gravity=SVector(0,0,-9.81),
@@ -42,9 +43,11 @@ function RexQuadrotor(;
         km=quad_motor_km,
         bf=quad_motor_bf,
         bm=quad_motor_bm
-    )
+    ) where R
     RexQuadrotor(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm)
 end
+
+(::Type{RexQuadrotor})(;kwargs...) = RexQuadrotor{MRP{Float64}}(;kwargs...)
 
 # %%
 function trim_controls(model::RexQuadrotor)
@@ -58,13 +61,15 @@ function trim_controls(model::RexQuadrotor)
     return [pwm for _ in 1:4]
 end
 
-r0 = [-0.02, 0.17, 1.70]
-q0 = [1., 0, 0, 0]
-v0 = [0.0; 0.0; 0.0]
-ω0 = [0.0; 0.0; 0.0]
+HOVER_STATE = let
+    r0 = [-0.02, 0.17, 1.70]
+    q0 = [1., 0, 0, 0]
+    v0 = [0.0; 0.0; 0.0]
+    ω0 = [0.0; 0.0; 0.0]
+    [r0; q0; v0; ω0]
+    end
 
-HOVER_STATE = [r0; q0; v0; ω0]
-HOVER_INPUT = trim_controls(RexQuadrotor())
+  HOVER_INPUT = trim_controls(RexQuadrotor())
 
 """
 * `x` - Quadrotor state
@@ -72,7 +77,7 @@ HOVER_INPUT = trim_controls(RexQuadrotor())
 """
 
 function forces(model::RexQuadrotor, x, u)
-    q = Rotations.MRP(x[4:7])
+    q = Rotations.MRP(x[4:6])
     kf = model.kf
     bf = model.bf
 
@@ -107,7 +112,7 @@ end
 
 function cont_dynamics(model::RexQuadrotor, x, u)
     p = x[1:3]
-    q = Rotations.MRP(x[4:7])
+    q = Rotations.MRP(x[4:6])
     v = x[8:10]
     ω = x[11:13]
     m = model.mass
@@ -128,33 +133,33 @@ function dynamics_rk4(model::RexQuadrotor, x, u, dt)
     k4 = cont_dynamics(model, x + dt * k3, u)
     tmp = x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4)
 
-    tmp[4:7] .= Rotations.params(Rotations.MRP(tmp[4:7]))
+    tmp[4:6] .= Rotations.params(Rotations.MRP(tmp[4:6]))
 
     return tmp
 end
 
-function state_error(x2, x1)
-    p1 = x1[1:3]
-    p2 = x2[1:3]
-    q1 = Rotations.MRP(x1[4:7])
-    q2 = Rotations.MRP(x2[4:7])
-    all1 = x1[8:end]
-    all2 = x2[8:end]
+# function state_error(x2, x1)
+#     p1 = x1[1:3]
+#     p2 = x2[1:3]
+#     q1 = Rotations.MRP(x1[4:6])
+#     q2 = Rotations.MRP(x2[4:6])
+#     all1 = x1[7:end]
+#     all2 = x2[7:end]
 
-    ori_er = Rotations.rotation_error(q2, q1, Rotations.CayleyMap())
+#     ori_er = Rotations.rotation_error(q2, q1, Rotations.CayleyMap())
 
-    dx =[p2-p1; ori_er; all2-all1]
-    return dx
-end
+#     dx =[p2-p1; ori_er; all2-all1]
+#     return dx
+# end
 
-function error_state_jacobian(x)
-    # Get various compoents
-    q = Rotations.MRP(x[4:7])
-    # Build error state to state jacobian
-    J = zeros(13, 12)
-    J[1:3, 1:3] .= I(3)
-    J[4:7, 4:6] .= Rotations.∇differential(q)
-    J[8:end, 7:end] .= I(6)
+# function error_state_jacobian(x)
+#     # Get various compoents
+#     q = Rotations.MRP(x[4:6])
+#     # Build error state to state jacobian
+#     J = zeros(13, 12)
+#     J[1:3, 1:3] .= I(3)
+#     J[4:7, 4:6] .= Rotations.∇differential(q)
+#     J[8:end, 7:end] .= I(6)
 
-    return J
-end
+#     return J
+# end

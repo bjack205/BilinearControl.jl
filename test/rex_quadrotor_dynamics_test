@@ -1,0 +1,39 @@
+using BilinearControl.Problems
+using RobotDynamics: KnotPoint, dynamics, dynamics!, jacobian!
+using RobotDynamics: StaticReturn, InPlace, ForwardAD, FiniteDifference
+using Random
+
+const RD = RobotDynamics
+
+# function test_model(model; evals=1, samples=1, tol=1e-6, customjacobian=false) 
+#     println(typeof(model))
+#     t,dt = 1.1,0.1
+#     Random.seed!(1)
+#     x, u = rand(model)
+#     n,m = RD.dims(model)
+#     z = KnotPoint(x, u, t, dt)
+#     ∇c1  = zeros(n,n+m)
+#     ∇c2  = zeros(n,n+m)
+#     xdot = zeros(n)
+#     allocs = 0
+#     allocs += @ballocated RobotDynamics.dynamics($model, $x, $u) evals=evals samples=samples
+#     allocs += @ballocated RobotDynamics.dynamics!($model, $xdot, $x, $u) evals=evals samples=samples
+#     @test xdot == RobotDynamics.dynamics(model, x, u)
+#     @test allocs == 0 
+#     RobotDynamics.jacobian!(StaticReturn(), ForwardAD(), model, ∇c1, xdot, z)
+#     RobotDynamics.jacobian!(StaticReturn(), FiniteDifference(), model, ∇c2, xdot, z)
+#     @test ∇c1 ≈ ∇c2 atol=tol
+#     RobotDynamics.jacobian!(InPlace(), ForwardAD(), model, ∇c2, xdot, z)
+#     @test ∇c1 ≈ ∇c2
+#     RobotDynamics.jacobian!(InPlace(), FiniteDifference(), model, ∇c1, xdot, z)
+#     @test ∇c1 ≈ ∇c2 atol=tol
+#     if customjacobian
+#         RobotDynamics.jacobian!(InPlace(), RD.UserDefined(), model, ∇c1, xdot, z)
+#         @test ∇c1 ≈ ∇c2
+#     end
+# end
+
+# Rex Quadrotor
+quad = RexQuadrotor()
+@test RD.dims(quad) == (13,4,13)
+test_model(quad,tol=1e-4)
