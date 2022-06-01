@@ -13,6 +13,8 @@ using Distributions: Normal
 using Random
 using FiniteDiff, ForwardDiff
 using Test
+using IterativeSolvers
+using IncompleteLU
 
 include("learned_models/edmd_utils.jl")
 
@@ -233,12 +235,25 @@ W,s = BilinearControl.EDMD.build_edmd_data(
 )
 
 # solve LLS
-@time Wsparse = sparse(W)
-@time F = qr(Wsparse)
-@time x = F \ s
-norm(W*x - s)
 
-BilinearControl.matdensity(Wsparse)
+@time Wsparse = sparse(W)
+@time svec = Vector(s)
+# @time F = qr(Wsparse)
+# @time x = Wsparse \ s
+# norm(W*x - s)
+
+# println("Preconditioning")
+
+# @time LUfact = ilu(Wsparse, τ = 0.01)
+
+# preconditioned_W = inv(LUfact.L*LUfact.U)*Wsparse
+# preconditioned_s = inv(LUfact.L*LUfact.U)*svec
+
+println("Solving LLS")
+
+@time x = IterativeSolvers.lsqr(Wsparse, svec; atol=1e-12, btol=1e-12, conlim=1e12, maxiter=10000, verbose=true)
+
+println(BilinearControl.matdensity(Wsparse))
 
 # Extract out bilinear dynamics
 n = length(Z_train[1])
