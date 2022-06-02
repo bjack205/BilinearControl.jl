@@ -1,3 +1,34 @@
+function lls_recursive_rank1(Y::AbstractVector{<:AbstractFloat}, 
+    X::AbstractMatrix{<:AbstractFloat}; verbose=false)
+
+    m, n = size(X)
+
+    P = spzeros(n, n)
+    q = spzeros(n)
+    P_inv = P
+
+    verbose && println("# Iterations: $m")
+    verbose && println("")
+
+    for i in 1:m
+
+        verbose && println("Iteration $i")
+
+        a_i = X[i, :]
+        y_i = Y[i]
+        
+        P_inv = P_inv - (1 ./ (1+(a_i')*P_inv*a_i)).*(P_inv*a_i)*(P_inv*a_i)'
+
+        P = P + a_i*a_i'
+        q = q + y_i*a_i
+
+    end
+
+    x = P_inv*q
+
+    return x
+
+end
 
 function linear_regression(Y::AbstractVector{<:AbstractFloat}, 
                            X::AbstractMatrix{<:AbstractFloat}; 
