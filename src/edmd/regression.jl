@@ -1,32 +1,187 @@
-function lls_recursive_rank1(Y::AbstractVector{<:AbstractFloat}, 
+function rls_qr(b::AbstractVector{<:AbstractFloat}, A::SparseMatrixCSC{Float64, Int64};
+    batchsize=Int(floor(size(A)[1]/10)), Q=0.0, verbose=false)
+
+    m, n = size(A)
+
+    rem_m = m - 3*n
+    
+    if batchsize == 0 || batchsize >= rem_m
+        m_batch = 1
+        batch_size_1 = Int(3*n)
+        batches = m
+    else
+        m_batch = batchsize 
+        batches = Int(floor(rem_m/m_batch))
+        batch_size_1 = Int(3*n) + Int(mod(rem_m, m_batch))
+    end
+
+    verbose && println("# Batches: $batches")
+    verbose && println("")
+    verbose && println("Batch 1")
+    
+    # QR factorization on 1st batch
+    
+    A_i = A[1:batch_size_1, :]
+    b_i = b[1:batch_size_1]
+    
+    if Q == 0.0
+        U, _, Pcol = qrr(A_i)
+    else
+        U, _, Pcol = qrr([A_i; sqrt(Q)*I])
+    end
+
+    rhs = A_i'*b_i
+
+    # now at each batch we are going to
+    for i = 0:batches-1
+
+        verbose && print("\u1b[1F")
+        verbose && println("Batch $(i+2)")
+        verbose && print("\u1b[0K")
+        
+        # determine next batch
+        batch_start = batch_size_1 + i*m_batch + 1
+        batch_end = batch_start+m_batch-1
+
+        A_i = A[batch_start:batch_end, :]
+        b_i = b[batch_start:batch_end]
+
+        # update our cholesky factor U with the new Ai
+        U, _, Pcol = qrr([U*Pcol'; A_i])
+        
+        # add to the right hand side
+        rhs += A_i'*b_i
+
+    end
+
+    U = U*Pcol'
+
+    verbose && println("Solving LLS")
+    verbose && @show norm(U'*U - A'*A)
+    verbose && @show norm(rhs - A'*b)
+    verbose && println("")
+
+    x_rls = U\(U'\rhs)
+
+    return x_rls
+
+end
+
+function rls_qr(b::AbstractVector{<:AbstractFloat}, A::AbstractMatrix{<:AbstractFloat};
+    batchsize=Int(floor(size(A)[1]/10)), Q=0.0, verbose=false)
+
+    m, _ = size(A)
+    
+    if batchsize == 0 || batchsize >= m
+        m_batch = 1
+        batch_size_1 = 1
+        batches = m
+    else
+        m_batch = batchsize 
+        batches = Int(floor(m/m_batch))
+        batch_size_1 = m_batch + Int(mod(m, m_batch))
+    end
+
+    verbose && println("# Batches: $batches")
+    verbose && println("")
+    verbose && println("Batch 1")
+    
+    # QR factorization on 1st batch
+    
+    A_i = A[1:batch_size_1, :]
+    b_i = b[1:batch_size_1]
+    
+    if Q == 0.0
+        U = qr(A_i).R
+    else
+        U = qr([A_i; sqrt(Q)*I]).R
+    end
+    rhs = A_i'*b_i
+
+    # now at each batch we are going to
+    for i = 0:batches-2
+
+        verbose && print("\u1b[1F")
+        verbose && println("Batch $(i+2)")
+        verbose && print("\u1b[0K")
+        
+        # determine next batch
+        batch_start = batch_size_1 + i*m_batch + 1
+        A_i = A[batch_start:batch_start+m_batch-1, :]
+        b_i = b[batch_start:batch_start+m_batch-1]
+
+        # update our cholesky factor U with the new Ai
+        U = qr([U; A_i]).R
+        
+        # add to the right hand side
+        rhs += A_i'*b_i
+
+    end
+
+    verbose && println("Solving LLS")
+    verbose && @show norm(U'*U - A'*A)
+    verbose && @show norm(rhs - A'*b)
+    verbose && println("")
+
+    x_rls = U\(U'\rhs)
+
+    return x_rls
+
+end
+
+function rls_chol(Y::AbstractVector{<:AbstractFloat}, 
     X::AbstractMatrix{<:AbstractFloat}; verbose=false)
 
     m, n = size(X)
 
-    P = spzeros(n, n)
-    q = spzeros(n)
-    P_inv = P
-
     verbose && println("# Iterations: $m")
+
+    P = X[1, :]*X[1, :]'
+    q = Y[1]*X[1, :]
+    
+    P_chol = cholesky(P, check = false)
+
+    factorizable = issuccess(P_chol)
+    ~factorizable || error("Cholesky Factorization Failed")
+
     verbose && println("")
+    verbose && println("Iteration 1")
 
-    for i in 1:m
+    for i in 2:m
 
+        verbose && print("\u1b[1F")
         verbose && println("Iteration $i")
+        verbose && print("\u1b[0K")
 
-        a_i = X[i, :]
-        y_i = Y[i]
-        
-        P_inv = P_inv - (1 ./ (1+(a_i')*P_inv*a_i)).*(P_inv*a_i)*(P_inv*a_i)'
-
-        P = P + a_i*a_i'
-        q = q + y_i*a_i
+        lowrankupdate!(P_chol, X[i, :])
+        q += Y[i]*X[i, :]
 
     end
 
-    x = P_inv*q
+    verbose && println("Solving LLS")
+    verbose && println("")
+    
+    x = P_chol \ q
 
     return x
+
+end
+
+function qrr(A::AbstractMatrix{<:AbstractFloat})
+
+    m, n = size(A)
+
+    F = qr(A)
+
+    R = F.R
+    prow_vec = F.prow
+    pcol_vec = F.pcol
+
+    # build permutation matrices
+    prow = sparse(I, m, m)[prow_vec, :]
+    pcol = sparse(I, n, n)[:, pcol_vec]
+
+    return R, prow, pcol
 
 end
 
@@ -144,12 +299,19 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
     # dynamics_jacobians = LLS_fit(Zu_mat, Zn_mat, regression_types[1], edmd_weights; kwargs...)
     # g = LLS_fit(Z_mat, X_mat, regression_types[2], mapping_weights; kwargs...)
 
+    num_X = size(X_mat, 1)
     num_Z = size(Z_mat,1)
     num_U = mod(size(Zu_mat,1), num_Z)
 
     dynamics_jacobians = fitA(Zu_mat, Zn_mat; rho=edmd_weights[1], kwargs...)
-    g = fitA(Z_mat, X_mat; rho=mapping_weights[1], kwargs...)
-    
+
+    if issubset(X_mat[:, 1], Z_mat[:, 1])
+        g = spzeros(num_X, num_Z)
+        g[:, 2:1+num_X] .= I(num_X)
+    else
+        g = Matrix(fitA(Z_mat, X_mat; rho=mapping_weights[1], kwargs...))
+    end
+
     A = dynamics_jacobians[:, 1:size(dynamics_jacobians, 1)]
     B = dynamics_jacobians[:, (size(dynamics_jacobians, 1)+1):(size(dynamics_jacobians, 1)+num_U)]
     C = dynamics_jacobians[:, (size(dynamics_jacobians, 1)+num_U+1):end]
@@ -161,7 +323,7 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
         push!(C_list, C_i)
     end
 
-    return A, B, C_list, Matrix(g)
+    return A, B, C_list, g
 end
 
 function build_edmd_data(X,U, A,B,F,G; verbose=true)
@@ -210,7 +372,10 @@ function build_edmd_data(X,U, A,B,F,G; verbose=true)
         ApplyArray(kron, Bhat', G),
     ) 
     s = vcat(vec(Xn), vec(Amat), vec(Bmat))
-    W,s
+
+    batchsizes = [Int(size(ApplyArray(kron, Z', sparse(I,n,n)))[1]), size(W)[1]-Int(size(ApplyArray(kron, Z', sparse(I,n,n)))[1])]
+
+    W,s, batchsizes
 end
 
 function fiterror(A,B,C,g,kf, X,U)

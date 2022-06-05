@@ -1,6 +1,6 @@
 module EDMD
 
-export learn_bilinear_model, build_eigenfunctions, state_transform, koopman_transform, state, sine, cosine, hermite, chebyshev, monomial
+export rls_qr, rls_chol, learn_bilinear_model, build_eigenfunctions, state_transform, koopman_transform, state, sine, cosine, hermite, chebyshev, monomial
 
 using LinearAlgebra
 using Convex
@@ -8,6 +8,7 @@ using COSMO
 import QDLDL
 using SparseArrays
 using LazyArrays
+using SuiteSparse
 import RobotDynamics as RD
 
 include("eigenfunctions.jl")

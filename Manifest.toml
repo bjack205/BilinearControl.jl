@@ -565,6 +565,12 @@ version = "0.3.14"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.MATLAB]]
+deps = ["Libdl", "SparseArrays"]
+git-tree-sha1 = "e263657fe013cb02450c5d4210d2c50a354a5e08"
+uuid = "10e44e05-a98a-55b3-a45b-ba969058deb6"
+version = "0.8.3"
+
 [[deps.METIS_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "1d31872bb9c5e7ec1f618e8c4a56c8b0d9bddc7e"
