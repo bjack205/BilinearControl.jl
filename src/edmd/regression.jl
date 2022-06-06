@@ -372,10 +372,7 @@ function build_edmd_data(X,U, A,B,F,G; verbose=true)
         ApplyArray(kron, Bhat', G),
     ) 
     s = vcat(vec(Xn), vec(Amat), vec(Bmat))
-
-    batchsizes = [Int(size(ApplyArray(kron, Z', sparse(I,n,n)))[1]), size(W)[1]-Int(size(ApplyArray(kron, Z', sparse(I,n,n)))[1])]
-
-    W,s, batchsizes
+    W,s
 end
 
 function fiterror(A,B,C,g,kf, X,U)
