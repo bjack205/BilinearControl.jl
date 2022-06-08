@@ -51,7 +51,7 @@ struct LQRController <: AbstractController
 end
 
 function LQRController(A,B,Q,R, xeq, ueq)
-    K = dlqr(A,B,Q,R)
+    K, = dlqr(A,B,Q,R)
     LQRController(Matrix(K), Vector(xeq), Vector(ueq))
 end
 
@@ -88,7 +88,7 @@ function dlqr(A,B,Q,R; max_iters=200, tol=1e-6, verbose=false)
         end
         K_prev .= K
     end
-    return K
+    return K,P
 end
 
 function linearize(model::RD.DiscreteDynamics, X, U, times)
@@ -117,11 +117,13 @@ end
 function tvlqr(A,B,Q,R)
     # initialize the output
     n,m = size(B[1])
-    N = length(A) + 1
+    N = length(Q)
     P = [zeros(n,n) for k = 1:N]
-    K = [zeros(m,n) for k = 1:N-1]
+    K = [zeros(m,n) for k = 1:N]
     
-    P[end] .= dlqr(A[end], B[end], Q[end], R[end])
+    Kf, Pf = dlqr(A[end], B[end], Q[end], R[end])
+    K[end] .= Kf
+    P[end] .= Pf
     for k = reverse(1:N-1) 
         K[k] .= (R[k] + B[k]'P[k+1]*B[k])\(B[k]'P[k+1]*A[k])
         P[k] .= Q[k] + A[k]'P[k+1]*A[k] - A[k]'P[k+1]*B[k]*K[k]
@@ -136,6 +138,11 @@ struct TVLQRController <: AbstractController
     xref::Vector{Vector{Float64}}
     uref::Vector{Vector{Float64}}
     time::Vector{Float64}
+end
+
+function TVLQRController(model, Q, R, Xref, Uref, times)
+    A, B = linearize(model_bilinear_nom_projected, Xref, Uref, T_ref)
+    TVLQRController(A, B, Q, R, Xref, Uref, times)
 end
 
 function TVLQRController(A, B, Q, R, xref, uref, time)
@@ -373,7 +380,7 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
         U[k] = u
         RD.discrete_dynamics!(sig, model, X[k+1], X[k], u, times[k], dt)
     end
-    X,U
+    X,U,times
 end
 
 function bilinearerror(model::EDMDModel, X, U)
