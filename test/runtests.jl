@@ -7,6 +7,8 @@ using FiniteDiff
 using LinearAlgebra
 using Random
 using StaticArrays
+using SparseArrays
+using SuiteSparse
 using Test
 using Statistics
 using Rotations
@@ -53,6 +55,14 @@ end
 
 @testset "Quadrotor Example" begin
     include("quadrotor_test.jl")
+end
+
+@testset "Rex Quadrotor" begin
+    include("rex_quadrotor_dynamics_test.jl")
+end
+
+@testset "RLS" begin
+    include("rls_test.jl")
 end
 
 # @testset "MOI" begin

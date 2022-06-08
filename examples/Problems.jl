@@ -29,7 +29,8 @@ include(joinpath(model_dir, "quadrotor_model.jl"))
 include(joinpath(model_dir, "integrator_models.jl"))
 include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
-include(joinpath(model_dir, "rex_quadrotor_model.jl"))
+include(joinpath(model_dir, "rex_full_quadrotor_model.jl"))
+include(joinpath(model_dir, "rex_planar_quadrotor_model.jl"))
 include(joinpath(model_dir, "edmd_model.jl"))
 include("learned_models/edmd_utils.jl")
 
@@ -53,6 +54,7 @@ export
     EDMDModel,
     EDMDErrorModel,
     RexQuadrotor,
+    RexPlanarQuadrotor,
     Cartpole2
 
 export BilinearMPC
