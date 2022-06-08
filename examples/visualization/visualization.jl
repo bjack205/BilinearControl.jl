@@ -67,7 +67,7 @@ end
 
 function set_quadrotor!(vis, model::L;
     scaling=1.0, color=colorant"black"
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, Problems.RexQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, Problems.RexQuadrotor, Problems.RexPlanarQuadrotor}}
      
     urdf_folder = @__DIR__
     # if scaling != 1.0
@@ -94,7 +94,7 @@ function defcolor(c1, c2, c1def, c2def)
     c1,c2
 end
 
-function visualize!(vis, model::RobotZoo.PlanarQuadrotor, x::AbstractVector)
+function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RobotZoo.PlanarQuadrotor, Problems.RexPlanarQuadrotor}}
     py,pz = x[1], x[2]
     θ = x[3]
     settransform!(vis["robot"], compose(Translation(0,py,pz), LinearMap(RotX(-θ))))
