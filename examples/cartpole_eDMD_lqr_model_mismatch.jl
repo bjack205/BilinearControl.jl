@@ -33,8 +33,8 @@ model_nom = RobotZoo.Cartpole(mc=1.0, mp=0.2, l=0.5)
 dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
 ## Define Mismatched "Real" Cartpole Model
-model_mismatch = Cartpole2(mc=1.05, mp=0.19, l=0.52, b=0.02)  # this model has damping
-dmodel_mismatch = RD.DiscretizedDynamics{RD.RK4}(model_mismatch)
+model_real = Cartpole2(mc=1.05, mp=0.19, l=0.52, b=0.02)  # this model has damping
+dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
 ## Time parameters
 tf = 2.0
@@ -52,7 +52,7 @@ Qlqr = Diagonal([0.2,10,1e-2,1e-2])
 Rlqr = Diagonal([1e-3])
 xe = [0,pi,0,0]
 ue = [0.0]
-ctrl_lqr = LQRController(dmodel_mismatch, Qlqr, Rlqr, xe, ue, dt)
+ctrl_lqr = LQRController(dmodel_real, Qlqr, Rlqr, xe, ue, dt)
 
 # Sample a bunch of initial conditions for the LQR controller
 x0_sampler = Product([
@@ -66,8 +66,8 @@ initial_conditions_lqr = [rand(x0_sampler) for _ in 1:num_test]
 initial_conditions_test = [rand(x0_sampler) for _ in 1:num_train]
 
 # Create data set
-X_train, U_train = create_data(dmodel_mismatch, ctrl_lqr, initial_conditions_lqr, tf, dt)
-X_test, U_test = create_data(dmodel_mismatch, ctrl_lqr, initial_conditions_test, tf, dt)
+X_train, U_train = create_data(dmodel_real, ctrl_lqr, initial_conditions_lqr, tf, dt)
+X_test, U_test = create_data(dmodel_real, ctrl_lqr, initial_conditions_test, tf, dt)
 
 ## Save generated training and test data
 jldsave(joinpath(Problems.DATADIR, "mismatch_exp_cartpole_lqr_trajectories.jld2"); 
@@ -150,7 +150,7 @@ ye = expandstate(model_bilinear, xe);
 # True jacobians from mismatched "real" model
 J = zeros(n0,n0+m)
 xn = zeros(n0)
-RD.jacobian!(RD.InPlace(), RD.ForwardAD(), dmodel_mismatch, J, xn, ze)
+RD.jacobian!(RD.InPlace(), RD.ForwardAD(), dmodel_real, J, xn, ze)
 A_og = J[:,1:n0]
 B_og = J[:,n0+1:end];
 
@@ -202,8 +202,8 @@ x0 = [-0.4,pi-deg2rad(40),0,0]
 ctrl_lqr_og = LQRController(K_og, xe, ue)
 ctrl_lqr_nominal = LQRController(K_bil_nom, xe, ue)
 
-Xsim_lqr_og, = simulatewithcontroller(dmodel_mismatch, ctrl_lqr_og, x0, tf_sim, dt)
-Xsim_lqr_nominal, = simulatewithcontroller(dmodel_mismatch, ctrl_lqr_nominal, x0, tf_sim, dt)
+Xsim_lqr_og, = simulatewithcontroller(dmodel_real, ctrl_lqr_og, x0, tf_sim, dt)
+Xsim_lqr_nominal, = simulatewithcontroller(dmodel_real, ctrl_lqr_nominal, x0, tf_sim, dt)
 
 ## Plot results
 plotstates(Tsim_lqr_nominal, Xsim_lqr_og, inds=1:2, xlabel="time (s)", ylabel="states",
@@ -343,7 +343,7 @@ Tsim_lqr_jacpen = range(0,tf_sim,step=dt)
 x0 = [-0.4,pi-deg2rad(40),0,0]
 
 ctrl_lqr_jacpen = LQRController(K_bil_jacpen, xe, ue)
-Xsim_lqr_jacpen, = simulatewithcontroller(dmodel_mismatch, ctrl_lqr_jacpen, x0, tf_sim, dt)
+Xsim_lqr_jacpen, = simulatewithcontroller(dmodel_real, ctrl_lqr_jacpen, x0, tf_sim, dt)
 
 ## Plot the results
 plotstates(Tsim_lqr_nominal, Xsim_lqr_og, inds=1:2, xlabel="time (s)", ylabel="states",
