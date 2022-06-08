@@ -1,4 +1,4 @@
-struct RoverKinematics <: RD.ContinuousDynamics
+RD.@autodiff struct RoverKinematics <: RD.ContinuousDynamics
     width::Float64
     length::Float64
     height::Float64
@@ -8,7 +8,7 @@ struct RoverKinematics <: RD.ContinuousDynamics
     Aν::SMatrix{3,12,Float64,36}
     Aω::SMatrix{3,12,Float64,36}
     B::SMatrix{12,4,Float64,48}
-    function RoverKinematics(;width=0.2, length=0.3, height=0.1, radius=0.1, vxl=0.0, vxr=0.0)
+    function RoverKinematics(width, len, height, radius, vxl, vxr)
         v_constraints_l = zeros(12)
         v_constraints_r = zeros(12)
         v_constraints_l[1] = vxl
@@ -16,7 +16,7 @@ struct RoverKinematics <: RD.ContinuousDynamics
         v_constraints_r[4] = vxr
         v_constraints_r[10] = vxr
         w = width
-        l = length
+        l = len
         r = radius
         h = height + radius
         
@@ -50,8 +50,12 @@ struct RoverKinematics <: RD.ContinuousDynamics
             0 1 -h/w 0 1 +h/w 0 1 -h/w 0 1 +h/w
             0 0    1 0 0    1 0 0    1 0 0    1
         ]
-        new(width, length, height, radius, vxl, vxr, Aν, Aω, B)
+        new(width, len, height, radius, vxl, vxr, Aν, Aω, B)
     end
+end
+
+function RoverKinematics(;width=0.2, length=0.3, height=0.1, radius=0.1, vxl=0.0, vxr=0.0)
+    RoverKinematics(width, length, height, radius, vxl, vxr)
 end
 
 RD.state_dim(::RoverKinematics) = 7
