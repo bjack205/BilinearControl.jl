@@ -150,7 +150,7 @@ struct TVLQRController <: AbstractController
     time::Vector{Float64}
 end
 
-function TVLQRController(model, Q::RD.DiscreteDynamics, R, Xref, Uref, times)
+function TVLQRController(model::RD.DiscreteDynamics, Q, R, Xref, Uref, times)
     A, B = linearize(model, Xref, Uref, times)
     TVLQRController(A, B, Q, R, Xref, Uref, times)
 end
@@ -182,6 +182,153 @@ function getcontrol(ctrl::BilinearController, x, t)
     return u
 end
 
+@doc raw"""
+    TrackingMPC
+
+Solves the tracking linear MPC problem:
+
+```math
+\begin{align*} 
+\underset{\delta x_{1:N}, \delta u_{1:N}}{\text{minimize}} &&& \frac{1}{2} \sum_{k=0}^N \delta x_k^T Q_k \delta x_k + \delta u_k^T R_k \delta u_k \\
+\text{subject to} &&& A_k \delta x_k + B_k \delta u_k + f_k = \delta x_{k+1} \\
+&&& \delta x_1 = x_\text{init}
+\end{align*}
+```
+where ``f_k = f(\bar{x}_k, \bar{u}_k) - \bar{x}_{k+1}``.
+
+Once the mpc horizon `Nt` goes beyond the end of the reference trajectory, it uses the last 
+point of the reference trajectory.
+"""
+struct TrackingMPC{T,L} <: AbstractController
+    # Reference trajectory
+    Xref::Vector{Vector{T}}
+    Uref::Vector{Vector{T}}
+    Tref::Vector{T}
+
+    # Dynamics 
+    model::L
+    A::Vector{Matrix{T}}
+    B::Vector{Matrix{T}}
+    f::Vector{Vector{T}}
+
+    # Cost
+    Q::Vector{Diagonal{T,Vector{T}}}
+    R::Vector{Diagonal{T,Vector{T}}}
+    q::Vector{Vector{T}}
+    r::Vector{Vector{T}}
+
+    # Storage
+    K::Vector{Matrix{T}}
+    d::Vector{Vector{T}}
+    P::Vector{Matrix{T}}
+    p::Vector{Vector{T}}
+    X::Vector{Vector{T}}
+    U::Vector{Vector{T}}
+    λ::Vector{Vector{T}}
+    Nt::Vector{Int}  # horizon length
+end
+
+mpchorizon(mpc::TrackingMPC) = mpc.Nt[1]
+
+function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref)) where {L<:RD.DiscreteDynamics}
+    N = length(Xref)
+    n = length(Xref[1])
+    m = length(Uref[1])
+    A,B = linearize(model, Xref, Uref, Tref)
+    f = map(1:N) do k
+        dt = k < N ? Tref[k+1] - Tref[k] : Tref[k] - Tref[k-1] 
+        xn = k < N ? Xref[k+1] : Xref[k]
+        Vector(RD.discrete_dynamics(model, Xref[k], Uref[k], Tref[k], dt) - xn)
+    end
+
+    Q = [copy(Qk) for k in 1:Nt-1]
+    push!(Q, Qf)
+    R = [copy(Rk) for k = 1:Nt] 
+    q = [zeros(n) for k in 1:Nt]
+    r = [zeros(m) for k in 1:Nt]
+
+    K = [zeros(m, n) for k in 1:(Nt - 1)]
+    d = [zeros(m) for k in 1:(Nt - 1)]
+    P = [zeros(n, n) for k in 1:Nt]
+    p = [zeros(n) for k in 1:Nt]
+    X = [zeros(n) for k in 1:Nt]
+    U = [zeros(m) for k in 1:Nt]
+    λ = [zeros(n) for k in 1:Nt]
+    TrackingMPC(Xref, Uref, Tref, model, A, B, f, Q, R, q, r, K, d, P, p, X, U, λ, [Nt])
+end
+
+function backwardpass!(mpc::TrackingMPC, i)
+    A, B = mpc.A, mpc.B
+    Q, q = mpc.Q, mpc.q
+    R, r = mpc.R, mpc.r
+    P, p = mpc.P, mpc.p
+    f = mpc.f
+    N = length(mpc.Xref)
+    Nt = mpchorizon(mpc)
+
+    P[Nt] .= Q[Nt]
+    p[Nt] .= q[Nt]
+
+    for j in reverse(1:(Nt - 1))
+        k = min(N, j + i - 1)
+        P′ = P[j + 1]
+        Ak = A[k]
+        Bk = B[k]
+        fk = f[k]
+
+        Qx = q[j] + Ak' * (P′*fk + p[j + 1])
+        Qu = r[j] + Bk' * (P′*fk + p[j + 1])
+        Qxx = Q[j] + Ak'P′ * Ak
+        Quu = R[j] + Bk'P′ * Bk
+        Qux = Bk'P′ * Ak
+
+        cholQ = cholesky(Symmetric(Quu))
+        K = -(cholQ \ Qux)
+        d = -(cholQ \ Qu)
+
+        P[j] .= Qxx .+ K'Quu * K .+ K'Qux .+ Qux'K
+        p[j] = Qx .+ K'Quu * d .+ K'Qu .+ Qux'd
+        mpc.K[j] .= K
+        mpc.d[j] .= d
+    end
+end
+
+function forwardpass!(mpc::TrackingMPC, x0, i)
+    A,B,f = mpc.A, mpc.B, mpc.f
+    X,U,λ = mpc.X, mpc.U, mpc.λ
+    K,d = mpc.K, mpc.d
+    X[1] = x0  - mpc.Xref[i]
+    Nt = mpchorizon(mpc)
+    for j = 1:Nt-1
+        λ[j] = mpc.P[j]*X[j] .+ mpc.p[j]
+        U[j] = K[j]*X[j] + d[j]
+        X[j+1] = A[j]*X[j] .+ B[j]*U[j] .+ f[j]
+    end
+    λ[Nt] = mpc.P[Nt]*X[Nt] .+ mpc.p[Nt]
+end
+
+function solve!(mpc::TrackingMPC, x0, i=1)
+    backwardpass!(mpc, i)
+    forwardpass!(mpc, x0, i)
+    return nothing
+end
+
+function cost(mpc::TrackingMPC)
+    Nt = mpchorizon(mpc)
+    mapreduce(+, 1:Nt) do k
+        Jx = 0.5 * mpc.X[k]'mpc.Q[k]*mpc.X[k]
+        Ju = 0.5 * mpc.U[k]'mpc.R[k]*mpc.U[k]
+        Jx + Ju
+    end
+end
+
+gettime(mpc::TrackingMPC) = mpc.Tref
+
+function getcontrol(mpc::TrackingMPC, x, t)
+    k = get_k(mpc, t) 
+    solve!(mpc, x, k)
+    return mpc.U[1] + mpc.Uref[k]
+end
 
 struct BilinearMPC{L} <: AbstractController
     model::L
