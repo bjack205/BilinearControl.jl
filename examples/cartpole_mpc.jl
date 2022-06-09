@@ -59,11 +59,64 @@ vis = Visualizer()
 set_cartpole!(vis)
 open(vis)
 
-## Solve ALTRO problem
-prob = gencartpoleproblem()
-solver = ALTROSolver(prob)
-Altro.solve!(solver)
-visualize!(vis, model, TO.gettimes(solver)[end], TO.states(solver))
+## Setup training data
+num_train = 15
+Random.seed!(1)
+train_params = map(1:num_train) do i
+    Qv = 1e-2
+    Rv = Qv * 10^rand(Uniform(-1,3.0))
+    Qfv = Qv * 10^rand(Uniform(1,5.0)) 
+    u_bnd = rand(Uniform(4.5, 8.0))
+    (zeros(4), Qv, Rv, Qfv, u_bnd, tf)
+end
+
+train_trajectories = map(train_params) do params
+    solver = Altro.solve!(ALTROSolver(gencartpoleproblem(params..., dt=dt), 
+        show_summary=false, projected_newton=true))
+    if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
+        @warn "ALTRO Solve failed"
+    end
+    X = TO.states(solver)
+    U = TO.controls(solver)
+    Vector.(X), Vector.(U)
+end
+X_train_altro = mapreduce(x->getindex(x,1), hcat, train_trajectories)
+U_train_altro = mapreduce(x->getindex(x,2), hcat, train_trajectories)
+T_test_altro = range(0,tf,step=dt)
+
+## Setup test data 
+dt = 0.05
+tf = 5.0
+test_params = [
+    (zeros(4), 1e-2, 1e-1, 1e2,  3.0, tf)
+    (zeros(4), 1e-0, 1e-1, 1e2,  5.0, tf)
+    (zeros(4), 1e1,  1e-2, 1e2, 10.0, tf)
+    (zeros(4), 1e-1, 1e-0, 1e2, 10.0, tf)
+    (zeros(4), 1e-2, 1e-0, 1e1, 10.0, tf)
+    (zeros(4), 1e-2, 1e-0, 1e1,  3.0, tf)
+    (zeros(4), 1e1,  1e-3, 1e2, 10.0, tf)
+    (zeros(4), 1e1,  1e-3, 1e2,  5.0, tf)
+    (zeros(4), 1e3,  1e-3, 1e3, 10.0, tf)
+    (zeros(4), 1e0,  1e-2, 1e2,  4.0, tf)
+]
+test_trajectories = map(test_params) do params
+    solver = Altro.solve!(ALTROSolver(gencartpoleproblem(params...; dt), show_summary=false))
+    if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
+        @show params
+        @warn "ALTRO Solve failed"
+    end
+    X = TO.states(solver)
+    U = TO.controls(solver)
+    Vector.(X), Vector.(U)
+end
+X_test_altro = mapreduce(x->getindex(x,1), hcat, test_trajectories)
+U_test_altro = mapreduce(x->getindex(x,2), hcat, test_trajectories)
+T_test_altro = range(0,tf,step=dt)
+
+# Make sure all trajectories are complete swing-ups
+xg = [0,pi,0,0]
+@test all(x->norm(x-xg) < 1e-6, X_train_altro[end,:])
+@test all(x->norm(x-xg) < 1e-6, X_test_altro[end,:])
 
 ## Setup MPC Controller
 dmodel = TO.get_model(solver)[1]
@@ -77,13 +130,13 @@ Qfmpc = Diagonal(fill(1e2,4))
 Nt = 41 
 mpc = TrackingMPC(dmodel, X_ref, U_ref, T_ref, Qmpc, Rmpc, Qfmpc; Nt=Nt)
 
-## Run sim w/ MPC controller w/ large initial offset
+# Run sim w/ MPC controller w/ large initial offset
 dx = [0.9,deg2rad(-30),0,0.]  # large initial offset
 X_sim,U_sim,T_sim = simulatewithcontroller(dmodel, mpc, X_ref[1] + dx, T_ref[end]*1.5, T_ref[2])
 plotstates(T_ref, X_ref, inds=1:2, c=:black, legend=:topleft)
 plotstates!(T_sim, X_sim, inds=1:2, c=[1 2])
 
-## Compare open loop trajectories for true and nominal models
+# Compare open loop trajectories for true and nominal models
 model_nom = Problems.NominalCartpole()
 dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 model_true = Problems.SimulatedCartpole()
