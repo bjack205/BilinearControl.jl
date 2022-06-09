@@ -119,16 +119,21 @@ xg = [0,pi,0,0]
 @test all(x->norm(x-xg) < 1e-6, X_test_altro[end,:])
 
 ## Setup MPC Controller
-dmodel = TO.get_model(solver)[1]
-X_ref = Vector.(TO.states(solver))
-U_ref = Vector.(TO.controls(solver))
+model_nom = Problems.NominalCartpole()
+dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
+model_true = Problems.SimulatedCartpole()
+dmodel_true = RD.DiscretizedDynamics{RD.RK4}(model_true)
+
+i = 10 
+X_ref = deepcopy(X_test_altro[:,i])
+U_ref = deepcopy(U_test_altro[:,i])
 push!(U_ref, zeros(RD.control_dim(solver)))
 T_ref = TO.gettimes(solver)
 Qmpc = Diagonal(fill(1e-0,4))
 Rmpc = Diagonal(fill(1e-3,1))
 Qfmpc = Diagonal(fill(1e2,4))
 Nt = 41 
-mpc = TrackingMPC(dmodel, X_ref, U_ref, T_ref, Qmpc, Rmpc, Qfmpc; Nt=Nt)
+mpc = TrackingMPC(dmodel_nom, X_ref, U_ref, T_ref, Qmpc, Rmpc, Qfmpc; Nt=Nt)
 
 # Run sim w/ MPC controller w/ large initial offset
 dx = [0.9,deg2rad(-30),0,0.]  # large initial offset
@@ -137,11 +142,6 @@ plotstates(T_ref, X_ref, inds=1:2, c=:black, legend=:topleft)
 plotstates!(T_sim, X_sim, inds=1:2, c=[1 2])
 
 # Compare open loop trajectories for true and nominal models
-model_nom = Problems.NominalCartpole()
-dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
-model_true = Problems.SimulatedCartpole()
-dmodel_true = RD.DiscretizedDynamics{RD.RK4}(model_true)
-
 x,u = rand(model)
 X_nom,_,T_nom = simulate(dmodel_nom, U_ref, X_ref[1], T_ref[end], T_ref[2])
 X_true,_,T_true = simulate(dmodel_true, U_ref, X_ref[1], T_ref[end], T_ref[2])
