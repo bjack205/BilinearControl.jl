@@ -54,7 +54,7 @@ function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, t
     prob
 end
 
-struct TrackingMPC{T,L}
+struct TrackingMPC{T,L} <: AbstractController
     # Reference trajectory
     Xref::Vector{Vector{T}}
     Uref::Vector{Vector{T}}
@@ -83,6 +83,8 @@ struct TrackingMPC{T,L}
     Nt::Vector{Int}  # horizon length
 end
 
+mpchorizon(mpc::TrackingMPC) = mpc.Nt[1]
+
 function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref)) where {L<:RD.DiscreteDynamics}
     N = length(Xref)
     n = length(Xref[1])
@@ -105,7 +107,7 @@ function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref)) wh
     P = [zeros(n, n) for k in 1:Nt]
     p = [zeros(n) for k in 1:Nt]
     X = [zeros(n) for k in 1:Nt]
-    U = [zeros(m) for k in 1:(Nt - 1)]
+    U = [zeros(m) for k in 1:Nt]
     λ = [zeros(n) for k in 1:Nt]
     TrackingMPC(Xref, Uref, Tref, model, A, B, f, Q, R, q, r, K, d, P, p, X, U, λ, [Nt])
 end
@@ -117,7 +119,7 @@ function backwardpass!(mpc::TrackingMPC, i)
     P, p = mpc.P, mpc.p
     f = mpc.f
     N = length(mpc.Xref)
-    Nt = mpc.Nt[1]
+    Nt = mpchorizon(mpc)
 
     P[Nt] .= Q[Nt]
     p[Nt] .= q[Nt]
@@ -151,7 +153,7 @@ function forwardpass!(mpc::TrackingMPC, x0, i)
     X,U,λ = mpc.X, mpc.U, mpc.λ
     K,d = mpc.K, mpc.d
     X[1] = x0  - mpc.Xref[i]
-    Nt = mpc.Nt[1]
+    Nt = mpchorizon(mpc)
     for j = 1:Nt-1
         λ[j] = mpc.P[j]*X[j] .+ mpc.p[j]
         U[j] = K[j]*X[j] + d[j]
@@ -167,11 +169,20 @@ function solve!(mpc::TrackingMPC, x0, i=1)
 end
 
 function cost(mpc::TrackingMPC)
-    mapreduce(+, 1:mpc.Nt[1]) do k
+    Nt = mpchorizon(mpc)
+    mapreduce(+, 1:Nt) do k
         Jx = 0.5 * mpc.X[k]'mpc.Q[k]*mpc.X[k]
-        Ju = 0.5 * mpc.U[k]'mpc.U[k]*mpc.U[k]
-
+        Ju = 0.5 * mpc.U[k]'mpc.R[k]*mpc.U[k]
+        Jx + Ju
     end
+end
+
+gettime(mpc::TrackingMPC) = mpc.Tref
+
+function getcontrol(mpc::TrackingMPC, x, t)
+    k = get_k(mpc, t) 
+    solve!(mpc, x, k)
+    return mpc.U[1] + mpc.Uref[k]
 end
 
 ## Visualizer
@@ -181,7 +192,7 @@ vis = Visualizer()
 set_cartpole!(vis)
 open(vis)
 
-##
+## Solve ALTRO problem
 prob = gencartpoleproblem()
 solver = ALTROSolver(prob)
 Altro.solve!(solver)
@@ -195,22 +206,16 @@ push!(U_ref, zeros(RD.control_dim(solver)))
 T_ref = TO.gettimes(solver)
 Qmpc = Diagonal(fill(1e-0,4))
 Rmpc = Diagonal(fill(1e-3,1))
-Qfmpc = Diagonal(fill(1e-0,4))
-Nt = 101 
+Qfmpc = Diagonal(fill(1e2,4))
+Nt = 21 
 mpc = TrackingMPC(dmodel, X_ref, U_ref, T_ref, Qmpc, Rmpc, Qfmpc; Nt=Nt)
-i = 1
-dx = [0.2,deg2rad(5),0,0.]
-solve!(mpc, X_ref[1] + dx, i)
-X_mpc = map(1:Nt) do j
-    k = min(length(mpc.Xref), j+i-1)
-    mpc.Xref[k] + mpc.X[j]
-end
-mpc.A[2] * mpc.X[2] + mpc.B[2] * mpc.U[2] + mpc.f[2] - mpc.X[3]
 
-T_mpc = range(0,length=Nt,step=T_ref[2]) 
+dx = [0.9,deg2rad(-30),0,0.]
+X_sim,U_sim,T_sim = simulatewithcontroller(dmodel, mpc, X_ref[1] + dx, T_ref[end]*1.5, T_ref[2])
 plotstates(T_ref, X_ref, inds=1:2, c=:black, legend=:topleft)
-plotstates!(T_mpc, X_mpc, inds=1:2, c=[1 2])
-
+plotstates!(T_sim, X_sim, inds=1:2, c=[1 2])
+# X_sim[101]
+# plotstates(T_sim[1:end-1], U_sim)
 
 ## TVLQR
 X_ref = Vector.(TO.states(solver))

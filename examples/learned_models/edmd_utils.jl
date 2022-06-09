@@ -8,11 +8,11 @@ function get_k(ctrl::AbstractController, t)
     times = gettime(ctrl)
     inds = searchsorted(times, t)
     t1 = times[inds.stop]
-    t2 = times[inds.start]
+    t2 = times[min(inds.start, length(times))]
     if abs(t-t1) < abs(t-t2)
         return inds.stop
     else
-        return inds.start
+        return min(inds.start, length(times))
     end
 end
 
@@ -113,8 +113,8 @@ function linearize(sig, diffmethod, model::RD.DiscreteDynamics, X, U, times)
     uN = length(U)
     A = [zeros(n,n) for k = 1:uN]
     B = [zeros(n,m) for k = 1:uN]
-    for k = 1:N-1
-        dt = times[k+1] - times[k]
+    for k = 1:uN
+        dt = k < N ? times[k+1] - times[k] : times[k] - times[k-1]
         z = RD.KnotPoint(X[k], U[k], times[k], dt)
         # RD.jacobian!(sig, diffmethod, model, J, xn, X[k], U[k], times[k], dt)
         RD.jacobian!(sig, diffmethod, model, J, xn, z)
