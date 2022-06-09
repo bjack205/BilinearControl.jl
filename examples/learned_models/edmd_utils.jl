@@ -4,7 +4,17 @@ using OSQP
 abstract type AbstractController end
 
 resetcontroller!(::AbstractController, x0) = nothing
-get_k(ctrl::AbstractController, t) = searchsortedfirst(gettime(ctrl), t)
+function get_k(ctrl::AbstractController, t)
+    times = gettime(ctrl)
+    inds = searchsorted(times, t)
+    t1 = times[inds.stop]
+    t2 = times[inds.start]
+    if abs(t-t1) < abs(t-t2)
+        return inds.stop
+    else
+        return inds.start
+    end
+end
 
 struct RandomController{D} <: AbstractController
     m::Int
@@ -140,8 +150,8 @@ struct TVLQRController <: AbstractController
     time::Vector{Float64}
 end
 
-function TVLQRController(model, Q, R, Xref, Uref, times)
-    A, B = linearize(model_bilinear_nom_projected, Xref, Uref, T_ref)
+function TVLQRController(model, Q::RD.DiscreteDynamics, R, Xref, Uref, times)
+    A, B = linearize(model, Xref, Uref, times)
     TVLQRController(A, B, Q, R, Xref, Uref, times)
 end
 
@@ -153,6 +163,7 @@ gettime(ctrl::TVLQRController) = ctrl.time
 
 function getcontrol(ctrl::TVLQRController, x, t)
     k = min(get_k(ctrl, t), length(ctrl.K))
+    # @show k,t
     K = ctrl.K[k]
     dx = x - ctrl.xref[k]
     ctrl.uref[k] + K*dx
@@ -375,10 +386,10 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
     U = [zeros(m) for k = 1:N-1]
     for k = 1:N-1 
         t = times[k]
-        dt = times[k+1] - times[k]
+        # dt = times[k+1] - times[k]
         u = getcontrol(ctrl, X[k], t)
-        U[k] = u
-        RD.discrete_dynamics!(sig, model, X[k+1], X[k], u, times[k], dt)
+        U[k] .= u
+        RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
     end
     X,U,times
 end
@@ -401,8 +412,8 @@ end
 
 
 function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
-    times = range(0, tf, step=dt)
-    N = length(times)
+    N = round(Int, tf / dt) + 1
+    times = range(0, tf, length=N)
     @assert length(U) in [N,N-1]
     X = [copy(x0) for k = 1:N]
     sig = RD.default_signature(model)
@@ -410,7 +421,7 @@ function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
         dt = times[k+1] - times[k]
         RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
     end
-    X
+    X,U,times
 end
 
 function compare_models(sig::RD.FunctionSignature, model::EDMDModel,

@@ -392,21 +392,6 @@ function fiterror(A,B,C,g,kf, X,U)
     end) / P
 end
 
-function fiterror(A,B,C,g,kf, X,U)
-    P = size(X,2)
-    norm(map(CartesianIndices(U)) do cind 
-        k = cind[1]
-        j = cind[2]
-        x = X[k,j]
-        u = U[k,j]
-        y = kf(x)
-        xn = X[k+1,j]
-        # yn = A*y + B*u + u[1]*C*y
-        yn = A*y + B*u + sum(C[i]*y .* u[i] for i = 1:length(u))
-        norm(g*yn - xn)
-    end) / P
-end
-
 function fiterror(A,B,C,g,kf, X,U,Xn)
     P = size(X,2)
     norm(map(CartesianIndices(U)) do cind 

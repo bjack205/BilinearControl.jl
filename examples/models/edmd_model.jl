@@ -20,12 +20,12 @@ struct EDMDModel <: RD.DiscreteDynamics
     end
 end
 
-function EDMDModel(A::AbstractMatrix, B::AbstractMatrix, C::Vector{<:AbstractMatrix}, g::AbstractMatrix, 
-    kf::Function, dt::AbstractFloat, name::AbstractString)
-n = size(A,2)
-m = size(C)
-EDMDModel(A,B,C,g,kf,dt,name)
-end
+# function EDMDModel(A::AbstractMatrix, B::AbstractMatrix, C::Vector{<:AbstractMatrix}, g::AbstractMatrix, 
+#     kf::Function, dt::AbstractFloat, name::AbstractString)
+# n = size(A,2)
+# m = size(C)
+# EDMDModel(A,B,C,g,kf,dt,name)
+# end
 
 function EDMDModel(A::AbstractMatrix, C::Vector{<:AbstractMatrix}, g::AbstractMatrix, 
                     kf::Function, dt::AbstractFloat, name::AbstractString)
@@ -72,6 +72,20 @@ function RD.discrete_dynamics!(model::EDMDModel, xn, x, u, t, h)
     nothing
 end
 
+function original_dynamics(model::EDMDModel, x, u, t, h)
+    @assert h ≈ model.dt "Timestep must be $(model.dt)."
+    y = model.kf(x)
+    model.g * RD.discrete_dynamics(model, y, u, t, h)
+end
+
+function original_dynamics!(model::EDMDModel, xn, x, u, t, h)
+    @assert h ≈ model.dt "Timestep must be $(model.dt)."
+    y = model.kf(x)
+    yn = zero(y)
+    RD.discrete_dynamics!(model, yn, y, u, t, h)
+    mul!(xn, model.g, yn)
+end
+
 function RD.jacobian!(model::EDMDModel, J, xn, x, u, t, h)
     @assert h ≈ model.dt "Timestep must be $(model.dt)."
     n,m = RD.dims(model)
@@ -92,6 +106,24 @@ originalstatedim(model::EDMDModel) = size(model.g, 1)
 originalstate(::RD.DiscreteDynamics, x) = x
 originalstatedim(model::RD.DiscreteDynamics) =  RD.state_dim(model)
 expandstate(::RD.DiscreteDynamics, x) = x
+
+RD.@autodiff struct ProjectedEDMDModel <: RD.DiscreteDynamics
+    edmd_model::EDMDModel
+end 
+RD.state_dim(model::ProjectedEDMDModel) = originalstatedim(model.edmd_model)
+RD.control_dim(model::ProjectedEDMDModel) = RD.control_dim(model.edmd_model)
+
+function RD.discrete_dynamics(model::ProjectedEDMDModel, x, u, t, h)
+    y = expandstate(model.edmd_model, x) 
+    originalstate(model.edmd_model, RD.discrete_dynamics(model.edmd_model, y, u, t, h))
+end
+
+function RD.discrete_dynamics!(model::ProjectedEDMDModel, xn, x, u, t, h)
+    y = expandstate(model.edmd_model, x) 
+    yn = zero(y)
+    RD.discrete_dynamics!(model.edmd_model, yn, y, u, t, h)
+    xn .= originalstate(model.edmd_model, yn)
+end
 
 ## Saved models
 const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
