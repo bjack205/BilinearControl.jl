@@ -94,10 +94,11 @@ function dlqr(A,B,Q,R; max_iters=200, tol=1e-6, verbose=false)
         P .= Q + A'P*A - A'P*B*K
         if norm(K-K_prev,Inf) < tol
             verbose && println("Converged in $k iterations")
-            return K
+            return K,P
         end
         K_prev .= K
     end
+    @warn "dlqr didn't converge in the given number of iterations"
     return K,P
 end
 
