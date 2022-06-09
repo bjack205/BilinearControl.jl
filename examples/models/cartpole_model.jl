@@ -56,14 +56,22 @@ RD.@autodiff struct Cartpole2{T} <: RD.ContinuousDynamics
     mp::T
     l::T
     g::T
-    b::T
-    function Cartpole2(mc, mp, l, g, b)
+    b::T         # viscous friction coefficient
+    σ::T         # scaling property for tanh friction
+    μ::T         # friction coefficient for the cart
+    deadband::T  # control deadband
+    u_max::T     # maximum control value
+    function Cartpole2(mc, mp, l, g, b, σ, μ, deadband, u_max)
         T = eltype(promote(mc, mp, l, g, b))
-        new{T}(mc, mp, l, g, b)
+        new{T}(mc, mp, l, g, b, σ, μ, deadband, u_max)
     end
 end
 
-Cartpole2(; mc=1.0, mp=0.2, l=0.5, g=9.81, b=0.01) = Cartpole2(mc, mp, l, g, b)
+Cartpole2(; mc=1.0, mp=0.2, l=0.5, g=9.81, b=0.01, σ=5, μ=0.0, deadband=0.0, u_max=Inf) = 
+    Cartpole2(mc, mp, l, g, b, σ, μ, deadband, u_max)
+
+NominalCartpole() = Cartpole2(b=0.0, μ=0.0, deadband=0.0, u_max=Inf)
+SimulatedCartpole() = Cartpole2(mc=1.2, mp=0.25, b=0.07, deadband=0.05, μ=0.1)
 
 function RD.dynamics(model::Cartpole2, x, u)
     mc = model.mc  # mass of the cart in kg (10)
@@ -82,7 +90,27 @@ function RD.dynamics(model::Cartpole2, x, u)
     G = @SVector [0, mp*g*l*s]
     B = @SVector [1, 0]
 
-    qdd = -H\(C*qd + G + model.b .* qd - B*u[1])
+    # Friction
+    Fn = (mc + mp) * g  # normal force (approximate)
+    σ = model.σ 
+    μ = model.μ 
+    cart_friction = tanh(σ * qd[1]) * μ * Fn  # approximate coloumb friction
+    viscous_friction = model.b .* qd          # viscous friction
+    friction = SA[cart_friction + viscous_friction[1], viscous_friction[2]]
+
+    # Control 
+    deadband = model.deadband
+    u_max = model.u_max 
+    u_true = map(u) do uk
+        if abs(uk) < deadband
+            return 0.0
+        elseif abs(uk) > u_max
+            return u_max * sign(uk)
+        end
+        uk
+    end
+
+    qdd = -H\(C*qd + G + friction - B*u_true[1])
     return [qd; qdd]
 end
 
