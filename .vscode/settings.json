@@ -1,2 +1,7 @@
 {
+  "[julia]": {
+    "editor.quickSuggestions": true,
+    "editor.wordSeparators": "`~#$%^&*()-=+[{]}\\|;:'\",.<>/?",
+    "editor.tabSize": 4
+  },
 }
