@@ -238,7 +238,7 @@ function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref)) wh
     A,B = linearize(model, Xref, Uref, Tref)
     f = map(1:N) do k
         dt = k < N ? Tref[k+1] - Tref[k] : Tref[k] - Tref[k-1] 
-        xn = k < N ? Xref[k+1] : Xref[k]
+        xn = k < N ? copy(Xref[k+1]) : copy(Xref[k])
         Vector(RD.discrete_dynamics(model, Xref[k], Uref[k], Tref[k], dt) - xn)
     end
 

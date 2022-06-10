@@ -1,0 +1,48 @@
+\ProvidesPackage{brian}
+
+% Math
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{physics}
+
+% Optimization and Algorithms
+\usepackage{optidef}
+\usepackage{algorithmicx}
+\usepackage{algorithm,algpseudocode}
+\algdef{SE}[DOWHILE]{Do}{doWhile}{\algorithmicdo}[1]{\algorithmicwhile\ #1}%
+
+% Formatting
+\usepackage{xcolor}
+\usepackage{bm}  % for bold symbols 
+\usepackage{booktabs}  % better tables
+\usepackage{pifont}  % for x mark
+\usepackage{graphicx}
+% \usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+% \usepackage[unitsep=tightcdot]{siunitx}
+\usepackage{xfrac}
+\sisetup{output-exponent-marker=\ensuremath{\mathrm{e}}}
+
+% Plotting                                                                      
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15,
+        legend style={font=\footnotesize},
+}
+\usepackage{tikzscale}
+\usetikzlibrary{pgfplots.statistics}
+\usetikzlibrary{external}
+\usepgfplotslibrary{fillbetween}
+% \usepgfplotslibrary{external}
+% \tikzexternalize
+% \tikzexternalize[prefix=tikz/]
+
+% Useful commands
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\half}{\frac{1}{2}}
+\newcommand{\zeros}{\mathbf{0}}
+\DeclareMathOperator{\sign}{sign}
+
+% Misc
+\newcommand{\todo}[1]{\textcolor{red}{TODO: #1}}

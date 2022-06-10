@@ -124,6 +124,10 @@ dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 model_true = Problems.SimulatedCartpole()
 dmodel_true = RD.DiscretizedDynamics{RD.RK4}(model_true)
 
+xeq = [0,pi,0,0]
+ueq = [0.]
+LQRController(dmodel_nom, Qmpc, Rmpc, xeq, ueq, dt)
+
 i = 10 
 X_ref = deepcopy(X_test_altro[:,i])
 U_ref = deepcopy(U_test_altro[:,i])
