@@ -15,6 +15,8 @@ const quad_motor_bm = -0.367697
 const quad_arm_len = 0.28
 const quad_min_throttle = 1148.0
 const quad_max_throttle = 1832.0
+const Ax = 0.1
+const Ay = 0.25
 
 RD.@autodiff struct RexPlanarQuadrotor <: RD.ContinuousDynamics
     mass::Float64  # mass (kg)
@@ -25,23 +27,38 @@ RD.@autodiff struct RexPlanarQuadrotor <: RD.ContinuousDynamics
     km::Float64
     bf::Float64
     bm::Float64
+    cd::Vector{Float64}
 end
 
-function RexPlanarQuadrotor(; axis_rot=[1/sqrt(2), 1/sqrt(2), 0])
-    mass=quad_mass
-    g=9.81
-    ℓ=2*quad_arm_len
-    J=axis_rot'*quad_inertia*axis_rot
-    kf=quad_motor_kf
-    km=quad_motor_km
-    bf=quad_motor_bf
-    bm=quad_motor_bm
+function RexPlanarQuadrotor(; mass=quad_mass,
+    g=9.81,
+    ℓ=2*quad_arm_len,
+    full_J=quad_inertia,
+    kf=quad_motor_kf,
+    km=quad_motor_km,
+    bf=quad_motor_bf,
+    bm=quad_motor_bm,
+    axis_rot=[1/sqrt(2), 1/sqrt(2), 0],
+    cd=[0.0, 0.0])
 
-    RexPlanarQuadrotor(mass,g,ℓ,J,kf,km,bf,bm)
+    J=axis_rot'*full_J*axis_rot
+
+    RexPlanarQuadrotor(mass,g,ℓ,J,kf,km,bf,bm,cd)
 end
 
 RD.state_dim(::RexPlanarQuadrotor) = 6
 RD.control_dim(::RexPlanarQuadrotor) = 2
+
+NominalPlanarQuadrotor() = RexPlanarQuadrotor()
+SimulatedPlanarQuadrotor() = RexPlanarQuadrotor(; mass=1.05*quad_mass,
+                                                g=9.81,
+                                                ℓ=0.95*(2*quad_arm_len),
+                                                full_J=SMatrix{3,3,Float64,9}([0.01566089 0 0; 0 0.01562078 0; 0 0 0.02226868]),
+                                                kf=1.05*quad_motor_kf,
+                                                km=1.05*quad_motor_km,
+                                                bf=0.95*quad_motor_bf,
+                                                bm=0.95*quad_motor_bm,
+                                                cd=[0.1, 0.1])
 
 function trim_controls(model::RexPlanarQuadrotor)
     kf, bf = model.kf, model.bf
@@ -58,9 +75,13 @@ function RD.dynamics(model::RexPlanarQuadrotor, x, u)
     
     mass,g,ℓ,J = model.mass, model.g, model.ℓ, model.J
     kf, bf = model.kf, model.bf
+    cd = model.cd
 
-    thrust_1 = u[1]*kf + 2.0*bf
-    thrust_2 = u[2]*kf + 2.0*bf
+    df_x = -sign(x[4])*0.5*1.27*(x[4].^2)*cd[1]*Ax
+    df_y = -sign(x[5])*0.5*1.27*(x[5].^2)*cd[2]*Ay
+
+    thrust_1 = u[1]*kf + 2.0*bf + df_x
+    thrust_2 = u[2]*kf + 2.0*bf + df_y
 
     θ = x[3]
     s,c = sincos(θ)
@@ -76,9 +97,13 @@ function RD.dynamics!(model::RexPlanarQuadrotor, xdot, x, u)
     
     mass,g,ℓ,J = model.mass, model.g, model.ℓ, model.J
     kf, bf = model.kf, model.bf
+    cd = model.cd
 
-    thrust_1 = u[1]*kf + 2.0*bf
-    thrust_2 = u[2]*kf + 2.0*bf
+    df_x = -sign(x[4])*0.5*1.27*(x[4].^2)*cd[1]*0.05
+    df_y = -sign(x[5])*0.5*1.27*(x[5].^2)*cd[2]*0.1
+
+    thrust_1 = u[1]*kf + 2.0*bf + df_x
+    thrust_2 = u[2]*kf + 2.0*bf + df_y
 
     θ = x[3]
     s,c = sincos(θ)
