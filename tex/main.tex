@@ -1,0 +1,258 @@
+\documentclass{article}
+% \usepackage{corl_2022} % Use this for the initial submission.
+\usepackage[final]{corl_2022} % Uncomment for the camera-ready ``final'' version.
+\usepackage{times} % assumes new font selection scheme installed
+\usepackage{brian}
+
+\title{Extended Dynamic Mode Decomposition with Jacobian Residual Penalization
+for Learning Bilinear, Control-affine Koopman Models}
+
+\author{
+  Brian E. Jackson \\
+  Robotics Institute \\
+  Carnegie Mellon University\\
+  \texttt{brianjackson@cmu.edu} \\
+  \and
+  Jeong Hun Lee \\
+  Robotics Institute\\
+  Carnegie Mellon University\\
+  \texttt{jeonghunlee@cmu.edu} \\
+  \and
+  Kevin Tracy \\
+  Robotics Institute\\
+  Carnegie Mellon University\\
+  \texttt{ktracy@cmu.edu} \\
+  \and
+  Zachary Manchester \\
+  Robotics Institute\\
+  Carnegie Mellon University\\
+  \texttt{zacm@cmu.edu} \\
+}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+    Controlling complex, underactuated, and highly nonlinear autonomous systems remains an
+    active area of research in robotics, despite decades of previous work exploring
+    effective algorithms and the development of substantial theoretical analysis. Classical
+    approaches typically rely on local linear approximations of the nonlinear system, which
+    are then used in any of a multitude of linear control techniques, such as PID, pole
+    placement, Bode analysis, H-infinity, LQR, or linear MPC.  These approaches only work
+    well if the states of the system always remain close to the linearization point or
+    reference trajectory. The region for which these linearizations remain valid can be
+    extremely small for highly nonlinear systems.  Alternatively, model-based methods for
+    nonlinear control based on optimal control have shown great success, as long as the
+    model is well known and an accurate estimate of the global state can be provided. These
+    model-based techniques leverage centuries of insight into dynamical systems and have
+    demonstrated incredible performance on extremely complicated autonomous systems
+    \todo{add citations for some recent work}.  On the other hand, data-driven techniques
+    such as reinforcement learning have received tremendous attention over the last decade
+    and have begun to demonstrate impressive performance and robustness for complicated
+    robotic systems in unstructured environments \todo{cite a few RL results, including
+    Marco Hutter's recent stuff}. While these approaches are attractive since they require
+    little to no previous knowledge about the system, they often require large amounts of
+    data and fail to generalize outside of the domain or task on which they were
+    ``trained.''
+    
+    In this work we propose a novel method that combines the benefits of model-based and
+    data-driven methods, based on recent work  applying Koopman Operator Theory to
+    controlled dynamical systems \todo{cite a few Koopman papers,  including the CalTech
+    ones}.  By leveraging data collected from an unknown dynamical system along with
+    derivative information from an approximate analytical model, we can efficiently learn a
+    bilinear representation of the system dynamics that performs well when used in
+    traditional model-based control techniques such as linear MPC. The result is nonlinear
+    dynamical system that is expressive enough to capture the full nonlinear dynamics across
+    a broad range of the state space, but has a well-defined structure that is very amenable
+    to specialized optimization-based controllers. By leveraging information from an
+    analytical model, we can dramatically reduce the number of samples required to learn a
+    good approximation of the true nonlinear dynamics. 
+    
+    \todo{bullet out contributions.}
+    
+    \todo{add summary of paper layout.}
+
+\section{Background and Related Work} \label{sec:Preliminaries/Background}
+
+  \subsection{The Koopman Operator}
+  The theoretical underpinnings of the Koopman operator and its application to dynamical
+  systems has been extensively studied, especially within the last decade \todo{cite some
+  important theoretical works on Koopman theory here}. Rather than describe the theory in
+  detail, we highlight the key concepts employed by the current work, and defer the
+  motivated reader to the existing literature on Koopman theory.
+
+  We start by assuming we have some discrete approximation a of controlled nonlinear,
+  time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
+  \begin{equation} \label{eq:discrete_dynamics}
+      x_{k+1} = f(x_k, u_k)
+  \end{equation}
+  where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is
+  the control vector.  This discrete approximation can be obtained for any continuous
+  dynamical system in many ways, including implicit and explicit Runge-Kutta methods, or by
+  solving the Discrete Euler-Lagrange equations \todo{add citations}.
+
+  The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
+  dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
+  \textit{bilinear} system:
+  \begin{equation} \label{eq:bilinear_dynamics}
+      y_{k+1} = A y_k + B u_k + \sum_{i=1}^m u_{k,i} C_i y_k = g(y,u)
+  \end{equation}
+  where $y = \phi(x)$ is a mapping from the finite-dimensional state space $\mathcal{X}$ to
+  the (possibly) infinite-dimensional Hilbert space of \textit{observables} $y \in
+  \mathcal{Y}$. We also assume the inverse map is approximately linear: $x = G y$. In
+  practice, we approximate \eqref{eq:discrete_dynamics} by choosing $\phi$ to be some
+  arbitrary finite set of nonlinear functions of the state variables, which in general
+  include the states themselves such that the linear mapping $G \in \R^{N_x \times N_y}$ is
+  exact.  Intuitively, $\phi$ ``lifts'' our states into a higher dimensional space where the
+  dynamics are approximately (bi)linear, effectively trading dimensionality for
+  (bi)linearity. This idea should be both unsurprising and familiar to most roboticsts,
+  since similar techniques have already been employed in other forms, such as
+  maximal-coordinate representations of rigid body dynamics \todo{add citations}, the
+  ``kernel trick'' for state-vector machines \todo{add citation}, or the observation that
+  solving large, sparse nonlinear optimization problems is often more effective than solving
+  small, tightly-coupled dense problems \todo{add citations from the trajectory optimization
+  literature}.
+
+  The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned from samples
+  of the system dynamics $(x_i^+,x_i,u_i)$ (where $x^+$ is the state at the next time step)
+  using extended Dynamic Mode Decomposition (eDMD), which is just the application of linear
+  least squares (LLS) to the lifted states.  Details of this method will be covered later
+  when we introduce our adaptation of eDMD and present an effective numerical technique for
+  solving the resulting LLS problems.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Methodology
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{EDMD with Jacobian Residual-Penalization}
+  Existing Koopman-based approaches to learning dynamical systems only rely on samples of
+  the unknown dynamics. Here we present a novel method for incorporating prior knowledge
+  about the dynamics by adding derivative information of an approximate model into the data
+  set to be learned via eDMD.
+
+  Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an approximate discrete
+  dynamics model 
+  \begin{equation}
+      x^+ = \tilde{f}(x,u)
+  \end{equation}
+  we can evaluate the Jacobians of our approximate model $\hat{f}$ at each of the sample
+  points: $\tilde{A}_i = \pdv{\tilde{f}}{x}, \tilde{B}_i = \pdv{\tilde{f}}{x}$. After
+  choosing nonlinear mapping $\phi : \R^{N_x} \mapsto \R^{N_y}$ We then want to find a
+  bilinear dynamics model \eqref{eq:bilinear_dynamics} that matches the Jacobians of our
+  approximate model, while also matching our dynamics samples. If we define $\hat{A}_j \in
+  \R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
+  bilinear dynamics model, projected back into the original state space, our objective is to
+  find the matrices $A \in \R^{N_y \times N_y},B \in \R^{N_y \times N_u}$, and $C_{1:m} \in
+  \R^{N_u} \times \R^{N_y \times N_y}$ that minimize the following objective:
+
+  \begin{equation} \label{eq:lls_objective}
+      (1- \alpha) \sum_{j=1}^P \norm{\hat{y}_j - y_j^+}_2^2 + 
+          \alpha  \sum_{j=1}^P \norm{\hat{A}_j - \tilde{A}_j}_2^2 + 
+                               \norm{\hat{B}_j - \tilde{B}_j}_2^2 
+  \end{equation}
+  where $\hat{y}_j^+ = g\left(\phi(x_j), u_j\right)$ is the output of our bilinear  dynamics
+  model, and $y_j^+ = \phi(y_j^+)$ is the actual lifted state (i.e. observables) at the next
+  time step.
+
+  While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
+  least-squares, using techniques similar to those used previously in the literature
+  \todo{cite CalTech papers}.
+
+  To start, we combine all the data we're trying to learn in a single matrix:
+  \begin{equation}
+      E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z} \\
+  \end{equation}
+  where $N_z = N_y + N_u + N_y \cdot N_u$.  We now rewrite the terms in
+  \eqref{eq:lls_objective} in terms of $E$. By defining the vector 
+  \begin{equation}
+      z = \begin{bmatrix} y^T & u^T & u_1 y^T & \dots & u_m y^T \end{bmatrix} \in \R^{N_z} 
+  \end{equation}
+  we can write down 
+  the output of our bilinear dynamics \eqref{eq:bilinear_dynamics} as 
+  \begin{equation} \label{eq:bilinear_dynamics_z}
+      \hat{y}^+ = E z.
+  \end{equation}
+  The projected Jacobians of our bilinear model, $\hat{A}$ and $\hat{B}$, are simply the Jacobians 
+  of the bilinear dynamics in terms of the original state. We obtain these dynamics by ``lifting`` 
+  the state via $\phi$ and then projecting back onto the original states using $G$:
+  \begin{equation} \label{eq:projected_dynamics}
+      x^+ = G \left( A \phi(x) + B u + \sum_{i=1}^m u_i C_i \phi(x) \right)  = \hat{f}(x,u) 
+  \end{equation}
+  Differentiating these dynamics give us our projected Jacobians:
+  \begin{subequations} \label{eq:projected_jacobians}
+  \begin{align}
+      \hat{A}_j &= G \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
+                = G \left(A + \sum_{i=1}^m u_{j,i} C_i \right) \Phi(x_j)
+              %   = G A_j^x \phi(x_j)
+                = G E \bar{A}(x_j,u_j) = G E \bar{A}_j \\
+      \hat{B}_i &= G \pdv{\hat{f}}{u}\left(x_j,u_j\right) 
+                = G \Big(B + \begin{bmatrix} C_1 x_j & \dots & C_m x_j \end{bmatrix} \Big)
+              %   = G B_j^u
+                = G E \bar{B}(x_j,u_j) = G E \bar{B}_j
+  \end{align}
+  \end{subequations}
+  where $\Phi(x) = \pdv*{\phi}{x}$ is the Jacobian of the nonlinear map $\phi$, and
+  \begin{equation}
+      \bar{A}(x,u) =  \begin{bmatrix} 
+          I \\ 0 \\ u_1 I \\ u_2 I \\ \vdots \\ u_m I 
+      \end{bmatrix} \in \R^{N_z \times N_x}, \quad
+      \bar{B}(x,u) = \begin{bmatrix} 
+          0 \\ 
+          I \\ 
+          [x \; 0 \; ... \; 0] \\
+          [0 \; x \; ... \; 0] \\
+          \vdots \\
+          [0 \; 0 \; ... \; x] \\
+      \end{bmatrix} \in \R^{N_z \times N_u}.
+  \end{equation}
+  Substituting \eqref{eq:bilinear_dynamics_z} and \eqref{eq:projected_jacobians} into
+  \eqref{eq:lls_objective}, we can rewrite our LLS problem as:
+  \begin{align}
+      \underset{E}{\text{minimize}} \;\; 
+          \sum_{j=0}^P
+          (1-\alpha) \norm{E z_j - y_j^+}_2^2 + 
+            \alpha  \norm{G E \bar{A}_j - \tilde{A}_j}_2^2 + 
+            \alpha  \norm{G E \bar{B}_j - \tilde{B}_j}_2^2 
+  \end{align}
+  which is equivalent to
+  \begin{align} \label{opt:lls_matrix}
+      \underset{E}{\text{minimize}} \;\; 
+          (1-\alpha) \norm{E \mathbf{Z_{1:P}} - \mathbf{Y^+_{1:P}} }_2^2 + 
+            \alpha  \norm{G E \mathbf{\bar{A}_{1:P}} - \mathbf{\tilde{A}_{1:P}}}_2^2 + 
+            \alpha  \norm{G E \mathbf{\bar{B}_{1:P}} - \mathbf{\tilde{B}_{1:P}}}_2^2
+  \end{align}
+  where $\mathbf{Z_{1:P}} \in \R^{N_z \times P} = [z_1 \; z_2 \; ... \; z_P]$ horizontally
+  concatenates all of the samples (equivalent definition for 
+  $\mathbf{Y^+_{1:P}} \in \R^{N_y \times P}$, 
+  $\mathbf{\bar{A}_{1:P}} \in \R^{N_z \times N_x \cdot P}$, 
+  $\mathbf{\tilde{A}_{1:P}} \in \R^{N_z \times N_x \cdot P}$,
+  $\mathbf{\bar{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$, and 
+  $\mathbf{\tilde{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$ ).
+
+  We can rewrite \eqref{opt:lls_matrix} in standard form using the ``vec trick''
+  \begin{equation} \label{eq:vectrick}
+      \text{vec}(A X B) = (B^T \otimes A) \text{vec}(X)
+  \end{equation}
+  where $\text{vec}(A)$ stacks the columns of $A$ into a single vector.
+
+  Setting $E$ in \eqref{opt:lls_matrix} equal to $X$ in \eqref{eq:vectrick}, we get
+  \begin{align} \label{opt:lls_matrix}
+      \underset{E}{\text{minimize}} \;\;  
+      \norm{
+          \begin{bmatrix}
+              (\mathbf{Z_{1:P}})^T \otimes I_{N_y} \\
+              (\mathbf{\bar{A}_{1:P}})^T \otimes G \\
+              (\mathbf{\bar{G}_{1:P}})^T \otimes G \\
+          \end{bmatrix}
+          \text{vec}(E)
+          +
+          \begin{bmatrix}
+              \text{vec}(\mathbf{Y^+_{1:P}}) \\
+              \text{vec}(\mathbf{\tilde{A}_{1:P}}) \\
+              \text{vec}(\mathbf{\tilde{G}_{1:P}})
+          \end{bmatrix}
+      }_2^2
+  \end{align}
+  such that the matrix of cofficients has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows and 
+  $N_y \cdot N_z$ columns.
+\end{document}

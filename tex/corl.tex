@@ -124,8 +124,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Background and Related Work 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Background and Related Work}
-\label{sec:Preliminaries/Background}
+\section{Background and Related Work} \label{sec:Preliminaries/Background}
 
 \subsection{The Koopman Operator}
 The theoretical underpinnings of the Koopman operator and its application to dynamical systems has been 
@@ -423,133 +422,133 @@ $N_y \cdot N_z$ columns.
 
 %===============================================================================
 
-\section{Simulated Quadrotor Results}
-\label{sec:simulation}
-    \subsection{Quadrotor System Details}
+% \section{Simulated Quadrotor Results}
+% \label{sec:simulation}
+%     \subsection{Quadrotor System Details}
     
-    A Cartpole model was chosen with the following model-based, nonlinear dynamics:
+%     A Cartpole model was chosen with the following model-based, nonlinear dynamics:
     
-    $$
-    \begin{bmatrix} \Dot{v} \\ \Dot{\omega} \end{bmatrix} = -\begin{bmatrix}
-    m_{c} + m_{p} & m_{p}lcos(\theta) \\
-    m_{p}lcos(\theta) & m_{p}l^{2} \end{bmatrix}^{-1}
-    $$
-    $$\bigg(\begin{bmatrix}
-    0 & -m_{p}\omega lcos(\theta) \\
-    0 & 0 \end{bmatrix} \begin{bmatrix}
-    v \\ \omega \end{bmatrix} + \begin{bmatrix}
-    0 \\
-    m_{p}glsin(\theta)\\
-    \end{bmatrix} - \begin{bmatrix} 1 \\ 0 \end{bmatrix}u\bigg) \eqno{(22)}
-    $$
-    with states $x = [y, \theta, v, \omega]^{T}$, where $y, \theta$ describe the position of the cartpole and angle of the pendulum respectively and $v, \omega$ describe the respective velocities. $m_{c}, m_{p}$ describe the masses of the cartpole and pendulum respectively with $l$ describing the length of the pendulum. $g$ denotes the gravitational constant.
+%     $$
+%     \begin{bmatrix} \Dot{v} \\ \Dot{\omega} \end{bmatrix} = -\begin{bmatrix}
+%     m_{c} + m_{p} & m_{p}lcos(\theta) \\
+%     m_{p}lcos(\theta) & m_{p}l^{2} \end{bmatrix}^{-1}
+%     $$
+%     $$\bigg(\begin{bmatrix}
+%     0 & -m_{p}\omega lcos(\theta) \\
+%     0 & 0 \end{bmatrix} \begin{bmatrix}
+%     v \\ \omega \end{bmatrix} + \begin{bmatrix}
+%     0 \\
+%     m_{p}glsin(\theta)\\
+%     \end{bmatrix} - \begin{bmatrix} 1 \\ 0 \end{bmatrix}u\bigg) \eqno{(22)}
+%     $$
+%     with states $x = [y, \theta, v, \omega]^{T}$, where $y, \theta$ describe the position of the cartpole and angle of the pendulum respectively and $v, \omega$ describe the respective velocities. $m_{c}, m_{p}$ describe the masses of the cartpole and pendulum respectively with $l$ describing the length of the pendulum. $g$ denotes the gravitational constant.
     
-    To compare our bilinear EDMD with the jacobian residual-penalization to the nominal bilinear EDMD framework, LQR controllers were designed for each EDMD-generated model for 2 tasks: 1) stabilize the cartpole at $[0, \pi]$ using time-invarient LQR 2) track a swing-up reference trajectory using tim-varying LQR (TVLQR). The respective code for each task can be found on GitHub at \url{https://github.com/bjack205/BilinearControl.jl/blob/00e4e976db1d65de4b3457fc9180d3d75d2e3002/examples/cartpole_eDMD_lqr.ipynb} and \url{https://github.com/bjack205/BilinearControl.jl/blob/00e4e976db1d65de4b3457fc9180d3d75d2e3002/examples/cartpole_eDMD_lqr_swing_up.ipynb}.
+%     To compare our bilinear EDMD with the jacobian residual-penalization to the nominal bilinear EDMD framework, LQR controllers were designed for each EDMD-generated model for 2 tasks: 1) stabilize the cartpole at $[0, \pi]$ using time-invarient LQR 2) track a swing-up reference trajectory using tim-varying LQR (TVLQR). The respective code for each task can be found on GitHub at \url{https://github.com/bjack205/BilinearControl.jl/blob/00e4e976db1d65de4b3457fc9180d3d75d2e3002/examples/cartpole_eDMD_lqr.ipynb} and \url{https://github.com/bjack205/BilinearControl.jl/blob/00e4e976db1d65de4b3457fc9180d3d75d2e3002/examples/cartpole_eDMD_lqr_swing_up.ipynb}.
     
-    \subsection{Learning Simulated Quadrotor Dynamics}
+%     \subsection{Learning Simulated Quadrotor Dynamics}
 
-    To collect simulated data, a nominal LQR controller is designed for stabilizing the pendulum about the top. Multiple trajectories are then generated for randomized initial condition using the linearized dynamics. The data is captured at 50Hz and 50 trajectories were generated for training the EDMD models.
+%     To collect simulated data, a nominal LQR controller is designed for stabilizing the pendulum about the top. Multiple trajectories are then generated for randomized initial condition using the linearized dynamics. The data is captured at 50Hz and 50 trajectories were generated for training the EDMD models.
     
-\subsection{Stabilizing using LQR}
+% \subsection{Stabilizing using LQR}
     
-    To learn the EDMD models, the set of eigenfunctions is chosen to be $[x, sin(x), cos(x), sin(2x), sin(4x), 2x^{2} - 1, 4x^{3} - 3x, 8x^{4} - 8x^{2} + 1]$. The polynomials are a set of chebyshev polynomials of the 1st kind up to an order of 4, and were chosen due to being orthogonal functions. For regularization of the LLS problem, a ridge regression regularization value of 10.1 is used. Once the EDMD models are learned, the jacobians are projected back into the original state space and linearized about the stabilization point so that the LQR feedback policy can be designed. This is due to the Hilbert space being uncontrollable, leading to instabilities when trying to generate LQR feedback matrices directly on the eigenfunctions.
+%     To learn the EDMD models, the set of eigenfunctions is chosen to be $[x, sin(x), cos(x), sin(2x), sin(4x), 2x^{2} - 1, 4x^{3} - 3x, 8x^{4} - 8x^{2} + 1]$. The polynomials are a set of chebyshev polynomials of the 1st kind up to an order of 4, and were chosen due to being orthogonal functions. For regularization of the LLS problem, a ridge regression regularization value of 10.1 is used. Once the EDMD models are learned, the jacobians are projected back into the original state space and linearized about the stabilization point so that the LQR feedback policy can be designed. This is due to the Hilbert space being uncontrollable, leading to instabilities when trying to generate LQR feedback matrices directly on the eigenfunctions.
     
-    The simulated stabilization trajectories for one of the test validation cases is depicted in Figure 1. The simulation reveals that LQR is unable to stabilize the pendulum in an upright position about the origin for the nominal model, while the LQR controller paired with the jacobian residual-penalizing EDMD model is able to successfully deal with the initial disturbance and converge back to the origin with the pendulum stabilized in the upright position. This is consistent with the mean squared error of the predicted state, where the EDMD with the jacobian residual-penalization reduces the error of the nominal EDMD model by nearly 75\%.
+%     The simulated stabilization trajectories for one of the test validation cases is depicted in Figure 1. The simulation reveals that LQR is unable to stabilize the pendulum in an upright position about the origin for the nominal model, while the LQR controller paired with the jacobian residual-penalizing EDMD model is able to successfully deal with the initial disturbance and converge back to the origin with the pendulum stabilized in the upright position. This is consistent with the mean squared error of the predicted state, where the EDMD with the jacobian residual-penalization reduces the error of the nominal EDMD model by nearly 75\%.
     
-    % \begin{figure}[thpb]
-    %   \centering
-    %   \includegraphics[scale=0.4]{Selection_010.png}
-    %   \caption{LQR-generated stabilization trajectories based on nominal EDMD and EDMD with jacobian residual-penalization}
-    %   \label{figurelabel}
-    % \end{figure}
+%     % \begin{figure}[thpb]
+%     %   \centering
+%     %   \includegraphics[scale=0.4]{Selection_010.png}
+%     %   \caption{LQR-generated stabilization trajectories based on nominal EDMD and EDMD with jacobian residual-penalization}
+%     %   \label{figurelabel}
+%     % \end{figure}
     
-    \begin{table}[h]
-    \begin{center}
-    \begin{tabular}{|c|c c|}
-    \hline
-     & Training Data & Test Data\\
-    \hline
-    Nominal EDMD & 2.56e-2 & 4.5e-2\\
-    Jacobian-Penalty EDMD & 6.21e-3 & 6.36e-3\\
-    \hline
-    \end{tabular}
-    \end{center}
-    \caption{Mean squared error of state predictions of LQR-generated trajectories based on nominal EDMD and EDMD with jacobian residual-penalization}
-    \end{table}
+%     \begin{table}[h]
+%     \begin{center}
+%     \begin{tabular}{|c|c c|}
+%     \hline
+%      & Training Data & Test Data\\
+%     \hline
+%     Nominal EDMD & 2.56e-2 & 4.5e-2\\
+%     Jacobian-Penalty EDMD & 6.21e-3 & 6.36e-3\\
+%     \hline
+%     \end{tabular}
+%     \end{center}
+%     \caption{Mean squared error of state predictions of LQR-generated trajectories based on nominal EDMD and EDMD with jacobian residual-penalization}
+%     \end{table}
     
     
-    \subsection{Tracking Swing-up using TVLQR}
+%     \subsection{Tracking Swing-up using TVLQR}
     
-    In addition to stabilizing about a fixed point, the learned EDMD model with jacobian residual-penalization was tested on tracking a reference swing-up trajectory using a time-varying LQR controller (TVLQR). For data collection, 40 swing-up trajectories were generated using ALTRO, a nonlinear MPC solver \cite{13}. The bilinear EDMD model was learned using the swing-up trajectory data with the same eigenfunctions as the stabilization study. In addition, like the previous stabilization study, the bilinear jacobians were projected back to the original state space before being linearized about the reference swing-up trajectory.
+%     % In addition to stabilizing about a fixed point, the learned EDMD model with jacobian residual-penalization was tested on tracking a reference swing-up trajectory using a time-varying LQR controller (TVLQR). For data collection, 40 swing-up trajectories were generated using ALTRO, a nonlinear MPC solver \cite{13}. The bilinear EDMD model was learned using the swing-up trajectory data with the same eigenfunctions as the stabilization study. In addition, like the previous stabilization study, the bilinear jacobians were projected back to the original state space before being linearized about the reference swing-up trajectory.
     
-    The simulation of the TVLQR controller tracking a reference swing-up trajectory is depicted in Figure 2. While the TVLQR controller is able to use the projected bilinear jacobians to successfully track through most of the swing up trajectory, the TVLQR generated trajectory interestingly diverges from the stabilization point towards the end of the trajectory. This is despite LQR being highly successful in the previous stabilization study. Therefore, this deviation is likely due to the cost matrices of the TVLQR controller requiring further tuning.
+%     The simulation of the TVLQR controller tracking a reference swing-up trajectory is depicted in Figure 2. While the TVLQR controller is able to use the projected bilinear jacobians to successfully track through most of the swing up trajectory, the TVLQR generated trajectory interestingly diverges from the stabilization point towards the end of the trajectory. This is despite LQR being highly successful in the previous stabilization study. Therefore, this deviation is likely due to the cost matrices of the TVLQR controller requiring further tuning.
     
-    % \begin{figure}[thpb]
-    %   \centering
-    %   \includegraphics[scale=0.4]{Selection_006.png}
-    %   \caption{TVLQR-generated tracking trajectories based on EDMD with jacobian residual-penalization. The reference trajectory models a swing-up before stabilizing the pendulum in an upright position}
-    %   \label{figurelabel}
-    % \end{figure}
+%     % \begin{figure}[thpb]
+%     %   \centering
+%     %   \includegraphics[scale=0.4]{Selection_006.png}
+%     %   \caption{TVLQR-generated tracking trajectories based on EDMD with jacobian residual-penalization. The reference trajectory models a swing-up before stabilizing the pendulum in an upright position}
+%     %   \label{figurelabel}
+%     % \end{figure}
 
-%===============================================================================
+% %===============================================================================
 
-\section{Experimental Results}
-\label{sec:comparisons}
+% \section{Experimental Results}
+% \label{sec:comparisons}
 
-%===============================================================================
+% %===============================================================================
 
 
-\section{Limitations} \label{sec:limitations} % NOTE: this section is required by CoRL
+% \section{Limitations} \label{sec:limitations} % NOTE: this section is required by CoRL
 
-%===============================================================================
+% %===============================================================================
 
-\section{Conclusion}
-\label{sec:conclusion}
+% \section{Conclusion}
+% \label{sec:conclusion}
 
-    This paper presented a method that improves upon the nominal EDMD model in order to learn more accurate, lifted, bilinear models by adding an additional penalty on the dynamics jacobians in the LLS regression. This allows the identification of the learned Koopman model to incorporate important derivative information, rather than just relying on only the discrete history of the states. Through a simulated cartpole, we demonstrated that EDMD with a penalization of the jacobian residuals is able to successfully both stabilize and track a swing-up trajectory using an LQR and TVLQR controller, which fails with a learn model using the nominal EDMD.
+%     This paper presented a method that improves upon the nominal EDMD model in order to learn more accurate, lifted, bilinear models by adding an additional penalty on the dynamics jacobians in the LLS regression. This allows the identification of the learned Koopman model to incorporate important derivative information, rather than just relying on only the discrete history of the states. Through a simulated cartpole, we demonstrated that EDMD with a penalization of the jacobian residuals is able to successfully both stabilize and track a swing-up trajectory using an LQR and TVLQR controller, which fails with a learn model using the nominal EDMD.
     
-    Future work includes extending the control study to design a linear and nonlinear MPC solver with actuation and state constraints. In addition, other sparsity promoting regularization methods, such as Lasso regression and sequential thresholded least-squares, can be implemented to further improve the EDMD model. In addition, data-driven learning of the eigenfunctions may offer performance improvements with more compact Koopman models.
+%     Future work includes extending the control study to design a linear and nonlinear MPC solver with actuation and state constraints. In addition, other sparsity promoting regularization methods, such as Lasso regression and sequential thresholded least-squares, can be implemented to further improve the EDMD model. In addition, data-driven learning of the eigenfunctions may offer performance improvements with more compact Koopman models.
     
-%===============================================================================
+% %===============================================================================
 
-\clearpage
-% The acknowledgments are automatically included only in the final and preprint versions of the paper.
-\acknowledgments{If a paper is accepted, the final camera-ready version will (and probably should) include acknowledgments. All acknowledgments go at the end of the paper, including thanks to reviewers who gave useful comments, to colleagues who contributed to the ideas, and to funding agencies and corporate sponsors that provided financial support.}
+% \clearpage
+% % The acknowledgments are automatically included only in the final and preprint versions of the paper.
+% \acknowledgments{If a paper is accepted, the final camera-ready version will (and probably should) include acknowledgments. All acknowledgments go at the end of the paper, including thanks to reviewers who gave useful comments, to colleagues who contributed to the ideas, and to funding agencies and corporate sponsors that provided financial support.}
 
-%===============================================================================
+% %===============================================================================
 
-% no \bibliographystyle is required, since the corl style is automatically used.
-\bibliography{example}  % .bib
+% % no \bibliographystyle is required, since the corl style is automatically used.
+% % \bibliography{example}  % .bib
 
-\begin{thebibliography}{99}
+% \begin{thebibliography}{99}
 
-\bibitem{1} S. L. Brunton, M. Budišić, E. Kaiser, and J. N. Kutz, “Modern Koopman Theory for Dynamical Systems,” SIAM Review, vol. 64, no. 2, pp. 229–340, 2022, doi: 10.1137/21M1401243.
+% \bibitem{1} S. L. Brunton, M. Budišić, E. Kaiser, and J. N. Kutz, “Modern Koopman Theory for Dynamical Systems,” SIAM Review, vol. 64, no. 2, pp. 229–340, 2022, doi: 10.1137/21M1401243.
 
-\bibitem{2} A. Surana, “Koopman operator based observer synthesis for control-affine nonlinear systems,” in 2016 IEEE 55th Conference on Decision and Control (CDC), 2016, pp. 6492–6499. doi: 10.1109/CDC.2016.7799268.
+% \bibitem{2} A. Surana, “Koopman operator based observer synthesis for control-affine nonlinear systems,” in 2016 IEEE 55th Conference on Decision and Control (CDC), 2016, pp. 6492–6499. doi: 10.1109/CDC.2016.7799268.
 
-\bibitem{3} C. Folkestad, D. Pastor, I. Mezić, R. Mohr, M. Fonoberova, and J. W. Burdick, “Extended Dynamic Mode Decomposition with Learned Koopman Eigenfunctions for Prediction and Control,” 2020 American Control Conference (ACC), pp. 3906–3913, 2020.
+% \bibitem{3} C. Folkestad, D. Pastor, I. Mezić, R. Mohr, M. Fonoberova, and J. W. Burdick, “Extended Dynamic Mode Decomposition with Learned Koopman Eigenfunctions for Prediction and Control,” 2020 American Control Conference (ACC), pp. 3906–3913, 2020.
 
-\bibitem{4} I. Abraham, G. D. L. Torre, and T. D. Murphey, “Model-Based Control Using Koopman Operators,” ArXiv, vol. abs/1709.01568, 2017.
+% \bibitem{4} I. Abraham, G. D. L. Torre, and T. D. Murphey, “Model-Based Control Using Koopman Operators,” ArXiv, vol. abs/1709.01568, 2017.
 
-\bibitem{5} G. Mamakoukas, M. L. Castaño, X. Tan, and T. D. Murphey, “Local Koopman Operators for Data-Driven Control of Robotic Systems,” Robotics: Science and Systems XV, 2019.
+% \bibitem{5} G. Mamakoukas, M. L. Castaño, X. Tan, and T. D. Murphey, “Local Koopman Operators for Data-Driven Control of Robotic Systems,” Robotics: Science and Systems XV, 2019.
 
-\bibitem{6} I. Abraham and T. D. Murphey, “Active Learning of Dynamics for Data-Driven Control Using Koopman Operators,” 2019, doi: 10.48550/ARXIV.1906.05194.
+% \bibitem{6} I. Abraham and T. D. Murphey, “Active Learning of Dynamics for Data-Driven Control Using Koopman Operators,” 2019, doi: 10.48550/ARXIV.1906.05194.
 
-\bibitem{7} D. Bruder, B. Gillespie, C. D. Remy, and R. Vasudevan, “Modeling and Control of Soft Robots Using the Koopman Operator and Model Predictive Control,” 2019, doi: 10.48550/ARXIV.1902.02827.
+% \bibitem{7} D. Bruder, B. Gillespie, C. D. Remy, and R. Vasudevan, “Modeling and Control of Soft Robots Using the Koopman Operator and Model Predictive Control,” 2019, doi: 10.48550/ARXIV.1902.02827.
 
-\bibitem{8} D. Bruder, X. Fu, R. B. Gillespie, C. D. Remy, and R. Vasudevan, “Koopman-based Control of a Soft Continuum Manipulator Under Variable Loading Conditions.” arXiv, 2020. doi: 10.48550/ARXIV.2002.01407.
-
-
-\bibitem{9} C. Bakker, W. S. Rosenthal, and K. E. Nowak, “Koopman Representations of Dynamic Systems with Control,” ArXiv, vol. abs/1908.02233, 2019.
-
-\bibitem{10} D. Bruder, X. Fu, and R. Vasudevan, “Advantages of Bilinear Koopman Realizations for the Modeling and Control of Systems With Unknown Dynamics,” IEEE Robotics and Automation Letters, vol. 6, pp. 4369–4376, 2021.
-
-\bibitem{11} C. Folkestad and J. W. Burdick, “Koopman NMPC: Koopman-based Learning and Nonlinear Model Predictive Control of Control-affine Systems.” arXiv, 2021. doi: 10.48550/ARXIV.2105.08036.
-
-\bibitem{12} S. L. Brunton, J. L. Proctor, and J. N. Kutz, “Sparse Identification of Nonlinear Dynamics with Control (SINDYc).” arXiv, 2016. doi: 10.48550/ARXIV.1605.06682.
-
-\bibitem{13} T. A. Howell, B. E. Jackson, and Z. Manchester, “ALTRO: A Fast Solver for Constrained Trajectory Optimization,” in 2019 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2019, pp. 7674–7679. doi: 10.1109/IROS40897.2019.8967788.
+% \bibitem{8} D. Bruder, X. Fu, R. B. Gillespie, C. D. Remy, and R. Vasudevan, “Koopman-based Control of a Soft Continuum Manipulator Under Variable Loading Conditions.” arXiv, 2020. doi: 10.48550/ARXIV.2002.01407.
 
 
-\end{thebibliography}
+% \bibitem{9} C. Bakker, W. S. Rosenthal, and K. E. Nowak, “Koopman Representations of Dynamic Systems with Control,” ArXiv, vol. abs/1908.02233, 2019.
+
+% \bibitem{10} D. Bruder, X. Fu, and R. Vasudevan, “Advantages of Bilinear Koopman Realizations for the Modeling and Control of Systems With Unknown Dynamics,” IEEE Robotics and Automation Letters, vol. 6, pp. 4369–4376, 2021.
+
+% \bibitem{11} C. Folkestad and J. W. Burdick, “Koopman NMPC: Koopman-based Learning and Nonlinear Model Predictive Control of Control-affine Systems.” arXiv, 2021. doi: 10.48550/ARXIV.2105.08036.
+
+% \bibitem{12} S. L. Brunton, J. L. Proctor, and J. N. Kutz, “Sparse Identification of Nonlinear Dynamics with Control (SINDYc).” arXiv, 2016. doi: 10.48550/ARXIV.1605.06682.
+
+% \bibitem{13} T. A. Howell, B. E. Jackson, and Z. Manchester, “ALTRO: A Fast Solver for Constrained Trajectory Optimization,” in 2019 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2019, pp. 7674–7679. doi: 10.1109/IROS40897.2019.8967788.
+
+
+% \end{thebibliography}
 \end{document}
