@@ -172,18 +172,18 @@ function getcontrol(ctrl::TVLQRController, x, t)
     ctrl.uref[k] + K*dx
 end
 
-struct BilinearController{C} <: AbstractController
-    model::EDMDModel
-    ctrl::C  # controller defined on bilinear model
-end
+# struct BilinearController{C} <: AbstractController
+#     model::EDMDModel
+#     ctrl::C  # controller defined on bilinear model
+# end
 
-resetcontroller!(crl::BilinearController, x) = resetcontroller!(ctrl.ctrl, expandstate(ctrl.model, x))
+# resetcontroller!(crl::BilinearController, x) = resetcontroller!(ctrl.ctrl, expandstate(ctrl.model, x))
 
-function getcontrol(ctrl::BilinearController, x, t)
-    z = expandstate(ctrl.model, x)
-    u = getcontrol(ctrl.ctrl, z, t)
-    return u
-end
+# function getcontrol(ctrl::BilinearController, x, t)
+#     z = expandstate(ctrl.model, x)
+#     u = getcontrol(ctrl.ctrl, z, t)
+#     return u
+# end
 
 @doc raw"""
     TrackingMPC
@@ -561,21 +561,21 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
     X,U,times
 end
 
-function bilinearerror(model::EDMDModel, X, U)
-    dt = model.dt
-    map(CartesianIndices(U)) do cind
-        k = cind[1]
-        i = cind[2]
+# function bilinearerror(model::EDMDModel, X, U)
+#     dt = model.dt
+#     map(CartesianIndices(U)) do cind
+#         k = cind[1]
+#         i = cind[2]
 
-        uk = U[k,i]
-        zk = expandstate(model, X[k,i]) 
-        zn = zero(zk)
-        t = (k-1)*dt
-        RD.discrete_dynamics!(model, zn, zk, uk, t, dt)
-        xn = originalstate(model, zn) 
-        xn - X[k+1]
-    end
-end
+#         uk = U[k,i]
+#         zk = expandstate(model, X[k,i]) 
+#         zn = zero(zk)
+#         t = (k-1)*dt
+#         RD.discrete_dynamics!(model, zn, zk, uk, t, dt)
+#         xn = originalstate(model, zn) 
+#         xn - X[k+1]
+#     end
+# end
 
 
 function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
@@ -591,35 +591,35 @@ function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
     X,U,times
 end
 
-function compare_models(sig::RD.FunctionSignature, model::EDMDModel,
-                        model0::RD.DiscreteDynamics, x0, tf, U; 
-                        doplot=false, inds=1:RD.state_dim(model0))
-    N = length(U) + 1
-    times = range(0, tf, length=N)
-    dt = times[2]
-    @show dt
-    m = RD.control_dim(model)
-    @assert m == RD.control_dim(model0)
-    z0 = expandstate(model, x0) 
-    Z = [copy(z0) for k = 1:N]
-    X = [copy(x0) for k = 1:N]
-    for k = 1:N-1
-        RD.discrete_dynamics!(sig, model, Z[k+1], Z[k], U[k], times[k], dt)
-        RD.discrete_dynamics!(sig, model0, X[k+1], X[k], U[k], times[k], dt)
-    end
-    X_bl = map(z->model.g * z, Z)
-    X_bl, X
-    if doplot
-        X_mat = reduce(hcat, X_bl)
-        X0_mat = reduce(hcat, X)
-        p = plot(times, X0_mat[inds,:]', label="original", c=[1 2])
-        plot!(p, times, X_mat[inds,:]', label="bilinear", c=[1 2], s=:dash)
-        display(p)
-    end
-    sse = norm(X_bl - X)^2
-    println("SSE: $sse")
-    X_bl, X
-end
+# function compare_models(sig::RD.FunctionSignature, model::EDMDModel,
+#                         model0::RD.DiscreteDynamics, x0, tf, U; 
+#                         doplot=false, inds=1:RD.state_dim(model0))
+#     N = length(U) + 1
+#     times = range(0, tf, length=N)
+#     dt = times[2]
+#     @show dt
+#     m = RD.control_dim(model)
+#     @assert m == RD.control_dim(model0)
+#     z0 = expandstate(model, x0) 
+#     Z = [copy(z0) for k = 1:N]
+#     X = [copy(x0) for k = 1:N]
+#     for k = 1:N-1
+#         RD.discrete_dynamics!(sig, model, Z[k+1], Z[k], U[k], times[k], dt)
+#         RD.discrete_dynamics!(sig, model0, X[k+1], X[k], U[k], times[k], dt)
+#     end
+#     X_bl = map(z->model.g * z, Z)
+#     X_bl, X
+#     if doplot
+#         X_mat = reduce(hcat, X_bl)
+#         X0_mat = reduce(hcat, X)
+#         p = plot(times, X0_mat[inds,:]', label="original", c=[1 2])
+#         plot!(p, times, X_mat[inds,:]', label="bilinear", c=[1 2], s=:dash)
+#         display(p)
+#     end
+#     sse = norm(X_bl - X)^2
+#     println("SSE: $sse")
+#     X_bl, X
+# end
 
 function create_data(model::RD.DiscreteDynamics, ctrl::AbstractController, 
                               initial_conditions, tf, dt; sig=RD.InPlace())

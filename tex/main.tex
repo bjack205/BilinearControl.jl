@@ -269,6 +269,8 @@ for Learning Bilinear, Control-affine Koopman Models}
 % Results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Results} \label{sec:results}
+All continuous dynamics were discretized with an explicit fourth-order Runge Kutta 
+integrator.
 
 \subsection{Cartpole}
 As a simple benchmark example, we use the canonical cartpole system. In lieu of an actual 
@@ -299,7 +301,8 @@ Riccati recursion for a horizon of 41 time steps (2 seconds). To successfully st
 system at the upward equilibrium, the MPC policy extrapolated the terminal state and control
 reference indefinitely. For each of the bilinear models, the Jacobians were projected back 
 onto space of the original dynamics, resulting in an MPC policy that was just as efficient
-to solve online as the nominal model. 
+to solve online as the nominal model (all controllers ran at several thousand Hertz without
+much performance tuning). 
 
 \begin{figure}[t]
   \centering

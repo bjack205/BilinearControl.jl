@@ -438,3 +438,113 @@ function fitA(x,b; rho=0.0, kwargs...)
     x̂ = linear_regression(b̂, Â, lambda=rho; kwargs...)
     return reshape(x̂,m,n)
 end
+
+"""
+    run_eDMD
+
+Run the eDMD algorithm on the training data. Returns an EDMDModel.
+"""
+function run_eDMD(X_train, U_train, dt, function_list, order_list; reg=1e-6, name="edmd_model")
+    Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, function_list, order_list);
+
+    A, B, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
+        ["na", "na"]; 
+        edmd_weights=[reg], 
+        mapping_weights=[0.0],
+        algorithm=:qr
+    )
+    EDMDModel(A, B, C, g, kf, dt, name)
+end
+
+"""
+    run_jDMD
+
+Run the jDMD algorithm on the training data, using the provided model to regularize the 
+Jacobians of the learned model.
+"""
+function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.DiscreteDynamics; 
+        reg=1e-6, name="jdmd_model"
+    )
+    n0 = length(X_train[1])
+    m = length(U_train[1])
+    T_train = range(0,step=dt,length=size(X_train,1))
+
+    # Generate transform
+    Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, function_list, order_list);
+
+    ## Generate Jacobians
+    xn = zeros(n0)
+    n = length(kf(xn))  # new state dimension
+    jacobians = map(CartesianIndices(U_train)) do cind
+        k = cind[1]
+        x = X_train[cind]
+        u = U_train[cind]
+        z = RD.KnotPoint{n0,m}(x,u,T_train[k],dt)
+        J = zeros(n0,n0+m)
+        RD.jacobian!(
+            RD.InPlace(), RD.ForwardAD(), model, J, xn, z 
+        )
+        J
+    end
+    A_train = map(J->J[:,1:n0], jacobians)
+    B_train = map(J->J[:,n0+1:end], jacobians)
+
+    ## Convert states to lifted Koopman states
+    # Y_train = map(kf, X_train)
+
+    ## Calculate Jacobian of Koopman transform
+    F_train = map(X_train[1:end-1,:]) do x
+        sparse(ForwardDiff.jacobian(kf, x))
+    end
+
+    ## Create a sparse version of the G Jacobian
+    G = spdiagm(n0,n,1=>ones(n0)) 
+    @assert function_list[1] == "state"
+
+    ## Build Least Squares Problem
+    W,s = BilinearControl.EDMD.build_edmd_data(
+        Z_train, U_train, A_train, B_train, F_train, G)
+
+    n = length(Z_train[1])
+
+    ## Create sparse LLS matrix
+    #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
+    Wsparse = sparse(W)
+
+    ## Solve with RLS
+    @time x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
+    E = reshape(x_rls,n,:)
+
+    ## Extract out bilinear dynamics
+    A = E[:,1:n]
+    B = E[:,n .+ (1:m)]
+    C = E[:,n+m .+ (1:n*m)]
+
+    C_list = Matrix{Float64}[]
+        
+    for i in 1:m
+        C_i = C[:, (i-1)*n+1:i*n]
+        push!(C_list, C_i)
+    end
+
+    C = C_list
+
+    EDMDModel(A,B,C,G,kf,dt,name)
+end
+
+"""
+    open_loop_error
+
+Calculate the error between the given trajectories when simulating the EDMD model open-loop.
+"""
+function open_loop_error(model::EDMDModel, X_test, U_test)
+    num_test = size(X_test, 2)
+    dt = model.dt
+    tf = (size(X_test,1) - 1) * dt
+    openloop_errors = map(1:num_test) do i
+        Y, = simulate(model, U_test[:,i], expandstate(model, X_test[1,i]), tf, dt)
+        X = map(x->originalstate(model, x), Y)
+        norm(X - X_test[:,i])
+    end
+    return mean(openloop_errors)
+end

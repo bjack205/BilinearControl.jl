@@ -125,14 +125,9 @@ function RD.discrete_dynamics!(model::ProjectedEDMDModel, xn, x, u, t, h)
     xn .= originalstate(model.edmd_model, yn)
 end
 
-function BilinearControl.EDMD.fiterror(model::EDMDModel, X, U)
+function fiterror(model::EDMDModel, X, U)
     BilinearControl.EDMD.fiterror(model.A, model.B, model.C, model.g, model.kf, X, U)
 end
-
-## Saved models
-const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
-BilinearPendulum() = EDMDModel(joinpath(DATADIR, "pendulum_eDMD_data.jld2"), name="pendulum")
-BilinearCartpole() = EDMDModel(joinpath(DATADIR, "cartpole_eDMD_data.jld2"), name="cartpole")
 
 struct EDMDErrorModel{L} <: RD.DiscreteDynamics
     nominal::L

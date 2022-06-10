@@ -10,9 +10,12 @@ using BilinearControl
 using COSMO
 using JLD2
 using ForwardDiff, FiniteDiff
+using BilinearControl.EDMD
+
 const RD = RobotDynamics
 const TO = TrajectoryOptimization
 
+const DATADIR = joinpath(dirname(pathof(BilinearControl)), "..", "data")
 const FIGDIR = joinpath(dirname(pathof(BilinearControl)), "..", "images")
 const VISDIR = joinpath(@__DIR__, "visualization/") 
 
@@ -31,7 +34,7 @@ include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
 include(joinpath(model_dir, "rex_full_quadrotor_model.jl"))
 include(joinpath(model_dir, "rex_planar_quadrotor_model.jl"))
-include(joinpath(model_dir, "edmd_model.jl"))
+# include(joinpath(model_dir, "edmd_model.jl"))
 include("learned_models/edmd_utils.jl")
 
 # Problem constructors
@@ -60,5 +63,10 @@ export
 export BilinearMPC
 
 export expandstate, originalstate, originalstatedim
+
+## Saved models
+BilinearPendulum() = EDMDModel(joinpath(DATADIR, "pendulum_eDMD_data.jld2"), name="pendulum")
+BilinearCartpole() = EDMDModel(joinpath(DATADIR, "cartpole_eDMD_data.jld2"), name="cartpole")
+
 
 end
