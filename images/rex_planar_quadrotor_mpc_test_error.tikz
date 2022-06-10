@@ -1,0 +1,33 @@
+% Recommended preamble:
+\begin{tikzpicture}
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Number of training samples}, ylabel={Tracking error}]
+    \addplot+[no marks, very thick, black]
+        coordinates {
+            (242,0.32322668023397194)
+            (363,0.32322668023397194)
+            (484,0.32322668023397194)
+            (605,0.32322668023397194)
+            (726,0.32322668023397194)
+        }
+        ;
+    \addplot+[no marks, very thick, orange]
+        coordinates {
+            (242,1.2362112765051132)
+            (363,0.23387854187244309)
+            (484,0.23195596833145796)
+            (605,0.22937070591908465)
+            (726,0.2343507018808313)
+        }
+        ;
+    \addplot+[no marks, very thick, cyan]
+        coordinates {
+            (242,2.3045057829503546)
+            (363,0.539462434131421)
+            (484,0.4298029896588108)
+            (605,1.6721286801005701)
+            (726,0.4240875660490776)
+        }
+        ;
+    \legend{{Nominal},{eDMD},{jDMD}}
+\end{axis}
+\end{tikzpicture}

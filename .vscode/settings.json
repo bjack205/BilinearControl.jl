@@ -1,6 +1,10 @@
 {
   "[julia]": {
-    "editor.quickSuggestions": true,
+    "editor.quickSuggestions": {
+      "comments": "on",
+      "strings": "on",
+      "other": "on"
+    },
     "editor.wordSeparators": "`~#$%^&*()-=+[{]}\\|;:'\",.<>/?",
     "editor.tabSize": 4
   },
