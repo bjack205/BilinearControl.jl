@@ -530,14 +530,19 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
     times = range(0, tf, step=dt)
     m = RD.control_dim(model)
     N = length(times)
-    X = [copy(x0) for k = 1:N]
-    U = [zeros(m) for k = 1:N-1]
+    X = [copy(x0)*NaN for k = 1:N]
+    U = [zeros(m)*NaN for k = 1:N-1]
+    X[1] = x0
     for k = 1:N-1 
         t = times[k]
         # dt = times[k+1] - times[k]
-        u = getcontrol(ctrl, X[k], t)
-        U[k] .= u
-        RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
+        try
+            u = getcontrol(ctrl, X[k], t)
+            U[k] .= u
+            RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
+        catch
+            break
+        end
     end
     X,U,times
 end

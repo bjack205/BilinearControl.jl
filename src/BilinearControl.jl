@@ -25,7 +25,6 @@ import TrajectoryOptimization: state_dim, control_dim
 include("utils.jl")
 include("bilinear_constraint.jl")
 include("bilinear_model.jl")
-include("problem.jl")
 include("admm.jl")
 include("trajopt_interface.jl")
 include("mpc.jl")
@@ -40,7 +39,8 @@ include("lqr_solver.jl")
 
 include("linear_admm.jl")
 
-include(joinpath(@__DIR__,"..","examples","Problems.jl"))
 include("edmd/edmd.jl")
+include(joinpath(@__DIR__,"..","examples","Problems.jl"))
+include("problem.jl")
 
 end # module

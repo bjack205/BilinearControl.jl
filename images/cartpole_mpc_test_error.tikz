@@ -1,0 +1,73 @@
+% Recommended preamble:
+% \usetikzlibrary{arrows.meta}
+% \usetikzlibrary{backgrounds}
+% \usepgfplotslibrary{patchplots}
+% \usepgfplotslibrary{fillbetween}
+% \pgfplotsset{%
+% layers/standard/.define layer set={%
+%     background,axis background,axis grid,axis ticks,axis lines,axis tick labels,pre main,main,axis descriptions,axis foreground%
+% }{grid style= {/pgfplots/on layer=axis grid},%
+%     tick style= {/pgfplots/on layer=axis ticks},%
+%     axis line style= {/pgfplots/on layer=axis lines},%
+%     label style= {/pgfplots/on layer=axis descriptions},%
+%     legend style= {/pgfplots/on layer=axis descriptions},%
+%     title style= {/pgfplots/on layer=axis descriptions},%
+%     colorbar style= {/pgfplots/on layer=axis descriptions},%
+%     ticklabel style= {/pgfplots/on layer=axis tick labels},%
+%     axis background@ style={/pgfplots/on layer=axis background},%
+%     3d box foreground style={/pgfplots/on layer=axis foreground},%
+%     },
+% }
+
+\begin{tikzpicture}[/tikz/background rectangle/.style={fill={rgb,1:red,1.0;green,1.0;blue,1.0}, draw opacity={1.0}}, show background rectangle]
+\begin{axis}[point meta max={nan}, point meta min={nan}, legend cell align={left}, legend columns={1}, title={}, title style={at={{(0.5,1)}}, anchor={south}, font={{\fontsize{14 pt}{18.2 pt}\selectfont}}, color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, rotate={0.0}}, legend style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, line width={1}, solid, fill={rgb,1:red,1.0;green,1.0;blue,1.0}, fill opacity={1.0}, text opacity={1.0}, font={{\fontsize{8 pt}{10.4 pt}\selectfont}}, text={rgb,1:red,0.0;green,0.0;blue,0.0}, cells={anchor={center}}, at={(0.02, 0.98)}, anchor={north west}}, axis background/.style={fill={rgb,1:red,1.0;green,1.0;blue,1.0}, opacity={1.0}}, anchor={north west}, xshift={1.0mm}, yshift={-1.0mm}, width={150.4mm}, height={99.6mm}, scaled x ticks={false}, xlabel={Number of dynamics samples}, x tick style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, opacity={1.0}}, x tick label style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, opacity={1.0}, rotate={0}}, xlabel style={at={(ticklabel cs:0.5)}, anchor=near ticklabel, at={{(ticklabel cs:0.5)}}, anchor={near ticklabel}, font={{\fontsize{11 pt}{14.3 pt}\selectfont}}, color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, rotate={0.0}}, xmajorgrids={true}, xmin={1277.76}, xmax={7434.24}, xtick={{2000.0,3000.0,4000.0,5000.0,6000.0,7000.0}}, xticklabels={{$2000$,$3000$,$4000$,$5000$,$6000$,$7000$}}, xtick align={inside}, xticklabel style={font={{\fontsize{8 pt}{10.4 pt}\selectfont}}, color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, rotate={0.0}}, x grid style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={0.1}, line width={0.5}, solid}, axis x line*={left}, x axis line style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, line width={1}, solid}, scaled y ticks={false}, ylabel={Tracking Error}, y tick style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, opacity={1.0}}, y tick label style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, opacity={1.0}, rotate={0}}, ylabel style={at={(ticklabel cs:0.5)}, anchor=near ticklabel, at={{(ticklabel cs:0.5)}}, anchor={near ticklabel}, font={{\fontsize{11 pt}{14.3 pt}\selectfont}}, color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, rotate={0.0}}, ymajorgrids={true}, ymin={0}, ymax={0.2}, ytick={{0.0,0.05,0.1,0.15000000000000002,0.2}}, yticklabels={{$0.00$,$0.05$,$0.10$,$0.15$,$0.20$}}, ytick align={inside}, yticklabel style={font={{\fontsize{8 pt}{10.4 pt}\selectfont}}, color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, rotate={0.0}}, y grid style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={0.1}, line width={0.5}, solid}, axis y line*={left}, y axis line style={color={rgb,1:red,0.0;green,0.0;blue,0.0}, draw opacity={1.0}, line width={1}, solid}, colorbar={false}]
+    \addplot[color={rgb,1:red,0.0;green,0.6056;blue,0.9787}, name path={b7c14eb8-cf69-4fb0-b2a3-948183be0e50}, draw opacity={1.0}, line width={2}, solid]
+        table[row sep={\\}]
+        {
+            \\
+            1452.0  0.15630980166609137  \\
+            2178.0  0.15630980166609137  \\
+            2904.0  0.15630980166609137  \\
+            3630.0  0.15630980166609137  \\
+            4356.0  0.15630980166609137  \\
+            5082.0  0.15630980166609137  \\
+            5808.0  0.15630980166609137  \\
+            6534.0  0.15630980166609137  \\
+            7260.0  0.15630980166609137  \\
+        }
+        ;
+    \addlegendentry {Nominal}
+    \addplot[color={rgb,1:red,0.8889;green,0.4356;blue,0.2781}, name path={9a75dbc5-a107-4364-a325-de805269be4b}, draw opacity={1.0}, line width={2}, solid]
+        table[row sep={\\}]
+        {
+            \\
+            1452.0  0.14730612940175145  \\
+            2178.0  0.09788730816920176  \\
+            2904.0  0.09331422013457334  \\
+            3630.0  0.09287408574217655  \\
+            4356.0  0.089085532844645  \\
+            5082.0  0.10122506049372196  \\
+            5808.0  0.08350335744286799  \\
+            6534.0  0.08734945095944033  \\
+            7260.0  0.08150893932686622  \\
+        }
+        ;
+    \addlegendentry {eDMD}
+    \addplot[color={rgb,1:red,0.2422;green,0.6433;blue,0.3044}, name path={c1d3e139-0e29-4fea-83ca-211ee2834470}, draw opacity={1.0}, line width={2}, solid]
+        table[row sep={\\}]
+        {
+            \\
+            1452.0  0.048540658789724876  \\
+            2178.0  0.054937110922185006  \\
+            2904.0  0.05579449456497508  \\
+            3630.0  0.05556992901015834  \\
+            4356.0  0.0584793438909219  \\
+            5082.0  0.06092709062632078  \\
+            5808.0  0.07916952517101575  \\
+            6534.0  0.06368909323783692  \\
+            7260.0  0.06453978874843133  \\
+        }
+        ;
+    \addlegendentry {jDMD}
+\end{axis}
+\end{tikzpicture}
