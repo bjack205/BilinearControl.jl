@@ -81,8 +81,8 @@ X_test, U_test = create_data(dmodel_real, ctrl_lqr, initial_conditions_test, tf,
 eigfuns = ["state", "sine", "cosine", "sine"]
 eigorders = [[0],[1],[1],[2],[4],[2, 4]]
 
-model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e-2, name="cartpole_eDMD")
-model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-1, name="cartpole_jDMD")
+model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e-6, name="cartpole_eDMD")
+model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-6, name="cartpole_jDMD")
 
 # Check test errors
 EDMD.open_loop_error(model_eDMD, X_test, U_test)
@@ -136,3 +136,157 @@ p_fit = @pgf Axis(
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_openloop_error_by_reg.tikz"), p_ol, include_preamble=false)
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_fit_error_by_reg.tikz"), p_fit, include_preamble=false)
+
+#############################################
+## LQR Performance
+#############################################
+
+function test_initial_conditions(model, controller, xg, ics, tf, dt)
+    map(ics) do x0
+        X_sim, = simulatewithcontroller(model, controller, x0, tf, dt)
+        norm(X_sim[end] - xg)
+    end
+end
+
+# Equilibrium position
+xe = [0,pi,0,0.]
+ue = [0.0]
+ye = EDMD.expandstate(model_eDMD, xe)
+
+Qlqr = Diagonal([1.0,1.0,1e-2,1e-2])
+Rlqr = Diagonal([1e-3])
+Qlqr = Diagonal(fill(1e-0,4))
+Rlqr = Diagonal(fill(1e-3,1))
+
+ρ = 1e-6 
+Qlqr_lifted = Diagonal([ρ; diag(Qlqr); fill(ρ, length(ye) - 5)])
+
+# Projected LQR Controllers
+model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+lqr_eDMD_projected = LQRController(
+    model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
+)
+lqr_jDMD_projected = LQRController(
+    model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
+)
+
+# Lifted LQR Controllers
+lifted_state_error(x,x0) = model_eDMD.kf(x) - x0
+lqr_jDMD = LQRController(
+    model_jDMD, Qlqr_lifted, Rlqr, ye, ue, dt, max_iters=20000, verbose=true,
+    state_error=lifted_state_error
+)
+lqr_eDMD = LQRController(
+    model_eDMD, Qlqr_lifted, Rlqr, ye, ue, dt, max_iters=10000, verbose=true,
+    state_error=lifted_state_error
+)
+
+# Run each controller on the same set of initial conditions
+Random.seed!(2)
+x0_sampler = Product([
+    Uniform(-1.5,1.5),
+    Uniform(pi-deg2rad(70),pi+deg2rad(70)),
+    Uniform(-1,1),
+    Uniform(-1,1),
+])
+x0_test = [rand(x0_sampler) for i = 1:100]
+errors_eDMD_projected = sort!(test_initial_conditions(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt))
+errors_jDMD_projected = sort!(test_initial_conditions(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt))
+errors_eDMD = sort!(test_initial_conditions(dmodel_real, lqr_eDMD, xe, x0_test, t_sim, dt))
+errors_jDMD = sort!(test_initial_conditions(dmodel_real, lqr_jDMD, xe, x0_test, t_sim, dt))
+
+p_lqr = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel="Percent of samples",
+        ylabel="Tracking error",
+        legend_cell_align={left},
+        legend_pos="north west",
+    },
+    PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, errors_eDMD_projected)),
+    PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, errors_jDMD_projected)),
+    PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, errors_eDMD)),
+    PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, errors_jDMD)),
+    Legend(["eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+)
+display(p_lqr)
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_lqr_stabilization_performance.tikz"), 
+    p_lqr, include_preamble=false
+)
+
+#############################################
+## MPC Stabilization Performance 
+#############################################
+
+# Reference Trajectory
+X_ref = [copy(xe) for t in T_sim]
+U_ref = [copy(ue) for t in T_sim]
+T_ref = copy(T_sim)
+Y_ref = kf.(X_ref)
+Nt = 41
+
+# Objective
+Qmpc = copy(Qlqr)
+Rmpc = copy(Rlqr)
+Qfmpc = 100*Qmpc
+
+Qmpc = Diagonal(fill(1e-0,4))
+Rmpc = Diagonal(fill(1e-3,1))
+Qfmpc = Diagonal([1e2,1e2,1e1,1e1])
+Qmpc_lifted = Diagonal([ρ; diag(Qmpc); fill(ρ, length(ye)-5)])
+Qfmpc_lifted = Diagonal([ρ; diag(Qfmpc); fill(ρ, length(ye)-5)])
+
+# Projected MPC controllers
+model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+mpc_eDMD_projected = TrackingMPC(model_eDMD_projected, 
+    X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+)
+mpc_jDMD_projected = TrackingMPC(model_jDMD_projected, 
+    X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+)
+
+# Lifted MPC controllers
+mpc_eDMD = TrackingMPC(model_eDMD, 
+    Y_ref, U_ref, Vector(T_ref), Qmpc_lifted, Rmpc, Qfmpc_lifted; Nt=Nt, state_error=lifted_state_error
+)
+mpc_jDMD = TrackingMPC(model_jDMD, 
+    Y_ref, U_ref, Vector(T_ref), Qmpc_lifted, Rmpc, Qfmpc_lifted; Nt=Nt, state_error=lifted_state_error
+)
+
+# Run each controller on the same set of initial conditions
+Random.seed!(2)
+x0_sampler = Product([
+    Uniform(-1.5,1.5),
+    Uniform(pi-deg2rad(70),pi+deg2rad(70)),
+    Uniform(-1,1),
+    Uniform(-1,1),
+])
+x0_test = [rand(x0_sampler) for i = 1:100]
+errors_eDMD_projected = sort!(test_initial_conditions(dmodel_real, mpc_eDMD_projected, xe, x0_test, t_sim, dt))
+errors_jDMD_projected = sort!(test_initial_conditions(dmodel_real, mpc_jDMD_projected, xe, x0_test, t_sim, dt))
+errors_eDMD = sort!(test_initial_conditions(dmodel_real, mpc_eDMD, xe, x0_test, t_sim, dt))
+errors_jDMD = sort!(test_initial_conditions(dmodel_real, mpc_jDMD, xe, x0_test, t_sim, dt))
+
+p_mpc = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel="Percent of samples",
+        ylabel="Tracking error",
+        legend_cell_align={left},
+        legend_pos="north west",
+        ymax=6e-2
+    },
+    PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, errors_eDMD_projected)),
+    PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, errors_jDMD_projected)),
+    PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, errors_eDMD)),
+    PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, errors_jDMD)),
+    Legend(["eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+)
+display(p_mpc)
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_stabilization_performance.tikz"), 
+    p_mpc, include_preamble=false
+)

@@ -13,9 +13,11 @@ export
     hermite, 
     chebyshev, 
     monomial, 
-    create_data
+    create_data,
+    simulatewithcontroller,
+    simulate
 
-export EDMDModel, LQRController
+export EDMDModel, LQRController, TrackingMPC
 
 export run_eDMD, run_jDMD
 
