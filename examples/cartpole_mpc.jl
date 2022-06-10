@@ -401,18 +401,23 @@ const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2"
 jldsave(CARTPOLE_RESULTS_FILE; results)
 
 ## Process results
+using PGFPlotsX
 results = load(CARTPOLE_RESULTS_FILE)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
 plot(res[:num_swingup], res[:t_train_eDMD])
 plot!(res[:num_swingup], res[:t_train_jDMD])
 
-pgfplotsx()
-p = plot(res[:nsamples], res[:nom_err_avg], label="Nominal", lw=2,
-    xlabel="Number of dynamics samples", ylabel="Tracking Error", legend=:topleft,
-    ylims=(0,0.2)
+p = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Number of training samples",
+        ylabel = "Tracking error",
+    },
+    PlotInc({no_marks, "very thick", "black"}, Coordinates(res[:nsamples], res[:nom_err_avg])),
+    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples], res[:eDMD_err_avg])),
+    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples], res[:jDMD_err_avg])),
+    Legend(["Nominal", "eDMD", "jDMD"])
 )
-plot!(res[:nsamples], res[:eDMD_err_avg], label="eDMD", lw=2)
-plot!(p, res[:nsamples], res[:jDMD_err_avg], label="jDMD", lw=2)
-res
-savefig(p, joinpath(Problems.FIGDIR, "cartpole_mpc_test_error.tikz"))
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)

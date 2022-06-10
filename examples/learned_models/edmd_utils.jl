@@ -526,13 +526,14 @@ end
 
 function simulatewithcontroller(sig::RD.FunctionSignature, 
                                 model::RD.DiscreteDynamics, ctrl::AbstractController, x0, 
-                                tf, dt)
+                                tf, dt; printrate=false)
     times = range(0, tf, step=dt)
     m = RD.control_dim(model)
     N = length(times)
     X = [copy(x0)*NaN for k = 1:N]
     U = [zeros(m)*NaN for k = 1:N-1]
     X[1] = x0
+    tstart = time_ns()
     for k = 1:N-1 
         t = times[k]
         # dt = times[k+1] - times[k]
@@ -543,6 +544,11 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
         catch
             break
         end
+    end
+    t_total_s = (time_ns() - tstart) / 1e9
+    rate = (N-1) / t_total_s
+    if printrate
+        println("Average controller rate")
     end
     X,U,times
 end
