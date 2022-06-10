@@ -13,6 +13,9 @@ using Distributions: Normal
 using Random
 using FiniteDiff, ForwardDiff
 using Test
+using PGFPlotsX
+
+include("constants.jl")
 
 ## Visualizer
 model = RobotZoo.Cartpole()
@@ -71,20 +74,65 @@ X_train, U_train = create_data(dmodel_real, ctrl_lqr, initial_conditions_lqr, tf
 X_test, U_test = create_data(dmodel_real, ctrl_lqr, initial_conditions_test, tf, dt)
 
 #############################################
-## fit the training data
+## Fit the training data
 #############################################
 
 ## Define basis functions
-eigfuns = ["state", "sine", "cosine", "sine", "sine", "chebyshev"]
-eigorders = [[0],[1],[1],[2],[4],[2, 4]]
-
 eigfuns = ["state", "sine", "cosine", "sine"]
 eigorders = [[0],[1],[1],[2],[4],[2, 4]]
 
-model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e0, name="cartpole_eDMD")
-model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e0, name="cartpole_jDMD")
+model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e-2, name="cartpole_eDMD")
+model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-1, name="cartpole_jDMD")
 
+# Check test errors
 EDMD.open_loop_error(model_eDMD, X_test, U_test)
 EDMD.open_loop_error(model_jDMD, X_test, U_test)
 BilinearControl.EDMD.fiterror(model_eDMD, X_test, U_test)
 BilinearControl.EDMD.fiterror(model_jDMD, X_test, U_test)
+
+#############################################
+## Plot fit error vs regularization 
+#############################################
+
+regularizers = exp10.(-4:2)
+errors = map(regularizers) do reg
+    model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=reg, name="cartpole_eDMD")
+    model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=reg, name="cartpole_jDMD")
+
+    # Check test errors
+    olerr_eDMD = EDMD.open_loop_error(model_eDMD, X_test, U_test)
+    olerr_jDMD = EDMD.open_loop_error(model_jDMD, X_test, U_test)
+    fiterr_eDMD = BilinearControl.EDMD.fiterror(model_eDMD, X_test, U_test)
+    fiterr_jDMD = BilinearControl.EDMD.fiterror(model_jDMD, X_test, U_test)
+    (;olerr_eDMD, olerr_jDMD, fiterr_eDMD, fiterr_jDMD)
+end
+fields = keys(errors[1])
+res = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
+p_ol = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xmode = "log",
+        xlabel = "regularization value",
+        ylabel = "open loop error",
+        legend_pos = "north west"
+    },
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res[:olerr_eDMD])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res[:olerr_jDMD])),
+    Legend(["eDMD", "jDMD"])
+)
+p_fit = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xmode = "log",
+        xlabel = "regularization value",
+        ylabel = "dynamics error",
+        legend_pos = "north west"
+    },
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res[:fiterr_eDMD])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res[:fiterr_jDMD])),
+    Legend(["eDMD", "jDMD"])
+)
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_openloop_error_by_reg.tikz"), p_ol, include_preamble=false)
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_fit_error_by_reg.tikz"), p_fit, include_preamble=false)
