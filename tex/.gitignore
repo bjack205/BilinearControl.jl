@@ -4,4 +4,8 @@
 *.log
 *.aux
 *.fls
+*.bbl
+*.bcf
+*.blg
+*.run.xml
 *fdb_latexmk
