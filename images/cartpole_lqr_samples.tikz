@@ -1,0 +1,18 @@
+% Recommended preamble:
+\begin{tikzpicture}
+\begin{axis}[reverse legend, width={4in}, height={4cm}, xbar, ytick={data}, yticklabels={Projected, Lifted}, enlarge y limits={0.7}, legend pos={south east}, xlabel={Trajectories Rqd to Beat Nominal MPC}]
+    \addplot+[no marks, color={cyan}]
+        coordinates {
+            (2,0)
+            (25,1)
+        }
+        ;
+    \addplot+[no marks, color={orange}]
+        coordinates {
+            (7,0)
+            (45,1)
+        }
+        ;
+    \legend{{jDMD},{eDMD}}
+\end{axis}
+\end{tikzpicture}
