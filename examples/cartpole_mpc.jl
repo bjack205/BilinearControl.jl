@@ -200,7 +200,7 @@ function generate_cartpole_data()
     )
 end
 
-function train_cartpole_models(num_lqr, num_swingup)
+function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0, reg=1e-6)
 
     #############################################
     ## Define the Models
@@ -223,8 +223,8 @@ function train_cartpole_models(num_lqr, num_swingup)
     U_train_lqr = altro_lqr_traj["U_train_lqr"][:,1:num_lqr]
     X_train_swingup = altro_lqr_traj["X_train_swingup"][:,1:num_swingup]
     U_train_swingup = altro_lqr_traj["U_train_swingup"][:,1:num_swingup]
-    X_train = [X_train_swingup X_train_swingup]
-    U_train = [U_train_swingup U_train_swingup]
+    X_train = [X_train_lqr X_train_swingup]
+    U_train = [U_train_lqr U_train_swingup]
 
     # Test data
     X_test_swingup = altro_lqr_traj["X_test_swingup"]
@@ -241,101 +241,19 @@ function train_cartpole_models(num_lqr, num_swingup)
     T_sim = range(0,t_sim,step=dt)
 
     #############################################
-    ## Fit data using NOMINAL EDMD method
+    ## Fit bilinear models 
     #############################################
 
     # Define basis functions
     eigfuns = ["state", "sine", "cosine", "sine", "sine", "chebyshev"]
     eigorders = [[0],[1],[1],[2],[4],[2, 4]]
 
-    # Build the data 
-    Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, eigfuns, eigorders);
-
-    # Learn nominal model
-    t_train_eDMD = @elapsed A, B, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
-        ["na", "na"]; 
-        edmd_weights=[1.0], 
-        mapping_weights=[0.0],
-        algorithm=:qr
-    )
-    # Create a sparse version of the G Jacobian
-    n0,m = RD.dims(model_nom)  # original dimensions
-    n = length(Z_train[1])     # lifted dimension
-    G = spdiagm(n0,n,1=>ones(n0)) 
-    @test norm(G - g) < 1e-3
-
-    # Create model
-    eDMD_data = Dict(
-        :A=>A, :B=>B, :C=>C, :g=>g, :t_train=>t_train_eDMD
-    )
-    model_bilinear_eDMD = EDMDModel(eDMD_data[:A],eDMD_data[:B],eDMD_data[:C],G,kf,dt,"cartpole_eDMD")
-    model_bilinear_eDMD_projected = Problems.ProjectedEDMDModel(model_bilinear_eDMD)
-
-    #############################################
-    ## Fit data using Jacobian EDMD method
-    #############################################
-
-    # Generate Jacobians from nominal model
-    n0,m = RD.dims(model_nom)  # original dimensions
-    xn = zeros(n0)
-    n = length(kf(xn))         # lifted state dimension
-    jacobians = map(CartesianIndices(U_train)) do cind
-        k = cind[1]
-        x = X_train[cind]
-        u = U_train[cind]
-        z = RD.KnotPoint{n0,m}(x,u,T_sim[k],dt)
-        J = zeros(n0,n0+m)
-        RD.jacobian!(
-            RD.InPlace(), RD.ForwardAD(), dmodel_nom, J, xn, z 
-        )
-        J
-    end
-    A_train = map(J->J[:,1:n0], jacobians)
-    B_train = map(J->J[:,n0+1:end], jacobians)
-
-    # Convert states to lifted Koopman states
-    Y_train = map(kf, X_train)
-
-    # Calculate Jacobian of Koopman transform
-    F_train = map(@view X_train[1:end-1,:]) do x
-        sparse(ForwardDiff.jacobian(kf, x))
-    end
-
-    # Create a sparse version of the G Jacobian
-    G = spdiagm(n0,n,1=>ones(n0)) 
-    xn .= randn(n0)
-    @test G*kf(xn) ≈ xn
-
-    # Build Least Squares Problem
-    W,s = BilinearControl.EDMD.build_edmd_data(
-        Z_train, U_train, A_train, B_train, F_train, G)
-
-    # Create sparse LLS matrix
-    @time Wsparse = sparse(W)
-    @show BilinearControl.matdensity(Wsparse)
-
-    # Solve with RLS
-    t_train_jDMD = @elapsed x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=1e-4)
-    E = reshape(x_rls,n,:)
-
-    # Extract out bilinear dynamics
-    A = E[:,1:n]
-    B = E[:,n .+ (1:m)]
-    C = E[:,n+m .+ (1:n*m)]
-
-    C_list = Matrix{Float64}[]
-    for i in 1:m
-        C_i = C[:, (i-1)*n+1:i*n]
-        push!(C_list, C_i)
-    end
-    C = C_list
-
-    # Create model
-    jDMD_data = Dict(
-        :A=>A, :B=>B, :C=>C, :g=>g, :t_train=>t_train_jDMD
-    )
-    model_bilinear_jDMD = EDMDModel(jDMD_data[:A],jDMD_data[:B],jDMD_data[:C],G,kf,dt,"cartpole_jDMD")
-    model_bilinear_jDMD_projected = Problems.ProjectedEDMDModel(model_bilinear_jDMD)
+    t_train_eDMD = @elapsed model_eDMD = EDMD.run_eDMD(X_train, U_train, dt, eigfuns, eigorders, 
+        reg=reg, name="cartpole_eDMD")
+    t_train_jDMD = @elapsed model_jDMD = EDMD.run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, 
+        reg=reg, name="cartpole_jDMD"; α, β, learnB)
+    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+    model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
 
     #############################################
     ## MPC Tracking
@@ -364,10 +282,10 @@ function train_cartpole_models(num_lqr, num_swingup)
         mpc_nom = TrackingMPC(dmodel_nom, 
             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
         )
-        mpc_eDMD = TrackingMPC(model_bilinear_eDMD_projected, 
+        mpc_eDMD = TrackingMPC(model_eDMD_projected, 
             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
         )
-        mpc_jDMD = TrackingMPC(model_bilinear_jDMD_projected, 
+        mpc_jDMD = TrackingMPC(model_jDMD_projected, 
             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
         )
         X_mpc_nom, U_mpc_nom, T_mpc = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], tf_sim, dt, printrate=false)
@@ -389,26 +307,42 @@ function train_cartpole_models(num_lqr, num_swingup)
 
     (;nom_err_avg, eDMD_err_avg, eDMD_success, jDMD_err_avg, jDMD_success, 
         t_train_eDMD, t_train_jDMD, num_lqr, num_swingup, nsamples=length(X_train), 
-        eDMD_data, jDMD_data, G, kf, dt)
+        model_eDMD, model_jDMD)
 end
+num_swingup[end-4]
+results[end-4].jDMD_err_avg
 
 generate_cartpole_data()
-train_cartpole_models(0,6)
-num_swingup = 6:3:30   # goes singular above 35?
+num_swingup = 2:2:50
+2*120
+β = 240 / (38 * 120)
+res = train_cartpole_models(0, 50, α=0.5, β=1.0, learnB=true, reg=1e-3)
+res = train_cartpole_models(0, 8, α=0.5, β=1.0, learnB=true, reg=1e-4)
+# res = train_cartpole_models(0, 50, α=0.5, β=1.0, learnB=false, reg=1e-4)
+res.jDMD_err_avg
+res.eDMD_err_avg
+num_swingup[4]
 results = map(num_swingup) do N
-    println("\n\nRunning with N = $N")
-    train_cartpole_models(0,N)
+    println("\nRunning with N = $N")
+    res = train_cartpole_models(0,N, α=0.5, β=1.0, learnB=true, reg=1e-4)
+    @show res.jDMD_err_avg
+    @show res.eDMD_err_avg
+    res
 end
 const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")
 jldsave(CARTPOLE_RESULTS_FILE; results)
+results
 
 ## Process results
 using PGFPlotsX
 results = load(CARTPOLE_RESULTS_FILE)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
+res
 plot(res[:num_swingup], res[:t_train_eDMD])
 plot!(res[:num_swingup], res[:t_train_jDMD])
+res
+res[:jDMD_err_avg]
 
 p = @pgf Axis(
     {
@@ -416,145 +350,11 @@ p = @pgf Axis(
         ymajorgrids,
         xlabel = "Number of training samples",
         ylabel = "Tracking error",
+        ymax=0.2,
     },
-    PlotInc({no_marks, "very thick", "black"}, Coordinates(res[:nsamples], res[:nom_err_avg])),
-    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples], res[:eDMD_err_avg])),
-    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples], res[:jDMD_err_avg])),
+    PlotInc({no_marks, "very thick", "black"}, Coordinates(res[:nsamples][1:18], res[:nom_err_avg][1:18])),
+    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples][1:18], res[:eDMD_err_avg][1:18])),
+    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples][1:18], res[:jDMD_err_avg][1:18])),
     Legend(["Nominal", "eDMD", "jDMD"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)
-
-#############################################
-## Stabilization analysis
-#############################################
-
-results = train_cartpole_models(50,10)
-eDMD_data = results.eDMD_data
-jDMD_data = results.jDMD_data
-G = results.G
-kf = results.kf
-dt = results.dt
-eDMD_data
-
-model_bilinear_eDMD = EDMDModel(eDMD_data[:A],eDMD_data[:B],eDMD_data[:C],G,kf,dt,"cartpole_jDMD")
-model_bilinear_eDMD_projected = Problems.ProjectedEDMDModel(model_bilinear_eDMD)
-model_bilinear_jDMD = EDMDModel(jDMD_data[:A],jDMD_data[:B],jDMD_data[:C],G,kf,dt,"cartpole_jDMD")
-model_bilinear_jDMD_projected = Problems.ProjectedEDMDModel(model_bilinear_jDMD)
-
-# Generate LQR Controllers
-xe = [0,pi,0,0.]
-ue = [0.0]
-ye = expandstate(model_bilinear_eDMD, xe)
-
-Qlqr = Diagonal([1.0,10.0,1e-2,1e-2])
-Rlqr = Diagonal([1e-3])
-Qlqr = Diagonal(fill(1e-0,4))
-Rlqr = Diagonal(fill(1e-3,1))
-
-ρ = 1e-6 
-Qlqr_expanded = Diagonal([ρ; diag(Qlqr); fill(ρ, length(ye) - 5)])
-
-lifted_state_error(x,x0) = kf(x) - x0
-lqr_eDMD = LQRController(
-    model_bilinear_eDMD, Qlqr_expanded, Rlqr, ye, ue, dt, max_iters=10000, verbose=true,
-    state_error=lifted_state_error
-)
-lqr_eDMD_projected = LQRController(
-    model_bilinear_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
-)
-lqr_jDMD = LQRController(
-    model_bilinear_jDMD, Qlqr_expanded, Rlqr, ye, ue, dt, max_iters=20000, verbose=true,
-    state_error=lifted_state_error
-)
-lqr_jDMD_projected = LQRController(
-    model_bilinear_jDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
-)
-
-# Run LQR controllers
-x0_sampler = Product([
-    Uniform(-0.7,0.7),
-    Uniform(pi-pi/4,pi+pi/4),
-    Uniform(-.2,.2),
-    Uniform(-.2,.2),
-])
-
-x0_test = [rand(x0_sampler) for _ in 1:100]
-x0 = x0_test[1]
-t_sim = 5.0
-T_sim = range(0,t_sim,step=dt)
-X_lqr_eDMD_projected,= simulatewithcontroller(dmodel_real, lqr_eDMD_projected, x0, t_sim, dt)
-X_lqr_jDMD_projected,= simulatewithcontroller(dmodel_real, lqr_jDMD_projected, x0, t_sim, dt)
-X_lqr_eDMD,= simulatewithcontroller(dmodel_real, lqr_eDMD, x0, t_sim, dt)
-X_lqr_jDMD,= simulatewithcontroller(dmodel_real, lqr_jDMD, x0, t_sim, dt)
-
-plotstates(T_sim, X_lqr_eDMD_projected, inds=1:2)
-plotstates(T_sim, X_lqr_jDMD_projected, inds=1:2)
-plotstates(T_sim, X_lqr_eDMD, inds=1:2)
-plotstates(T_sim, X_lqr_jDMD, inds=1:2)
-
-# Generate MPC controllers
-X_ref = [copy(xe) for t in T_sim]
-U_ref = [copy(ue) for t in T_sim]
-T_ref = copy(T_sim)
-Y_ref = kf.(X_ref)
-Nt = 41
-Qmpc = copy(Qlqr)
-Rmpc = copy(Rlqr)
-Qfmpc = 100*Qmpc
-
-Qmpc = Diagonal(fill(1e-0,4))
-Rmpc = Diagonal(fill(1e-3,1))
-Qfmpc = Diagonal([1e2,1e2,1e1,1e1])
-Qmpc_lifted = Diagonal([ρ; diag(Qmpc); fill(ρ, length(ye)-5)])
-Qfmpc_lifted = Diagonal([ρ; diag(Qfmpc); fill(ρ, length(ye)-5)])
-
-mpc_eDMD_projected = TrackingMPC(model_bilinear_eDMD_projected, 
-    X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
-)
-mpc_jDMD_projected = TrackingMPC(model_bilinear_jDMD_projected, 
-    X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
-)
-Nt = 21
-mpc_eDMD = TrackingMPC(model_bilinear_eDMD, 
-    Y_ref, U_ref, Vector(T_ref), Qmpc_lifted, Rmpc, Qfmpc_lifted; Nt=Nt, state_error=lifted_state_error
-)
-mpc_jDMD = TrackingMPC(model_bilinear_jDMD, 
-    Y_ref, U_ref, Vector(T_ref), Qmpc_lifted, Rmpc, Qfmpc_lifted; Nt=Nt, state_error=lifted_state_error
-)
-solve!(mpc_jDMD, x0, 1)
-map(x->G*x, mpc_jDMD.X)
-
-X_mpc_eDMD_projected,= simulatewithcontroller(dmodel_real, mpc_eDMD_projected, x0, t_sim, dt)
-X_mpc_jDMD_projected,= simulatewithcontroller(dmodel_real, mpc_jDMD_projected, x0, t_sim, dt)
-X_mpc_eDMD, = simulatewithcontroller(dmodel_real, mpc_eDMD, x0, t_sim, dt)
-X_mpc_jDMD, = simulatewithcontroller(dmodel_real, mpc_jDMD, x0, t_sim, dt)
-
-plotstates(T_sim, X_mpc_eDMD_projected, inds=1:2)
-plotstates(T_sim, X_mpc_jDMD_projected, inds=1:2)
-plotstates(T_sim, X_mpc_eDMD, inds=1:2)
-plotstates(T_sim, X_mpc_jDMD, inds=1:2)
-
-altro_lqr_traj = load(joinpath(Problems.DATADIR, "cartpole_swingup_data.jld2"))
-
-# Compare open-loop simulations
-model_nom = Problems.NominalCartpole()
-dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
-model_real = Problems.SimulatedCartpole()
-dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
-
-X_test_lqr = altro_lqr_traj["X_test_lqr"]
-U_test_lqr = altro_lqr_traj["U_test_lqr"]
-tf = altro_lqr_traj["t_sim"]
-dt = altro_lqr_traj["dt"]
-T_sim = range(0,tf,step=dt)
-
-X, = simulate(dmodel_real, U_test_lqr[:,1], X_test_lqr[1], tf, dt)
-X, = simulate(dmodel_nom, U_test_lqr[:,1], X_test_lqr[1], tf, dt)
-X, = simulate(model_bilinear_eDMD_projected, U_test_lqr[:,1], X_test_lqr[1], tf, dt)
-X, = simulate(model_bilinear_jDMD_projected, U_test_lqr[:,1], X_test_lqr[1], tf, dt)
-
-Y, = simulate(model_bilinear_eDMD, U_test_lqr[:,1], kf(X_test_lqr[1]), tf, dt)
-Y, = simulate(model_bilinear_jDMD, U_test_lqr[:,1], kf(X_test_lqr[1]), tf, dt)
-X = map(x->originalstate(model_bilinear_eDMD, x), Y)
-norm(X - X_test_lqr[:,1])
-plotstates(T_sim, X, inds=1:2)

@@ -12,9 +12,12 @@ struct EDMDModel <: RD.DiscreteDynamics
                        name::AbstractString)
 
         p,n = size(A)
-        m = size(B,2)
-        m == length(C) || throw(DimensionMismatch("Length of C must be m. Expected $m, got $(length(C))"))
+        m = length(C)
+        # m == length(C) || throw(DimensionMismatch("Length of C must be m. Expected $m, got $(length(C))"))
         p == size(B,1) || throw(DimensionMismatch("B should have the same number of rows as A."))
+        if size(B,2) == 0
+            B = zeros(p,m)
+        end
         all(c->size(c) == (p,n), C) || throw(DimensionMismatch("All C matrices should be the same size as A."))
         new(A,B,C,g,kf,dt,name)
     end
