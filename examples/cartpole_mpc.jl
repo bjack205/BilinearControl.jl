@@ -20,6 +20,8 @@ import BilinearControl.Problems
 using Test
 
 include("learned_models/edmd_utils.jl")
+include("constants.jl")
+const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")
 
 ## Create function for generating nominal cartpole problem for ALTRO
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
@@ -309,9 +311,8 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
         t_train_eDMD, t_train_jDMD, num_lqr, num_swingup, nsamples=length(X_train), 
         model_eDMD, model_jDMD)
 end
-num_swingup[end-4]
-results[end-4].jDMD_err_avg
 
+##
 generate_cartpole_data()
 num_swingup = 2:2:50
 2*120
@@ -329,7 +330,6 @@ results = map(num_swingup) do N
     @show res.eDMD_err_avg
     res
 end
-const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")
 jldsave(CARTPOLE_RESULTS_FILE; results)
 results
 
@@ -339,10 +339,22 @@ results = load(CARTPOLE_RESULTS_FILE)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
 res
-plot(res[:num_swingup], res[:t_train_eDMD])
-plot!(res[:num_swingup], res[:t_train_jDMD])
-res
-res[:jDMD_err_avg]
+good_inds = 1:18
+plot(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])
+plot!(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])
+p = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Number of training samples",
+        ylabel = "Training time (sec)",
+        legend_pos = "north west",
+    },
+    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])),
+    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])),
+    Legend(["eDMD", "jDMD"])
+)
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_train_time.tikz"), p, include_preamble=false)
 
 p = @pgf Axis(
     {
@@ -352,9 +364,9 @@ p = @pgf Axis(
         ylabel = "Tracking error",
         ymax=0.2,
     },
-    PlotInc({no_marks, "very thick", "black"}, Coordinates(res[:nsamples][1:18], res[:nom_err_avg][1:18])),
-    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples][1:18], res[:eDMD_err_avg][1:18])),
-    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples][1:18], res[:jDMD_err_avg][1:18])),
+    PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:nsamples][good_inds], res[:nom_err_avg][good_inds])),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:nsamples][good_inds], res[:eDMD_err_avg][good_inds])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:nsamples][good_inds], res[:jDMD_err_avg][good_inds])),
     Legend(["Nominal", "eDMD", "jDMD"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)

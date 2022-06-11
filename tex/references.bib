@@ -1,3 +1,44 @@
+@article{Kuindersma2014,
+abstract = {We describe a whole-body dynamic walking controller implemented as a convex quadratic program. The controller solves an optimal control problem using an approximate value function derived from a simple walking model while respecting the dynamic, input, and contact constraints of the full robot dynamics. By exploiting sparsity and temporal structure in the optimization with a custom active-set algorithm, we surpass the performance of the best available off-the-shelf solvers and achieve 1kHz control rates for a 34-DOF humanoid. We describe applications to balancing and walking tasks using the simulated Atlas robot in the DARPA Virtual Robotics Challenge.},
+archivePrefix = {arXiv},
+arxivId = {1311.1839},
+author = {Kuindersma, Scott and Permenter, Frank and Tedrake, Russ},
+doi = {10.1109/ICRA.2014.6907230},
+eprint = {1311.1839},
+file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Kuindersma, Permenter, Tedrake - 2014 - An efficiently solvable quadratic program for stabilizing dynamic locomotion.pdf:pdf},
+isbn = {9781479936854},
+issn = {10504729},
+journal = {Proceedings - IEEE International Conference on Robotics and Automation},
+month = {sep},
+pages = {2589--2594},
+publisher = {Institute of Electrical and Electronics Engineers Inc.},
+title = {{An efficiently solvable quadratic program for stabilizing dynamic locomotion}},
+year = {2014}
+}
+@article{Jackson2021,
+abstract = {Model-predictive control (MPC) is an increasingly popular method for controlling complex robotic systems in which optimal control problems are solved on board the robot at real-time rates. However, successful application of MPC depends critically on the performance of the algorithms used to solve the underlying optimization problems. An ideal solver should both leverage the structure of the MPC problem and support efficient "warm starting" so that information from previous solutions can be recycled to speed convergence. We present ALTRO-C, a high-performance solver with both of these properties that utilizes an augmented Lagrangian method to handle general convex conic constraints. We demonstrate the new solver's superior performance against several existing state-of-the-art solvers on a variety of benchmark control problems formulated as both quadratic and second-order cone programs.},
+author = {Jackson, Brian E and Punnoose, Tarun and Neamati, Daniel and Tracy, Kevin and Jitosho, Rianna and Manchester, Zachary},
+doi = {10.1109/ICRA48506.2021.9561438},
+file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Jackson et al. - 2021 - ALTRO-C A Fast Solver for Conic Model-Predictive Control ALTRO-C A Fast Solver for Conic Model-Predictive Contro.pdf:pdf},
+isbn = {9781728190778},
+journal = {2021 IEEE International Conference on Robotics and Automation (ICRA)},
+title = {{ALTRO-C: A Fast Solver for Conic Model-Predictive Control; ALTRO-C: A Fast Solver for Conic Model-Predictive Control}},
+url = {https://github.com/},
+year = {2021}
+}
+@article{Howell2019,
+abstract = {Trajectory optimization is a widely used tool for robot motion planning and control. Existing solvers for these problems either rely on off-the-shelf nonlinear programming solvers that are numerically robust and capable of handling arbitrary constraints, but tend to be slow because they are general purpose; or they use custom numerical methods that take advantage of the problem structure to be fast, but often lack robustness and have limited or no ability to reason about constraints. This paper presents ALTRO (Augmented Lagrangian TRajectory optimizer), a solver for constrained trajectory optimization problems that handles general nonlinear state and input constraints and offers fast convergence and numerical robustness thanks to careful exploitation of problem structure. We demonstrate its performance on a set of benchmark motion-planning problems and offer comparisons to the standard direct collocation method with large-scale sequential quadratic programming and interior-point solvers.},
+author = {Howell, Taylor A. and Jackson, Brian E. and Manchester, Zachary},
+doi = {10.1109/IROS40897.2019.8967788},
+isbn = {9781728140049},
+issn = {21530866},
+journal = {IEEE International Conference on Intelligent Robots and Systems},
+month = {nov},
+pages = {7674--7679},
+publisher = {Institute of Electrical and Electronics Engineers Inc.},
+title = {{ALTRO: A Fast Solver for Constrained Trajectory Optimization}},
+year = {2019}
+}
 @article{Meduri2022,
 abstract = {Online planning of whole-body motions for legged robots is challenging due to
 the inherent nonlinearity in the robot dynamics. In this work, we propose a
@@ -135,6 +176,13 @@ keywords = {Classification,Mathematics,Subject,smooth nonconvex optimization {\t
 title = {{A Newton-CG Algorithm with Complexity Guarantees for Smooth Unconstrained Optimization}},
 year = {2018}
 }
+@article{Xu,
+abstract = {The alternating direction method of multi-pliers (ADMM) is a versatile tool for solving a wide range of constrained optimization problems. However, its performance is highly sensitive to a penalty parameter, making ADMM often unreliable and hard to automate for a non-expert user. We tackle this weakness of ADMM by proposing a method that adaptively tunes the penalty parameter to achieve fast convergence. The resulting adaptive ADMM (AADMM) algorithm, inspired by the successful Barzilai-Borwein spectral method for gradient descent, yields fast convergence and relative insensitivity to the initial stepsize and problem scaling.},
+author = {Xu, Zheng and Figueiredo, M{\'{a}}rio A T and Goldstein, Tom},
+file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Xu, Figueiredo, Goldstein - Unknown - Adaptive ADMM with Spectral Penalty Parameter Selection.pdf:pdf},
+title = {{Adaptive ADMM with Spectral Penalty Parameter Selection}},
+url = {http://proceedings.mlr.press/v54/xu17a.html}
+}
 @article{Xua,
 abstract = {The alternating direction method of multipliers (ADMM) is a common optimization tool for solving constrained and non-differentiable problems. We provide an empirical study of the practical performance of ADMM on several nonconvex applications, including 0 regularized linear regression, 0 regularized image de-noising, phase retrieval, and eigenvector computation. Our experiments suggest that ADMM performs well on a broad class of non-convex problems. Moreover, recently proposed adaptive ADMM methods, which automatically tune penalty parameters as the method runs, can improve algorithm efficiency and solution quality compared to ADMM with a non-tuned penalty.},
 archivePrefix = {arXiv},
@@ -152,44 +200,6 @@ file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd
 isbn = {9781509018376},
 title = {{Koopman operator based observer synthesis for control-affine nonlinear systems; Koopman operator based observer synthesis for control-affine nonlinear systems}},
 year = {2016}
-}
-@article{Suh2020,
-abstract = {In this paper, we tackle the problem of pushing piles of small objects into a
-desired target set using visual feedback. Unlike conventional single-object
-manipulation pipelines, which estimate the state of the system parametrized by
-pose, the underlying physical state of this system is difficult to observe from
-images. Thus, we take the approach of reasoning directly in the space of
-images, and acquire the dynamics of visual measurements in order to synthesize
-a visual-feedback policy. We present a simple controller using an image-space
-Lyapunov function, and evaluate the closed-loop performance using three
-different class of models for image prediction: deep-learning-based models for
-image-to-image translation, an object-centric model obtained from treating each
-pixel as a particle, and a switched-linear system where an action-dependent
-linear map is used. Through results in simulation and experiment, we show that
-for this task, a linear model works surprisingly well -- achieving better
-prediction error, downstream task performance, and generalization to new
-environments than the deep models we trained on the same amount of data. We
-believe these results provide an interesting example in the spectrum of models
-that are most useful for vision-based feedback in manipulation, considering
-both the quality of visual prediction, as well as compatibility with rigorous
-methods for control design and analysis. Project site:
-https://sites.google.com/view/linear-visual-foresight/home},
-archivePrefix = {arXiv},
-arxivId = {2002.09093},
-author = {Suh, H. J.Terry and Tedrake, Russ},
-doi = {10.48550/arxiv.2002.09093},
-eprint = {2002.09093},
-file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Suh, Tedrake - 2020 - The Surprising Effectiveness of Linear Models for Visual Foresight in Object Pile Manipulation.pdf:pdf},
-issn = {25111264},
-journal = {Springer Proceedings in Advanced Robotics},
-keywords = {Deformable Objects,Image Prediction,Manipulation,Piles of Objects,Vision-based Control,Visual Foresight},
-month = {feb},
-pages = {347--363},
-publisher = {Springer Science and Business Media B.V.},
-title = {{The Surprising Effectiveness of Linear Models for Visual Foresight in Object Pile Manipulation}},
-url = {https://arxiv.org/abs/2002.09093v3},
-volume = {17},
-year = {2020}
 }
 @article{Bruder2020,
 abstract = {Nonlinear dynamical systems can be made easier to control by lifting them
@@ -230,38 +240,50 @@ url = {https://arxiv.org/abs/2010.09961v3},
 volume = {6},
 year = {2020}
 }
-@article{Xu,
+@article{jacobson_differential_1970,
+annote = {Publisher: North-Holland},
+author = {Jacobson, David H and Mayne, David Q},
+title = {{Differential dynamic programming}}
+}
+@article{hargraves_direct_1987,
+author = {Hargraves, Charles R and Paris, Stephen W},
+number = {4},
+pages = {338--342},
+title = {{Direct trajectory optimization using nonlinear programming and collocation}},
+volume = {10}
+}
+@inproceedings{farshidian_efficient_2017,
+abstract = {In this paper, we present an efficient Dynamic Programing framework for optimal planning and control of legged robots. First we formulate this problem as an optimal control problem for switched systems. Then we propose a multi-level optimization approach to find the optimal switching times and the optimal continuous control inputs. Through this scheme, the decomposed optimization can potentially be done more efficiently than the combined approach. Finally, we present a continuous-time constrained {LQR} algorithm which simultaneously optimizes the feedforward and feedback controller with O(n) time-complexity. In order to validate our approach, we show the performance of our framework on a quadrupedal robot. We choose the Center of Mass dynamics and the full kinematic formulation as the switched system model where the switching times as well as the contact forces and the joint velocities are optimized for different locomotion tasks such as gap crossing, walking and trotting.},
+author = {Farshidian, Farbod and Neunert, Michael and Winkler, Alexander W and Rey, Gonzalo and Buchli, Jonas},
+booktitle = {2017 {IEEE} International Conference on Robotics and Automation ({ICRA})},
+doi = {10.1109/ICRA.2017.7989016},
+file = {:home/brian/Zotero/storage/766ET2KL/Farshidian et al. - 2017 - An efficient optimal planning and control framewor.pdf:pdf},
+keywords = {Legged locomotion,Optimal control,Optimization,Planning,Switched systems,Switches},
+pages = {93--100},
+title = {{An efficient optimal planning and control framework for quadrupedal locomotion}}
+}
+@inproceedings{baraff_linear-time_1996-1,
+author = {Baraff, David},
+booktitle = {Proceedings of the 23rd annual conference on Computer graphics and interactive techniques},
+pages = {137--146},
+publisher = {ACM},
+title = {{Linear-time dynamics using Lagrange multipliers}}
+}
+@article{Xu2017,
 abstract = {The alternating direction method of multi-pliers (ADMM) is a versatile tool for solving a wide range of constrained optimization problems. However, its performance is highly sensitive to a penalty parameter, making ADMM often unreliable and hard to automate for a non-expert user. We tackle this weakness of ADMM by proposing a method that adaptively tunes the penalty parameter to achieve fast convergence. The resulting adaptive ADMM (AADMM) algorithm, inspired by the successful Barzilai-Borwein spectral method for gradient descent, yields fast convergence and relative insensitivity to the initial stepsize and problem scaling.},
-author = {Xu, Zheng and Figueiredo, M{\'{a}}rio A T and Goldstein, Tom},
+annote = {From Duplicate 3 (Adaptive ADMM with Spectral Penalty Parameter Selection - Xu, Zheng; Figueiredo, M{\'{a}}rio A.T. T; Goldstein, Tom)
+
+Seems like a promising method to try.},
+archivePrefix = {arXiv},
+arxivId = {1605.07246},
+author = {Xu, Zheng and Figueiredo, M{\'{a}}rio A.T. T and Goldstein, Tom},
+eprint = {1605.07246},
 file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Xu, Figueiredo, Goldstein - Unknown - Adaptive ADMM with Spectral Penalty Parameter Selection.pdf:pdf},
+journal = {Proceedings of the 20th International Conference on Artificial Intelligence and Statistics, AISTATS 2017},
+publisher = {PMLR},
 title = {{Adaptive ADMM with Spectral Penalty Parameter Selection}},
-url = {http://proceedings.mlr.press/v54/xu17a.html}
-}
-@article{Folkestad2020,
-abstract = {This paper presents a novel episodic method to learn a robot's nonlinear dynamics model and an increasingly optimal control sequence for a set of tasks. The method is based on the Koopman operator approach to nonlinear dynamical systems analysis, which models the flow of observables in a function space, rather than a flow in a state space. Practically, this method estimates a nonlinear diffeomorphism that lifts the dynamics to a higher dimensional space where they are linear. Efficient Model Predictive Control methods can then be applied to the lifted model. This approach allows for real time implementation in on-board hardware, with rigorous incorporation of both input and state constraints during learning. We demonstrate the method in a real-time implementation of fast multirotor landing, where the nonlinear ground effect is learned and used to improve landing speed and quality.},
-archivePrefix = {arXiv},
-arxivId = {2004.01708},
-author = {Folkestad, Carl and Pastor, Daniel and Burdick, Joel W.},
-doi = {10.1109/ICRA40945.2020.9197510},
-eprint = {2004.01708},
-file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Folkestad, Pastor, Burdick - 2020 - Episodic Koopman Learning of Nonlinear Robot Dynamics with Application to Fast Multirotor Landing.pdf:pdf},
-isbn = {9781728173955},
-issn = {10504729},
-journal = {Proceedings - IEEE International Conference on Robotics and Automation},
-month = {may},
-pages = {9216--9222},
-publisher = {Institute of Electrical and Electronics Engineers Inc.},
-title = {{Episodic Koopman Learning of Nonlinear Robot Dynamics with Application to Fast Multirotor Landing}},
-year = {2020}
-}
-@article{Folkestad,
-abstract = {This paper presents a novel learning framework to construct Koopman eigenfunctions for unknown, nonlinear dynamics using data gathered from experiments. The learning framework can extract spectral information from the full non-linear dynamics by learning the eigenvalues and eigenfunctions of the associated Koopman operator. We then exploit the learned Koopman eigenfunctions to learn a lifted linear state-space model. To the best of our knowledge, our method is the first to utilize Koopman eigenfunctions as lifting functions for EDMD-based methods. We demonstrate the performance of the framework in state prediction and closed loop trajectory tracking of a simulated cart pole system. Our method is able to significantly improve the controller performance while relying on linear control methods to do nonlinear control.},
-archivePrefix = {arXiv},
-arxivId = {1911.08751v3},
-author = {Folkestad, Carl and Pastor, Daniel and Mezic, Igor and Mohr, Ryan and Fonoberova, Maria and Burdick, Joel},
-eprint = {1911.08751v3},
-file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Folkestad et al. - Unknown - Extended Dynamic Mode Decomposition with Learned Koopman Eigenfunctions for Prediction and Control.pdf:pdf},
-title = {{Extended Dynamic Mode Decomposition with Learned Koopman Eigenfunctions for Prediction and Control}}
+url = {http://proceedings.mlr.press/v54/xu17a.html},
+year = {2017}
 }
 @article{Folkestad2021,
 abstract = {Koopman-based learning methods can potentially be practical and powerful tools for dynamical robotic systems. However, common methods to construct Koopman representations seek to learn lifted linear models that cannot capture nonlinear actuation effects inherent in many robotic systems. This paper presents a learning and control methodology that is a first step towards overcoming this limitation. Using the Koopman canonical transform, control-affine dynamics can be expressed by a lifted bilinear model. The learned model is used for nonlinear model predictive control (NMPC) design where the bilinear structure can be exploited to improve computational efficiency. The benefits for control-affine dynamics compared to existing Koopman-based methods are highlighted through an example of a simulated planar quadrotor. Prediction error is greatly reduced and closed loop performance similar to NMPC with full model knowledge is achieved.},
@@ -287,6 +309,70 @@ pages = {7350--7356},
 publisher = {Institute of Electrical and Electronics Engineers (IEEE)},
 title = {{Koopman NMPC: Koopman-based Learning and Nonlinear Model Predictive Control of Control-affine Systems}},
 year = {2021}
+}
+@article{Folkestad,
+abstract = {This paper presents a novel learning framework to construct Koopman eigenfunctions for unknown, nonlinear dynamics using data gathered from experiments. The learning framework can extract spectral information from the full non-linear dynamics by learning the eigenvalues and eigenfunctions of the associated Koopman operator. We then exploit the learned Koopman eigenfunctions to learn a lifted linear state-space model. To the best of our knowledge, our method is the first to utilize Koopman eigenfunctions as lifting functions for EDMD-based methods. We demonstrate the performance of the framework in state prediction and closed loop trajectory tracking of a simulated cart pole system. Our method is able to significantly improve the controller performance while relying on linear control methods to do nonlinear control.},
+archivePrefix = {arXiv},
+arxivId = {1911.08751v3},
+author = {Folkestad, Carl and Pastor, Daniel and Mezic, Igor and Mohr, Ryan and Fonoberova, Maria and Burdick, Joel},
+eprint = {1911.08751v3},
+file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Folkestad et al. - Unknown - Extended Dynamic Mode Decomposition with Learned Koopman Eigenfunctions for Prediction and Control.pdf:pdf},
+title = {{Extended Dynamic Mode Decomposition with Learned Koopman Eigenfunctions for Prediction and Control}}
+}
+@article{Suh2020,
+abstract = {In this paper, we tackle the problem of pushing piles of small objects into a
+desired target set using visual feedback. Unlike conventional single-object
+manipulation pipelines, which estimate the state of the system parametrized by
+pose, the underlying physical state of this system is difficult to observe from
+images. Thus, we take the approach of reasoning directly in the space of
+images, and acquire the dynamics of visual measurements in order to synthesize
+a visual-feedback policy. We present a simple controller using an image-space
+Lyapunov function, and evaluate the closed-loop performance using three
+different class of models for image prediction: deep-learning-based models for
+image-to-image translation, an object-centric model obtained from treating each
+pixel as a particle, and a switched-linear system where an action-dependent
+linear map is used. Through results in simulation and experiment, we show that
+for this task, a linear model works surprisingly well -- achieving better
+prediction error, downstream task performance, and generalization to new
+environments than the deep models we trained on the same amount of data. We
+believe these results provide an interesting example in the spectrum of models
+that are most useful for vision-based feedback in manipulation, considering
+both the quality of visual prediction, as well as compatibility with rigorous
+methods for control design and analysis. Project site:
+https://sites.google.com/view/linear-visual-foresight/home},
+archivePrefix = {arXiv},
+arxivId = {2002.09093},
+author = {Suh, H. J.Terry and Tedrake, Russ},
+doi = {10.48550/arxiv.2002.09093},
+eprint = {2002.09093},
+file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Suh, Tedrake - 2020 - The Surprising Effectiveness of Linear Models for Visual Foresight in Object Pile Manipulation.pdf:pdf},
+issn = {25111264},
+journal = {Springer Proceedings in Advanced Robotics},
+keywords = {Deformable Objects,Image Prediction,Manipulation,Piles of Objects,Vision-based Control,Visual Foresight},
+month = {feb},
+pages = {347--363},
+publisher = {Springer Science and Business Media B.V.},
+title = {{The Surprising Effectiveness of Linear Models for Visual Foresight in Object Pile Manipulation}},
+url = {https://arxiv.org/abs/2002.09093v3},
+volume = {17},
+year = {2020}
+}
+@article{Folkestad2020,
+abstract = {This paper presents a novel episodic method to learn a robot's nonlinear dynamics model and an increasingly optimal control sequence for a set of tasks. The method is based on the Koopman operator approach to nonlinear dynamical systems analysis, which models the flow of observables in a function space, rather than a flow in a state space. Practically, this method estimates a nonlinear diffeomorphism that lifts the dynamics to a higher dimensional space where they are linear. Efficient Model Predictive Control methods can then be applied to the lifted model. This approach allows for real time implementation in on-board hardware, with rigorous incorporation of both input and state constraints during learning. We demonstrate the method in a real-time implementation of fast multirotor landing, where the nonlinear ground effect is learned and used to improve landing speed and quality.},
+archivePrefix = {arXiv},
+arxivId = {2004.01708},
+author = {Folkestad, Carl and Pastor, Daniel and Burdick, Joel W.},
+doi = {10.1109/ICRA40945.2020.9197510},
+eprint = {2004.01708},
+file = {:home/brian/.var/app/com.elsevier.MendeleyDesktop/data/data/Mendeley Ltd./Mendeley Desktop/Downloaded/Folkestad, Pastor, Burdick - 2020 - Episodic Koopman Learning of Nonlinear Robot Dynamics with Application to Fast Multirotor Landing.pdf:pdf},
+isbn = {9781728173955},
+issn = {10504729},
+journal = {Proceedings - IEEE International Conference on Robotics and Automation},
+month = {may},
+pages = {9216--9222},
+publisher = {Institute of Electrical and Electronics Engineers Inc.},
+title = {{Episodic Koopman Learning of Nonlinear Robot Dynamics with Application to Fast Multirotor Landing}},
+year = {2020}
 }
 @article{Boyd2010,
 abstract = {Many problems of recent interest in statistics and machine learning can be posed in the framework of convex optimization. Due to the explosion in size and complexity of modern datasets, it is increasingly important to be able to solve problems with a very large number of features or training examples. As a result, both the decentralized collection or storage of these datasets as well as accompanying distributed solution methods are either necessary or at least highly desirable. In this review, we argue that the alternating direction method of multipliers is well suited to distributed convex optimization, and in particular to large-scale problems arising in statistics, machine learning, and related areas. The method was developed in the 1970s, with roots in the 1950s, and is equivalent or closely related to many other algorithms, such as dual decomposition, the method of multipliers, Douglas-Rachford splitting, Spingarn's method of partial inverses, Dykstra's alternating projections, Bregman iterative algorithms for ℓ1 problems, proximal methods, and thers. After briefly surveying the theory and history of the algorithm, we discuss applications to a wide variety of statistical and machine learning problems of recent interest, including the lasso, sparse logistic regression, basis pursuit, covariance selection, support vector machines, and many others. We also discuss general distributed optimization, extensions to the nonconvex setting, and efficient implementation, including some details on distributed MPI and Hadoop MapReduce implementations. {\textcopyright} 2011 S. Boyd, N. Parikh, E. Chu, B. Peleato and J. Eckstein.},
