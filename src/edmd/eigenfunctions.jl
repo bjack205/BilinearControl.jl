@@ -104,14 +104,18 @@ function monomial(x::AbstractVector{T}; order::Vector{Int64} = [0, 0]) where T
         return T[]
     end
 
-    monomials = [x]
+    T0 = ones(T,length(x))
+
+    monomials = [T0]
+    push!(monomials, x)
+
     row_start_ind = ones(T,length(x))
 
     for p in 2:order[2]
 
         prev_row_start_ind = row_start_ind
 
-        mono_combinations = x * monomials[p-1]'
+        mono_combinations = x * monomials[p]'
         mono_permutations = mono_combinations[1, :]
         row_start_ind = [size(mono_combinations)[2]]
 
@@ -127,7 +131,7 @@ function monomial(x::AbstractVector{T}; order::Vector{Int64} = [0, 0]) where T
     
     end
 
-    monomials = reduce(vcat, monomials[order[1]:order[2]])
+    monomials = reduce(vcat, monomials[order[1]+1:order[2]+1])
 
     return monomials
         

@@ -1,0 +1,28 @@
+% Recommended preamble:
+\begin{tikzpicture}
+\begin{axis}[xmajorgrids, ymajorgrids, xmode={log}, xlabel={regularization value}, ylabel={dynamics error}, legend pos={north west}]
+    \addplot+[no marks, very thick, color={orange}]
+        coordinates {
+            (0.0001,0.0032411851496987965)
+            (0.001,0.004733651607391472)
+            (0.01,0.00493784124248364)
+            (0.1,0.005158548933186879)
+            (1.0,0.00558924970943128)
+            (10.0,0.005957863842218242)
+            (100.0,0.005597157153810112)
+        }
+        ;
+    \addplot+[no marks, very thick, color={cyan}]
+        coordinates {
+            (0.0001,0.03973225073189789)
+            (0.001,0.03979734421979307)
+            (0.01,0.039947612836369585)
+            (0.1,0.04163664862089108)
+            (1.0,0.051788016726519046)
+            (10.0,0.0635514179370952)
+            (100.0,0.0678635258231327)
+        }
+        ;
+    \legend{{eDMD},{jDMD}}
+\end{axis}
+\end{tikzpicture}
