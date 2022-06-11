@@ -191,9 +191,9 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
                            algorithm=:qr)
     
     (T, K) = (size(X, 1), size(X, 2))
-    @show T,K
-    @show issparse(X)
-    @show lambda
+    # @show T,K
+    # @show issparse(X)
+    # @show lambda
 
     λ = lambda
     if algorithm == :qdldl
@@ -204,7 +204,7 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
         return b
     elseif algorithm == :cholesky
         P = Symmetric(Matrix(X'X + 2λ * I))
-        @show cond(P)
+        # @show cond(P)
         F = cholesky!(P)
         b = F \ (X'Y)
         return b
@@ -328,52 +328,54 @@ function learn_bilinear_model(X::VecOrMat{<:AbstractVector}, Z::VecOrMat{<:Abstr
     return A, B, C_list, g
 end
 
-function build_edmd_data(X,U, A,B,F,G; verbose=true)
+function build_edmd_data(X,U, A,B,F,G; cinds_jac=CartesianIndices(U), α=0.5, verbose=true, learnB=true)
     if size(A) != size(B) != size(F)
         throw(DimensionMismatch("A,B, and F must all have the same dimension."))
     end
     n0 = size(A[1],1)
     n = length(X[1])
     m = length(U[1])
-    p = n+m + n*m     # number of features
+    mB = m * learnB
+    p = n+mB + n*m     # number of features
     N,T = size(X)
-    P = (N-1)*T
-    verbose && println("Concatentating data")
+    P = (N-1)*T        # number of dynamics samples
+    Pj = length(A)     # number of Jacobian samples
     Uj = reduce(hcat, U)
     Xj = reduce(hcat, X[1:end-1,:])
     Xn = reduce(hcat, X[2:end,:])
     Amat = reduce(hcat, A)
     Bmat = reduce(hcat, B)
     @assert size(Xn,2) == size(Xj,2) == P
-    verbose && println("Creating feature matrix")
     Z = mapreduce(hcat, 1:P) do j
         x = Xj[:,j]
         u = Uj[:,j]
-        [x; u; vec(x*u')]
+        if learnB
+            [x; u; vec(x*u')]
+        else
+            [x; vec(x*u')]
+        end
     end
     @assert size(Z) == (p,P)
-    verbose && println("Creating state Jacobian matrix")
-    Ahat = mapreduce(hcat, 1:P) do j
-        u = U[j] 
+    Ahat = mapreduce(hcat, CartesianIndices(cinds_jac)) do cind0
+        cind = cinds_jac[cind0]
+        u = U[cind] 
         In = sparse(I,n,n)
-        vcat(sparse(I,n,n), spzeros(m,n), reduce(vcat, In*ui for ui in u)) * F[j] 
+        vcat(sparse(I,n,n), spzeros(mB,n), reduce(vcat, In*ui for ui in u)) * F[cind0] 
     end
-    @assert size(Ahat) == (p,P*n0)
-    verbose && println("Creating control Jacobian matrix")
-    Bhat = mapreduce(hcat, 1:P) do j
+    @assert size(Ahat) == (p,Pj*n0)
+    Bhat = mapreduce(hcat, cinds_jac) do cind 
         xB = spzeros(n,m)
-        xB[:,1] .= X[j]
-        vcat(spzeros(n,m), sparse(I,m,m), reduce(vcat, circshift(xB, (0,i)) for i = 1:m))
+        xB[:,1] .= X[cind]
+        vcat(spzeros(n,m), sparse(I,mB,m), reduce(vcat, circshift(xB, (0,i)) for i = 1:m))
     end
-    @assert size(Bhat) == (p,P*m)
+    @assert size(Bhat) == (p,Pj*m)
 
-    verbose && println("Creating least-squares data")
     W = ApplyArray(vcat,
-        ApplyArray(kron, Z', sparse(I,n,n)),
-        ApplyArray(kron, Ahat', G),
-        ApplyArray(kron, Bhat', G),
+        (1-α) * ApplyArray(kron, Z', sparse(I,n,n)),
+        α * ApplyArray(kron, Ahat', G),
+        α * ApplyArray(kron, Bhat', G),
     ) 
-    s = vcat(vec(Xn), vec(Amat), vec(Bmat))
+    s = vcat((1-α) * vec(Xn), α * vec(Amat), α * vec(Bmat))
     W,s
 end
 
@@ -456,6 +458,19 @@ function run_eDMD(X_train, U_train, dt, function_list, order_list; reg=1e-6, nam
     EDMDModel(A, B, C, g, kf, dt, name)
 end
 
+function subsamplerows(x::AbstractArray, α::Real)
+    α === one(α) && return x
+    @assert 0 <= α <= 1
+    n = size(x,1)
+    m = size(x,2)
+    inds = map(x->round(Int,x), range(1,n,length=round(Int, α*n)))
+    if x isa Vector
+        x[inds]
+    else
+        x[inds,:]
+    end
+end
+
 """
     run_jDMD
 
@@ -463,7 +478,7 @@ Run the jDMD algorithm on the training data, using the provided model to regular
 Jacobians of the learned model.
 """
 function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.DiscreteDynamics; 
-        reg=1e-6, name="jdmd_model"
+        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0
     )
     n0 = length(X_train[1])
     m = length(U_train[1])
@@ -475,7 +490,8 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     ## Generate Jacobians
     xn = zeros(n0)
     n = length(kf(xn))  # new state dimension
-    jacobians = map(CartesianIndices(U_train)) do cind
+    cinds_jac = subsamplerows(CartesianIndices(U_train), β)
+    jacobians = map(cinds_jac) do cind
         k = cind[1]
         x = X_train[cind]
         u = U_train[cind]
@@ -488,14 +504,22 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     end
     A_train = map(J->J[:,1:n0], jacobians)
     B_train = map(J->J[:,n0+1:end], jacobians)
+    num_jacobians = length(A_train)
+    @show size(A_train)
+    @show num_jacobians
+
 
     ## Convert states to lifted Koopman states
     # Y_train = map(kf, X_train)
 
     ## Calculate Jacobian of Koopman transform
-    F_train = map(X_train[1:end-1,:]) do x
+    F_train = map(cinds_jac) do cind 
+        x = X_train[cind]
         sparse(ForwardDiff.jacobian(kf, x))
     end
+    @show size(A_train)
+    @show size(B_train)
+    @show size(F_train)
 
     ## Create a sparse version of the G Jacobian
     G = spdiagm(n0,n,1=>ones(n0)) 
@@ -503,9 +527,11 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
 
     ## Build Least Squares Problem
     W,s = BilinearControl.EDMD.build_edmd_data(
-        Z_train, U_train, A_train, B_train, F_train, G)
+        Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB)
 
     n = length(Z_train[1])
+    @show size(W)
+    @show size(s)
 
     ## Create sparse LLS matrix
     #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
@@ -516,9 +542,10 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     E = reshape(x_rls,n,:)
 
     ## Extract out bilinear dynamics
+    mB = m * learnB
     A = E[:,1:n]
-    B = E[:,n .+ (1:m)]
-    C = E[:,n+m .+ (1:n*m)]
+    B = E[:,n .+ (1:mB)]
+    C = E[:,n+mB .+ (1:n*m)]
 
     C_list = Matrix{Float64}[]
         

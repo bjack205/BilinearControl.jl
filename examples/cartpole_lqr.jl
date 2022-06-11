@@ -82,7 +82,8 @@ eigfuns = ["state", "sine", "cosine", "sine"]
 eigorders = [[0],[1],[1],[2],[4],[2, 4]]
 
 model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e-6, name="cartpole_eDMD")
-model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-6, name="cartpole_jDMD")
+model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, 
+    reg=1e-6, name="cartpole_jDMD", α=0.9)
 
 # Check test errors
 EDMD.open_loop_error(model_eDMD, X_test, U_test)
@@ -161,6 +162,11 @@ Rlqr = Diagonal(fill(1e-3,1))
 ρ = 1e-6 
 Qlqr_lifted = Diagonal([ρ; diag(Qlqr); fill(ρ, length(ye) - 5)])
 
+# Nominal LQR Controller
+lqr_nominal = LQRController(
+    dmodel_nom, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
+)
+
 # Projected LQR Controllers
 model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
 model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
@@ -190,7 +196,9 @@ x0_sampler = Product([
     Uniform(-1,1),
     Uniform(-1,1),
 ])
+t_sim = 4.0
 x0_test = [rand(x0_sampler) for i = 1:100]
+errors_nominal = sort!(test_initial_conditions(dmodel_real, lqr_nominal, xe, x0_test, t_sim, dt))
 errors_eDMD_projected = sort!(test_initial_conditions(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt))
 errors_jDMD_projected = sort!(test_initial_conditions(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt))
 errors_eDMD = sort!(test_initial_conditions(dmodel_real, lqr_eDMD, xe, x0_test, t_sim, dt))
@@ -204,12 +212,15 @@ p_lqr = @pgf Axis(
         ylabel="Tracking error",
         legend_cell_align={left},
         legend_pos="north west",
+        ymax=15e-2,
+        xmax=100,
     },
+    PlotInc({lineopts..., color=color_nominal, style="solid"}, Coordinates(1:100, errors_nominal)),
     PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, errors_eDMD_projected)),
     PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, errors_jDMD_projected)),
     PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, errors_eDMD)),
     PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, errors_jDMD)),
-    Legend(["eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+    # Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
 )
 display(p_lqr)
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_lqr_stabilization_performance.tikz"), 
@@ -238,6 +249,11 @@ Qfmpc = Diagonal([1e2,1e2,1e1,1e1])
 Qmpc_lifted = Diagonal([ρ; diag(Qmpc); fill(ρ, length(ye)-5)])
 Qfmpc_lifted = Diagonal([ρ; diag(Qfmpc); fill(ρ, length(ye)-5)])
 
+# Nominal MPC controller
+mpc_nominal = TrackingMPC(dmodel_nom, 
+    X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+)
+
 # Projected MPC controllers
 model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
 model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
@@ -265,6 +281,7 @@ x0_sampler = Product([
     Uniform(-1,1),
 ])
 x0_test = [rand(x0_sampler) for i = 1:100]
+errors_nominal = sort!(test_initial_conditions(dmodel_real, mpc_nominal, xe, x0_test, t_sim, dt))
 errors_eDMD_projected = sort!(test_initial_conditions(dmodel_real, mpc_eDMD_projected, xe, x0_test, t_sim, dt))
 errors_jDMD_projected = sort!(test_initial_conditions(dmodel_real, mpc_jDMD_projected, xe, x0_test, t_sim, dt))
 errors_eDMD = sort!(test_initial_conditions(dmodel_real, mpc_eDMD, xe, x0_test, t_sim, dt))
@@ -275,16 +292,18 @@ p_mpc = @pgf Axis(
         xmajorgrids,
         ymajorgrids,
         xlabel="Percent of samples",
-        ylabel="Tracking error",
+        # ylabel="Tracking error",
         legend_cell_align={left},
-        legend_pos="north west",
-        ymax=6e-2
+        legend_pos="outer north east",
+        ymax=15e-2,
+        xmax=100,
     },
+    PlotInc({lineopts..., color=color_nominal, style="solid"}, Coordinates(1:100, errors_nominal)),
     PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, errors_eDMD_projected)),
     PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, errors_jDMD_projected)),
     PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, errors_eDMD)),
     PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, errors_jDMD)),
-    Legend(["eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+    Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
 )
 display(p_mpc)
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_stabilization_performance.tikz"), 
