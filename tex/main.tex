@@ -42,6 +42,8 @@ for Learning Bilinear, Control-affine Koopman Models}
 \begin{document}
 \maketitle
 
+\todo{Add abstract}
+
 \section{Introduction}
 
     Controlling complex, underactuated, and highly nonlinear autonomous systems remains an
@@ -69,7 +71,7 @@ for Learning Bilinear, Control-affine Koopman Models}
     In this work we propose a novel method that combines the benefits of model-based and
     data-driven methods, based on recent work  applying Koopman Operator Theory to
     controlled dynamical systems 
-    \cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Folkestad2020a,Suh2020}
+    \cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}.
     % \cite{Meduri2022,Bruder2021, Korda2021}
     % \cite{Meduri2022, Folkestad2021, Bruder2021, Korda2018, Folkestad2020a, Folkestad2020b}.  
     By leveraging data collected from an
@@ -98,13 +100,11 @@ for Learning Bilinear, Control-affine Koopman Models}
 
   We start by assuming we have some discrete approximation a of controlled nonlinear,
   time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
-  \begin{equation} \label{eq:discrete_dynamics}
-      x_{k+1} = f(x_k, u_k)
-  \end{equation}
-  where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is
-  the control vector.  This discrete approximation can be obtained for any continuous
-  dynamical system in many ways, including implicit and explicit Runge-Kutta methods, or by
-  solving the Discrete Euler-Lagrange equations \todo{add citations}.
+  \begin{equation} \label{eq:discrete_dynamics} x_{k+1} = f(x_k, u_k) \end{equation} where
+  $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is the
+  control vector.  This discrete approximation can be obtained for any continuous dynamical
+  system in many ways, including implicit and explicit Runge-Kutta methods, or by solving
+  the Discrete Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
 
   The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
   dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
@@ -122,9 +122,9 @@ for Learning Bilinear, Control-affine Koopman Models}
   dynamics are approximately (bi)linear, effectively trading dimensionality for
   (bi)linearity. This idea should be both unsurprising and familiar to most roboticsts,
   since similar techniques have already been employed in other forms, such as
-  maximal-coordinate representations of rigid body dynamics \cite{baraff_linear-time_1996-1}
-   \todo{add citations}, the
-  ``kernel trick'' for state-vector machines \todo{add citation}, or the observation that
+  maximal-coordinate representations of rigid body dynamics
+  \cite{baraff_linear-time_1996-1,Brudigam2021a,Howell2022}, the
+  ``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that
   solving large, sparse nonlinear optimization problems is often more effective than solving
   small, tightly-coupled dense problems \todo{add citations from the trajectory optimization
   literature}.
@@ -171,7 +171,7 @@ for Learning Bilinear, Control-affine Koopman Models}
 
   While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
   least-squares, using techniques similar to those used previously in the literature
-  \todo{cite CalTech papers}.
+  \cite{Folkestad2021}.
 
   To start, we combine all the data we're trying to learn in a single matrix:
   \begin{equation}
@@ -316,11 +316,19 @@ the resulting equality-constrained quadratic program using Riccati recursion and
 of 41 time steps (2 seconds). 
 
 To analyze sample efficiency of the algorithms, we trained the bilinear models with an 
-increasing number of samples. The 
-Each controller was tested using 100 different initial conditions sampled
-from a uniform distribution of initial conditions
-
-The distance of the state after 4 seconds for the LQR and MPC controllers is shown in Figure
+increasing number of samples.  Each controller was tested using 100 different initial
+conditions sampled from a uniform distribution of initial conditions centered about the 
+upward equilibirum. The average L2 error of the state after 4 seconds and the upward 
+equilibrium was recorded for each controller. The minimum number of training trajectories to
+get performance better than the nominal MPC controller is reported in Figure 
+\ref{fig:cartpole_lqr_samples}. As shown, the proposed approach is more sample efficient 
+even for this relatively simple task than traditional eDMD. It also shows the benefit of 
+applying the control in the original state space by projecting the linearization back to the
+original states. To our knowledge, no previous works on applying DMD or Koopman operator 
+theory to controlled systems have used this technique of projecting back into the original 
+state space, although the benefits are immediately apparent: with just a few training 
+trajectories (3 for jDMD and 7 for eDMD) we can learn a model that improves upon our nominal
+LQR controller policy.
 
 % \begin{figure}
 %   \centering

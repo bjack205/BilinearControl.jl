@@ -170,6 +170,7 @@ function test_cartpole_controller(X_train, U_train, dt, num_train;
         Uniform(-.5,.5),
         Uniform(-.5,.5),
     ])
+    Random.seed!(100)
     x0_test = [rand(x0_sampler) for i = 1:num_test]
 
     if run_lqr
@@ -255,7 +256,7 @@ function test_cartpole_controller(X_train, U_train, dt, num_train;
         # model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
         # model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
         mpc_eDMD_projected, mpc_eDMD = generate_mpc_controllers(model_eDMD, t_sim, dt; Nt, ρ)
-        mpc_jDMD_projected, mpc_jDMD = generate_mpc_controllers(model_eDMD, t_sim, dt; Nt, ρ)
+        mpc_jDMD_projected, mpc_jDMD = generate_mpc_controllers(model_jDMD, t_sim, dt; Nt, ρ)
 
         # mpc_eDMD_projected = TrackingMPC(model_eDMD_projected, 
         #     X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
@@ -304,9 +305,7 @@ function test_cartpole_controller(X_train, U_train, dt, num_train;
     success_rate_lqr, average_error_lqr, success_rate_mpc, average_error_mpc
 end
 
-test_cartpole_controller(X_train, U_train, dt, 2)
-
-## WARNING: This takes a long time to compute!
+## WARNING: This takes a long time to compute! (about 20 minutes)
 num_train = [1:10; 20:30; 40:50]
 results = map(num_train) do N
     println("Running test with N = $N")
@@ -341,7 +340,8 @@ p_bar = @pgf Axis(
         yticklabels={"Projected", "Lifted"},
         enlarge_y_limits = 0.7,
         legend_pos = "south east",
-        xlabel = "Trajectories Rqd to Beat Nominal MPC"
+        xlabel = "Training trajectories Rqd to Beat Nominal MPC",
+        nodes_near_coords
     },
     PlotInc({no_marks, color=color_jDMD}, Coordinates([jDMD_projected_samples,jDMD_samples], [0,1])),
     PlotInc({no_marks, color=color_eDMD}, Coordinates([eDMD_projected_samples,eDMD_samples], [0,1])),
@@ -349,50 +349,12 @@ p_bar = @pgf Axis(
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_lqr_samples.tikz"), p_bar, include_preamble=false)
 
-
 #############################################
-## Plot fit error vs regularization 
+## Get controller rates
 #############################################
-
-regularizers = exp10.(-4:2)
-errors = map(regularizers) do reg
-    model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=reg, name="cartpole_eDMD")
-    model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=reg, name="cartpole_jDMD")
-
-    # Check test errors
-    olerr_eDMD = EDMD.open_loop_error(model_eDMD, X_test, U_test)
-    olerr_jDMD = EDMD.open_loop_error(model_jDMD, X_test, U_test)
-    fiterr_eDMD = BilinearControl.EDMD.fiterror(model_eDMD, X_test, U_test)
-    fiterr_jDMD = BilinearControl.EDMD.fiterror(model_jDMD, X_test, U_test)
-    (;olerr_eDMD, olerr_jDMD, fiterr_eDMD, fiterr_jDMD)
-end
-fields = keys(errors[1])
-res = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
-p_ol = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xmode = "log",
-        xlabel = "regularization value",
-        ylabel = "open loop error",
-        legend_pos = "north west"
-    },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res[:olerr_eDMD])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res[:olerr_jDMD])),
-    Legend(["eDMD", "jDMD"])
-)
-p_fit = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xmode = "log",
-        xlabel = "regularization value",
-        ylabel = "dynamics error",
-        legend_pos = "north west"
-    },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res[:fiterr_eDMD])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res[:fiterr_jDMD])),
-    Legend(["eDMD", "jDMD"])
-)
-pgfsave(joinpath(Problems.FIGDIR, "cartpole_openloop_error_by_reg.tikz"), p_ol, include_preamble=false)
-pgfsave(joinpath(Problems.FIGDIR, "cartpole_fit_error_by_reg.tikz"), p_fit, include_preamble=false)
+eigfuns = ["state", "sine", "cosine", "sine"]
+eigorders = [[0],[1],[1],[2],[4],[2, 4]]
+model_eDMD = run_eDMD(X_train[:,1:10], U_train[:,1:10], dt, eigfuns, eigorders, reg=1e-6, name="cartpole_eDMD")
+mpc_projected, mpc = generate_mpc_controllers(model_eDMD, 4, dt)
+simulatewithcontroller(dmodel_real, mpc_projected, [0,pi-deg2rad(10),0,0], 4.0, dt, printrate=true)
+simulatewithcontroller(dmodel_real, mpc, [0,pi-deg2rad(10),0,0], 4.0, dt, printrate=true)
