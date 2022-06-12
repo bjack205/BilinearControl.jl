@@ -1,16 +1,16 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[reverse legend, width={4in}, height={4cm}, xbar, ytick={data}, yticklabels={Projected, Lifted}, enlarge y limits={0.7}, legend pos={south east}, xlabel={Training trajectories Rqd to Beat Nominal MPC}, nodes near coords]
+\begin{axis}[reverse legend, width={4in}, height={4cm}, xbar, ytick={data}, yticklabels={Projected, Lifted}, xmax={27}, enlarge y limits={0.7}, legend pos={south east}, xlabel={Training trajectories Rqd to Beat Nominal MPC}, nodes near coords]
     \addplot+[no marks, color={cyan}]
         coordinates {
-            (3,0)
-            (25,1)
+            (1,0)
+            (14,1)
         }
         ;
     \addplot+[no marks, color={orange}]
         coordinates {
-            (7,0)
-            (27,1)
+            (18,0)
+            (18,1)
         }
         ;
     \legend{{jDMD},{eDMD}}
