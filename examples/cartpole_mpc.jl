@@ -19,7 +19,7 @@ using Altro
 import BilinearControl.Problems
 using Test
 
-include("learned_models/edmd_utils.jl")
+# include("learned_models/edmd_utils.jl")
 include("constants.jl")
 const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")
 
