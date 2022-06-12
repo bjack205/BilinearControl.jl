@@ -71,21 +71,23 @@ function generate_stabilizing_mpc_controller(model, t_sim, dt;
     )
 end
 
-function test_mpc_stabilization_controllers(X_train0, U_train0, t_train, dt; num_train=50, num_test=10)
+function test_mpc_stabilization_controllers(X_train0, U_train0, t_train, dt; 
+        num_train=50, num_test=10, μ=0.1, α=0.5
+    )
 
     X_train = X_train0[:,1:num_train]
     U_train = U_train0[:,1:num_train]
 
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(Problems.NominalCartpole())
-    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(Problems.SimulatedCartpole())
+    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(Problems.SimulatedCartpole(;μ))
 
     eigfuns = ["state", "sine", "cosine", "sine"]
     # eigfuns = ["state", "sine", "cosine", "sine", "sine", "chebyshev"]
     eigorders = [[0],[1],[1],[2],[4],[2, 4]]
 
     model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e-6, name="cartpole_eDMD", alg=:qr_rls)
-    model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom,
-        reg=1e-6, name="cartpole_jDMD", α=5e-1, learnB=true)
+    model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom;
+        reg=1e-6, name="cartpole_jDMD", learnB=true, α=α)
     model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
     model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
 
@@ -229,3 +231,43 @@ mpc_projected = generate_stabilizing_mpc_controller(model_jDMD_projected, t_sim,
 mpc = generate_stabilizing_mpc_controller(model_jDMD, t_sim, dt; Nt, ρ)
 simulatewithcontroller(dmodel_real, mpc_projected, [0,pi-deg2rad(10),0,0], 4.0, dt, printrate=true)
 simulatewithcontroller(dmodel_real, mpc, [0,pi-deg2rad(10),0,0], 4.0, dt, printrate=true)
+
+#############################################
+## Analyze effect of model mismatch
+#############################################
+X_train0, U_train0, _, _, _, _, metadata = generate_cartpole_data(
+    save_to_file=false, num_swingup=0, num_lqr=20,
+)
+t_train = metadata.t_train
+dt = metadata.dt
+
+_,err0 = test_mpc_stabilization_controllers(X_train0, U_train0, t_train, dt, num_train=20, num_test=10)
+err0.nom
+err0.eDMD_projected
+err0.jDMD_projected
+
+
+μ = 0.9
+mu_vals = [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+results_mismatch = @showprogress map(mu_vals) do μ
+    # Generate training data using the new friction value
+    # NOTE: in order to get good training trajectories, we provide the LQR controller 
+    #       for the data collection the correct friction coefficient 
+    #       (otherwise it doesn't work)
+    X_train, U_train, = generate_cartpole_data(
+        save_to_file=false, num_swingup=0, num_lqr=100,
+        μ=μ, μ_nom=μ, max_lqr_samples=600
+    )
+
+    # Test the controllers, using a "real" model with more and more friction
+    _,err = test_mpc_stabilization_controllers(
+        X_train, U_train, t_train, dt, num_train=20, num_test=10; μ, α=1e-3
+    )
+    err
+end
+err_nom = getfield.(results_mismatch, :nom)
+err_eDMD = getfield.(results_mismatch, :eDMD_projected)
+err_jDMD = getfield.(results_mismatch, :jDMD_projected)
+plot(mu_vals, err_nom, c=:black, label="nominal")
+plot!(mu_vals, err_eDMD, c=:orange, label="eDMD")
+plot!(mu_vals, err_jDMD, c=:cyan, label="jDMD")

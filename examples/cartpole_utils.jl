@@ -2,9 +2,10 @@ using Altro
 import TrajectoryOptimization as TO
 
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
-    dt=0.05, constrained=true)
+    dt=0.05, constrained=true, μ=0.0)
 
-    model = Problems.NominalCartpole()  # NOTE: this should exactly match RobotZoo.Cartpole()
+    # NOTE: this should exactly match RobotZoo.Cartpole() when μ = 0.0
+    model = Problems.NominalCartpole(; μ=μ)
     dmodel = RD.DiscretizedDynamics{RD.RK4}(model) 
     n,m = RD.dims(model)
     N = round(Int, tf/dt) + 1
@@ -33,16 +34,18 @@ function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, t
     prob
 end
 
-function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true)
+function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true, 
+        μ=0.1, μ_nom=0.0, max_lqr_samples=3*num_lqr
+    )
     #############################################
     ## Define the Models
     #############################################
     # Define Nominal Simulated Cartpole Model
-    model_nom = Problems.NominalCartpole()
+    model_nom = Problems.NominalCartpole(;μ=μ_nom)
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Cartpole Model
-    model_real = Problems.SimulatedCartpole() # this model has damping
+    model_real = Problems.SimulatedCartpole(;μ=μ) # this model has damping
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     # Time parameters
@@ -56,7 +59,6 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true)
     #############################################
 
     ## Stabilization trajectories 
-    Random.seed!(1)
     num_train_lqr = num_lqr 
     num_test_lqr = 10
 
@@ -76,12 +78,18 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true)
         Uniform(-.2,.2),
         Uniform(-.2,.2),
     ])
+    Random.seed!(1)
     initial_conditions_train = [rand(x0_sampler) for _ in 1:num_train_lqr]
+    Random.seed!(1)
     initial_conditions_test = [rand(x0_sampler) for _ in 1:num_test_lqr]
 
     # Create data set
-    X_train_lqr, U_train_lqr = EDMD.create_data(dmodel_real, ctrl_lqr, x0_sampler, num_train_lqr, xe, t_sim, dt)
-    X_test_lqr, U_test_lqr = EDMD.create_data(dmodel_real, ctrl_lqr, x0_sampler, num_test_lqr, xe, t_sim, dt);
+    X_train_lqr, U_train_lqr = EDMD.create_data(dmodel_real, ctrl_lqr, 
+        x0_sampler, num_train_lqr, xe, t_sim, dt, max_samples=max_lqr_samples
+    )
+    X_test_lqr, U_test_lqr = EDMD.create_data(dmodel_real, ctrl_lqr, 
+        x0_sampler, num_test_lqr, xe, t_sim, dt, max_samples=max_lqr_samples
+    );
 
     X_train = X_train_lqr
     U_train = U_train_lqr

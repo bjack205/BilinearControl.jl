@@ -70,8 +70,8 @@ end
 Cartpole2(; mc=1.0, mp=0.2, l=0.5, g=9.81, b=0.01, σ=5, μ=0.0, deadband=0.0, u_max=Inf) = 
     Cartpole2(mc, mp, l, g, b, σ, μ, deadband, u_max)
 
-NominalCartpole() = Cartpole2(b=0.0, μ=0.0, deadband=0.0, u_max=Inf)
-SimulatedCartpole() = Cartpole2(mc=1.2, mp=0.25, b=0.07, deadband=0.05, μ=0.1)
+NominalCartpole(;μ=0.0) = Cartpole2(b=0.0, deadband=0.0, u_max=Inf; μ)
+SimulatedCartpole(;μ=0.1) = Cartpole2(mc=1.2, mp=0.25, b=0.07, deadband=0.05; μ)
 
 function RD.dynamics(model::Cartpole2, x, u)
     mc = model.mc  # mass of the cart in kg (10)
