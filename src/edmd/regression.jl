@@ -446,14 +446,16 @@ end
 
 Run the eDMD algorithm on the training data. Returns an EDMDModel.
 """
-function run_eDMD(X_train, U_train, dt, function_list, order_list; reg=1e-6, name="edmd_model")
+function run_eDMD(X_train, U_train, dt, function_list, order_list; reg=1e-6, name="edmd_model",
+        alg=:qr
+    )
     Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, function_list, order_list);
 
     A, B, C, g = learn_bilinear_model(X_train, Z_train, Zu_train,
         ["na", "na"]; 
         edmd_weights=[reg], 
         mapping_weights=[0.0],
-        algorithm=:qr
+        algorithm=alg
     )
     EDMDModel(A, B, C, g, kf, dt, name)
 end
