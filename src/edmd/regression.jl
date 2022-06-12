@@ -504,10 +504,6 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     end
     A_train = map(J->J[:,1:n0], jacobians)
     B_train = map(J->J[:,n0+1:end], jacobians)
-    num_jacobians = length(A_train)
-    @show size(A_train)
-    @show num_jacobians
-
 
     ## Convert states to lifted Koopman states
     # Y_train = map(kf, X_train)
@@ -517,9 +513,6 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
         x = X_train[cind]
         sparse(ForwardDiff.jacobian(kf, x))
     end
-    @show size(A_train)
-    @show size(B_train)
-    @show size(F_train)
 
     ## Create a sparse version of the G Jacobian
     G = spdiagm(n0,n,1=>ones(n0)) 
@@ -530,15 +523,13 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
         Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB)
 
     n = length(Z_train[1])
-    @show size(W)
-    @show size(s)
 
     ## Create sparse LLS matrix
     #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
     Wsparse = sparse(W)
 
     ## Solve with RLS
-    @time x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
+    x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
     E = reshape(x_rls,n,:)
 
     ## Extract out bilinear dynamics

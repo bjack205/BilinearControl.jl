@@ -42,6 +42,8 @@ for Learning Bilinear, Control-affine Koopman Models}
 \begin{document}
 \maketitle
 
+\todo{Add abstract}
+
 \section{Introduction}
 
     Controlling complex, underactuated, and highly nonlinear autonomous systems remains an
@@ -57,27 +59,31 @@ for Learning Bilinear, Control-affine Koopman Models}
     model is well known and an accurate estimate of the global state can be provided. These
     model-based techniques leverage centuries of insight into dynamical systems and have
     demonstrated incredible performance on extremely complicated autonomous systems 
-    \todo{add citations for some recent work}.  On the other hand, data-driven techniques
-    such as reinforcement learning have received tremendous attention over the last decade
-    and have begun to demonstrate impressive performance and robustness for complicated
-    robotic systems in unstructured environments \todo{cite a few RL results, including
-    Marco Hutter's recent stuff}. While these approaches are attractive since they require
-    little to no previous knowledge about the system, they often require large amounts of
-    data and fail to generalize outside of the domain or task on which they were
-    ``trained.''
+    \cite{farshidian_efficient_2017,Kuindersma2014,Bjelonic2021,Subosits2019} .  On the
+    other hand, data-driven techniques such as reinforcement learning have received
+    tremendous attention over the last decade and have begun to demonstrate impressive
+    performance and robustness for complicated robotic systems in unstructured environments
+    \cite{Karnchanachari2020,Hoeller2020,Li2021}. While these approaches are attractive
+    since they require little to no previous knowledge about the system, they often require
+    large amounts of data and fail to generalize outside of the domain or task on which they
+    were ``trained.''
     
     In this work we propose a novel method that combines the benefits of model-based and
     data-driven methods, based on recent work  applying Koopman Operator Theory to
-    controlled dynamical systems \todo{cite a few Koopman papers,  including the CalTech
-    ones}.  By leveraging data collected from an unknown dynamical system along with
-    derivative information from an approximate analytical model, we can efficiently learn a
-    bilinear representation of the system dynamics that performs well when used in
-    traditional model-based control techniques such as linear MPC. The result is nonlinear
-    dynamical system that is expressive enough to capture the full nonlinear dynamics across
-    a broad range of the state space, but has a well-defined structure that is very amenable
-    to specialized optimization-based controllers. By leveraging information from an
-    analytical model, we can dramatically reduce the number of samples required to learn a
-    good approximation of the true nonlinear dynamics. 
+    controlled dynamical systems 
+    \cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}.
+    % \cite{Meduri2022,Bruder2021, Korda2021}
+    % \cite{Meduri2022, Folkestad2021, Bruder2021, Korda2018, Folkestad2020a, Folkestad2020b}.  
+    By leveraging data collected from an
+    unknown dynamical system along with derivative information from an approximate
+    analytical model, we can efficiently learn a bilinear representation of the system
+    dynamics that performs well when used in traditional model-based control techniques such
+    as linear MPC. The result is nonlinear dynamical system that is expressive enough to
+    capture the full nonlinear dynamics across a broad range of the state space, but has a
+    well-defined structure that is very amenable to specialized optimization-based
+    controllers. By leveraging information from an analytical model, we can dramatically
+    reduce the number of samples required to learn a good approximation of the true
+    nonlinear dynamics. 
     
     \todo{bullet out contributions.}
     
@@ -87,20 +93,18 @@ for Learning Bilinear, Control-affine Koopman Models}
 
   \subsection{The Koopman Operator}
   The theoretical underpinnings of the Koopman operator and its application to dynamical
-  systems has been extensively studied, especially within the last decade \todo{cite some
-  important theoretical works on Koopman theory here}. Rather than describe the theory in
+  systems has been extensively studied, especially within the last decade 
+  \cite{Fasel2021,Proctor2018,Bruder2021,Williams2015}. Rather than describe the theory in
   detail, we highlight the key concepts employed by the current work, and defer the
   motivated reader to the existing literature on Koopman theory.
 
   We start by assuming we have some discrete approximation a of controlled nonlinear,
   time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
-  \begin{equation} \label{eq:discrete_dynamics}
-      x_{k+1} = f(x_k, u_k)
-  \end{equation}
-  where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is
-  the control vector.  This discrete approximation can be obtained for any continuous
-  dynamical system in many ways, including implicit and explicit Runge-Kutta methods, or by
-  solving the Discrete Euler-Lagrange equations \todo{add citations}.
+  \begin{equation} \label{eq:discrete_dynamics} x_{k+1} = f(x_k, u_k) \end{equation} where
+  $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is the
+  control vector.  This discrete approximation can be obtained for any continuous dynamical
+  system in many ways, including implicit and explicit Runge-Kutta methods, or by solving
+  the Discrete Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
 
   The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
   dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
@@ -118,8 +122,9 @@ for Learning Bilinear, Control-affine Koopman Models}
   dynamics are approximately (bi)linear, effectively trading dimensionality for
   (bi)linearity. This idea should be both unsurprising and familiar to most roboticsts,
   since similar techniques have already been employed in other forms, such as
-  maximal-coordinate representations of rigid body dynamics \todo{add citations}, the
-  ``kernel trick'' for state-vector machines \todo{add citation}, or the observation that
+  maximal-coordinate representations of rigid body dynamics
+  \cite{baraff_linear-time_1996-1,Brudigam2021a,Howell2022}, the
+  ``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that
   solving large, sparse nonlinear optimization problems is often more effective than solving
   small, tightly-coupled dense problems \todo{add citations from the trajectory optimization
   literature}.
@@ -166,7 +171,7 @@ for Learning Bilinear, Control-affine Koopman Models}
 
   While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
   least-squares, using techniques similar to those used previously in the literature
-  \todo{cite CalTech papers}.
+  \cite{Folkestad2021}.
 
   To start, we combine all the data we're trying to learn in a single matrix:
   \begin{equation}
@@ -299,31 +304,56 @@ system must successfully stabilize after starting from the downward equilibrium.
 
 \subsubsection{Stabilization}
 
-For stabilizing the system about the upward unstable equilibrium 50 initial conditions were
-collected using an LQR controller designed using the nominal model. The a basis function of 
-$\phi(x) = [\; 1,\; x,\; \sin(x),\; \cos(x),\; \sin(2x)\; ] \in \R^{17}$ was used. After
-learning both models, LQR and MPC controllers were designed using the nominal, eDMD, and
-jDMD model. For the learned bilinear models, a controller was designed using both the  
-Jacobians of the bilinear dynamics and the projected Jacobians
-\eqref{eq:projected_jacobians}. The MPC controllers linearized the dynamics about the 
-equilibrium and solved the resulting equality-constrained quadratic program using Riccati 
-recursion and a horizon of 41 time steps (2 seconds). Each controller was tested using 100
-different initial conditions. The distance of the state after 4 seconds for the LQR and MPC
-controllers is shown in Figure
+For stabilizing the system about the upward unstable equilibrium we used an LQR controller
+designed using to nominal model to collect trajectories on the simulated system.  To learn
+the bilinear models, we used the following nonlinear mapping: $\phi(x) = [\; 1,\; x,\;
+\sin(x),\; \cos(x),\; \sin(2x)\; ] \in \R^{17}$.  After learning both models, an MPC
+controller was designed using the nominal, eDMD, and jDMD models. For the learned bilinear
+models, MPC controllers were designed using the ``lifted'' Jacobians of the bilinear 
+dynamics and the ``projected'' Jacobians \eqref{eq:projected_jacobians}. The MPC controllers
+linearized the dynamics about the equilibrium of $x = [\;0,\; \pi,\; 0,\;, 0\;]$ and solved
+the resulting equality-constrained quadratic program using Riccati recursion and a horizon
+of 41 time steps (2 seconds). 
 
+To analyze sample efficiency of the algorithms, we trained the bilinear models with an 
+increasing number of samples.  Each controller was tested using 100 different initial
+conditions sampled from a uniform distribution of initial conditions centered about the 
+upward equilibirum. The average L2 error of the state after 4 seconds and the upward 
+equilibrium was recorded for each controller. The minimum number of training trajectories to
+get performance better than the nominal MPC controller is reported in Figure 
+\ref{fig:cartpole_lqr_samples}. As shown, the proposed approach is more sample efficient 
+even for this relatively simple task than traditional eDMD. It also shows the benefit of 
+applying the control in the original state space by projecting the linearization back to the
+original states. To our knowledge, no previous works on applying DMD or Koopman operator 
+theory to controlled systems have used this technique of projecting back into the original 
+state space, although the benefits are immediately apparent: with just a few training 
+trajectories (3 for jDMD and 7 for eDMD) we can learn a model that improves upon our nominal
+LQR controller policy.
+
+% \begin{figure}
+%   \centering
+%   \begin{subfigure}[b]{0.40\textwidth}
+%     \includegraphics[width=\textwidth,height=5cm]{cartpole_lqr_stabilization_performance.tikz}
+%     \caption{LQR Controllers}
+%   \end{subfigure}
+%   \begin{subfigure}[b]{0.59\textwidth}
+%     \includegraphics[width=\textwidth,height=5cm]{cartpole_mpc_stabilization_performance.tikz}
+%     \caption{MPC Controller}
+%   \end{subfigure}
+%   \label{fig:cartpole_stabilization}
+%   \caption{Controller performance on the task of stabilizing the cartpole system about the 
+%   upward unstable equilibrium. Performance is plotted as the error }
+% \end{figure}
 \begin{figure}
   \centering
-  \begin{subfigure}[b]{0.40\textwidth}
-    \includegraphics[width=\textwidth,height=5cm]{cartpole_lqr_stabilization_performance.tikz}
-    \caption{LQR Controllers}
-  \end{subfigure}
-  \begin{subfigure}[b]{0.59\textwidth}
-    \includegraphics[width=\textwidth,height=5cm]{cartpole_mpc_stabilization_performance.tikz}
-    \caption{MPC Controller}
-  \end{subfigure}
-  \label{fig:cartpole_stabilization}
-  \caption{Controller performance on the task of stabilizing the cartpole system about the 
-  upward unstable equilibrium. Performance is plotted as the error }
+  \includegraphics[width=0.7\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
+  \caption{Number of training trajectories requires to beat the nominal MPC controller.
+    The criteria is the L2 norm of the state from the goal state after 4 seconds.
+    The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
+    (17 states), whereas the ``Projected'' MPC contollers project the Jacobians of the 
+    bilinear system back into the original state space.
+  }
+  \label{fig:cartpole_lqr_samples}
 \end{figure}
 
 \begin{figure}[t]
