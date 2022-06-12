@@ -17,6 +17,7 @@ using PGFPlotsX
 using Statistics
 
 include("constants.jl")
+const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_planar_quadrotor_lqr_results.jld2")
 
 function test_initial_conditions(model, controller, xg, ics, tf, dt)
     map(ics) do x0
@@ -44,7 +45,7 @@ render(vis)
 ## Define the models 
 #############################################
 
-## Define Nominal Simulated REx Planar Quadrotor Model
+# Define Nominal Simulated REx Planar Quadrotor Model
 model_nom = Problems.NominalPlanarQuadrotor()
 dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
@@ -62,7 +63,6 @@ dt = 0.05
 Random.seed!(1)
 
 # Number of trajectories
-num_test = 30
 num_train = 30
 
 # Generate a stabilizing LQR controller
@@ -88,15 +88,59 @@ initial_conditions_lqr = [rand(x0_train_sampler) for _ in 1:num_train]
 X_train, U_train = create_data(dmodel_real, ctrl_lqr_nom, initial_conditions_lqr, tf, dt)
 
 #############################################
-## Fit the training data
+## Define basis functions
 #############################################
 
-## Define basis functions
 eigfuns = ["state", "sine", "cosine", "chebyshev"]
 eigorders = [[0],[1],[1],[2,2]]
 
-model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=1e-4, name="planar_quadrotor_eDMD")
-model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-4, name="planar_quadrotor_jDMD")
+#############################################
+## Tracking error vs regularization 
+#############################################
+
+x0_sampler = Product([
+    Uniform(-1.0,1.0),
+    Uniform(-1.0,1.0),
+    Uniform(-deg2rad(40),deg2rad(40)),
+    Uniform(-0.5,0.5),
+    Uniform(-0.5,0.5),
+    Uniform(-0.25,0.25)
+])
+
+x0_test = [rand(x0_sampler) for i = 1:100]
+t_sim = 5.0
+
+Qlqr = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0])
+Rlqr = Diagonal([1e-4, 1e-4])
+
+regularizers = exp10.(-5:2)
+errors = map(regularizers) do reg
+    model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=reg, name="planar_quadrotor_eDMD")
+    model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=reg, name="planar_quadrotor_jDMD")
+    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+    model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+
+    lqr_eDMD_projected = LQRController(
+    model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
+    )
+    lqr_jDMD_projected = LQRController(
+        model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
+    )
+    
+    error_eDMD_projected = mean(test_initial_conditions(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt))
+    error_jDMD_projected = mean(test_initial_conditions(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt))
+    (;error_eDMD_projected, error_jDMD_projected)
+
+end
+fields = keys(errors[1])
+res_reg = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
+
+#############################################
+## Fit the training data
+#############################################
+
+model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=0.0, name="planar_quadrotor_eDMD")
+model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-5, name="planar_quadrotor_jDMD")
 
 model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
 model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
@@ -143,71 +187,8 @@ n0, = RD.dims(model_real)
 # ylims!((-1.25,0.75))
 
 #############################################
-## Plot tracking error vs regularization 
-#############################################
-
-x0_sampler = Product([
-    Uniform(-2.0,2.0),
-    Uniform(-2.0,2.0),
-    Uniform(-deg2rad(70),deg2rad(70)),
-    Uniform(-1.0,1.0),
-    Uniform(-1.0,1.0),
-    Uniform(-0.5,0.5)
-])
-
-x0_test = [rand(x0_sampler) for i = 1:100]
-t_sim = 5.0
-
-Qlqr = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0])
-Rlqr = Diagonal([1e-4, 1e-4])
-
-regularizers = exp10.(-5:2)
-errors = map(regularizers) do reg
-    model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=reg, name="planar_quadrotor_eDMD")
-    model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=reg, name="planar_quadrotor_jDMD")
-    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-    model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
-
-    lqr_eDMD_projected = LQRController(
-    model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
-    )
-    lqr_jDMD_projected = LQRController(
-        model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
-    )
-    
-    error_eDMD_projected = mean(test_initial_conditions(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt))
-    error_jDMD_projected = mean(test_initial_conditions(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt))
-    (;error_eDMD_projected, error_jDMD_projected)
-
-end
-fields = keys(errors[1])
-res = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
-
-p_tracking = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xmode = "log",
-        ymode = "log",
-        xlabel = "Regularization value",
-        ylabel = "Stabilization error",
-        legend_pos = "north west"
-    },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res[:error_jDMD_projected])),
-    Legend(["eDMD", "jDMD"])
-)
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_reg.tikz"), p_tracking, include_preamble=false)
-
-#############################################
 ## LQR Performance
 #############################################
-
-model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=0.0, name="planar_quadrotor_eDMD")
-model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-5, name="planar_quadrotor_jDMD")
-
-model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
 
 # Equilibrium position
 xe = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -248,14 +229,17 @@ lqr_eDMD = LQRController(
 
 # Run each controller on the same set of initial conditions
 Random.seed!(2)
+
+perc = 2.0
 x0_sampler = Product([
-    Uniform(-2.0,2.0),
-    Uniform(-2.0,2.0),
-    Uniform(-deg2rad(70),deg2rad(70)),
-    Uniform(-1.0,1.0),
-    Uniform(-1.0,1.0),
-    Uniform(-0.5,0.5)
+    Uniform(-1.0*perc,1.0*perc),
+    Uniform(-1.0*perc,1.0*perc),
+    Uniform(-deg2rad(40*perc),deg2rad(40*perc)),
+    Uniform(-0.5*perc,0.5*perc),
+    Uniform(-0.5*perc,0.5*perc),
+    Uniform(-0.25*perc,0.25*perc)
 ])
+
 t_sim = 5.0
 x0_test = [rand(x0_sampler) for i = 1:100]
 errors_nominal = sort!(test_initial_conditions(dmodel_real, lqr_nominal, xe, x0_test, t_sim, dt))
@@ -264,27 +248,7 @@ errors_jDMD_projected = sort!(test_initial_conditions(dmodel_real, lqr_jDMD_proj
 errors_eDMD = sort!(test_initial_conditions(dmodel_real, lqr_eDMD, xe, x0_test, t_sim, dt))
 errors_jDMD = sort!(test_initial_conditions(dmodel_real, lqr_jDMD, xe, x0_test, t_sim, dt))
 
-p_lqr = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel="Percent of samples",
-        ylabel="Tracking error",
-        legend_cell_align={left},
-        legend_pos="north west",
-        ymax=15e-2,
-        xmax=100,
-    },
-    PlotInc({lineopts..., color=color_nominal, style="solid"}, Coordinates(1:100, errors_nominal)),
-    PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, errors_eDMD_projected)),
-    PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, errors_jDMD_projected)),
-    PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, errors_eDMD)),
-    PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, errors_jDMD)),
-    # Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
-)
-#display(p_lqr)
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_stabilization_performance.tikz"), 
-#     p_lqr, include_preamble=false)
+res_lqr_perf = (;errors_nominal, errors_eDMD_projected, errors_jDMD_projected, errors_eDMD, errors_jDMD)
 
 #############################################
 ## LQR Stabilization Performance vs Training Window
@@ -303,7 +267,7 @@ errors = map(percentages) do perc
         Uniform(-0.25*perc,0.25*perc)
     ])
 
-    x0_test = [rand(x0_sampler) for i = 1:20]
+    x0_test = [rand(x0_sampler) for i = 1:100]
 
     lqr_eDMD_projected = LQRController(
         model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true)
@@ -318,21 +282,20 @@ errors = map(percentages) do perc
 end
 
 fields = keys(errors[1])
-res = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
+res_lqr_window = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
 
-p_tracking = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Window Percentage",
-        ylabel = "Stabilization error",
-        legend_pos = "north west"
-    },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages.*100, res[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages.*100, res[:error_jDMD_projected])),
-    Legend(["eDMD", "jDMD"])
-)
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_training_window.tikz"), p_tracking, include_preamble=false)
+# p_lqr_window = @pgf Axis(
+#     {
+#         xmajorgrids,
+#         ymajorgrids,
+#         xlabel = "Window Percentage",
+#         ylabel = "Stabilization error",
+#         legend_pos = "north west"
+#     },
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected])),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected])),
+#     Legend(["eDMD", "jDMD"])
+# )
 
 #############################################
 ## LQR Stabilization Performance vs Training Window with equilibrium change
@@ -350,7 +313,7 @@ errors = map(distances) do dist
             Uniform(-dist, +dist),
             Uniform(-dist, +dist),
         ])
-        xe_test = [vcat(rand(xe_sampler), zeros(4)) for i = 1:20]
+        xe_test = [vcat(rand(xe_sampler), zeros(4)) for i = 1:50]
     end
 
     perc = 0.8
@@ -363,7 +326,7 @@ errors = map(distances) do dist
         Uniform(-0.25*perc,0.25*perc)
     ])
 
-    x0_test = [rand(x0_sampler) for i = 1:20]
+    x0_test = [rand(x0_sampler) for i = 1:50]
 
     xe_results = map(xe_test) do xe
         lqr_eDMD_projected = LQRController(
@@ -391,22 +354,21 @@ errors = map(distances) do dist
 end
 
 fields = keys(errors[1])
-res = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
+res_equilibrium = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
 
-p_tracking = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Equilibirum offset",
-        ylabel = "Stabilization error",
-        legend_pos = "north west",
+# p_lqr_equilibrium = @pgf Axis(
+#     {
+#         xmajorgrids,
+#         ymajorgrids,
+#         xlabel = "Equilibirum offset",
+#         ylabel = "Stabilization error",
+#         legend_pos = "north west",
         
-    },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res[:error_jDMD_projected])),
-    Legend(["eDMD", "jDMD"])
-)
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz"), p_tracking, include_preamble=false)
+#     },
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
+#     Legend(["eDMD", "jDMD"])
+# )
 
 #############################################
 ## MPC Stabilization Performance 
@@ -452,20 +414,114 @@ mpc_jDMD = TrackingMPC(model_jDMD,
 
 # Run each controller on the same set of initial conditions
 Random.seed!(2)
+
+perc = 2.0
 x0_sampler = Product([
-    Uniform(-2.0,2.0),
-    Uniform(-2.0,2.0),
-    Uniform(-deg2rad(70),deg2rad(70)),
-    Uniform(-1.0,1.0),
-    Uniform(-1.0,1.0),
-    Uniform(-0.5,0.5)
+    Uniform(-1.0*perc,1.0*perc),
+    Uniform(-1.0*perc,1.0*perc),
+    Uniform(-deg2rad(40*perc),deg2rad(40*perc)),
+    Uniform(-0.5*perc,0.5*perc),
+    Uniform(-0.5*perc,0.5*perc),
+    Uniform(-0.25*perc,0.25*perc)
 ])
+
 x0_test = [rand(x0_sampler) for i = 1:100]
 errors_nominal = sort!(test_initial_conditions(dmodel_real, mpc_nominal, xe, x0_test, t_sim, dt))
 errors_eDMD_projected = sort!(test_initial_conditions(dmodel_real, mpc_eDMD_projected, xe, x0_test, t_sim, dt))
 errors_jDMD_projected = sort!(test_initial_conditions(dmodel_real, mpc_jDMD_projected, xe, x0_test, t_sim, dt))
 errors_eDMD = sort!(test_initial_conditions(dmodel_real, mpc_eDMD, xe, x0_test, t_sim, dt))
 errors_jDMD = sort!(test_initial_conditions(dmodel_real, mpc_jDMD, xe, x0_test, t_sim, dt))
+
+res_mpc_tracking = (; errors_nominal, errors_eDMD_projected, errors_jDMD_projected, errors_eDMD, errors_jDMD)
+
+#############################################
+## Save results
+#############################################
+jldsave(REX_PLANAR_QUADROTOR_RESULTS_FILE; regularizers, 
+    res_reg, res_lqr_perf, percentages, res_lqr_window, 
+    distances, res_equilibrium, res_mpc_tracking)
+
+#############################################
+## Load and plot results
+#############################################
+results = load(REX_PLANAR_QUADROTOR_RESULTS_FILE)
+
+regularizers = results["regularizers"]
+percentages = results["percentages"]
+distances = results["distances"]
+
+res_reg = results["res_reg"]
+res_lqr_perf = results["res_lqr_perf"]
+res_lqr_window = results["res_lqr_window"]
+res_equilibrium = results["res_equilibrium"]
+res_mpc_tracking = results["res_mpc_tracking"]
+
+p_lqr_reg = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xmode = "log",
+        ymode = "log",
+        xlabel = "Regularization value",
+        ylabel = "Stabilization error",
+        legend_pos = "north west"
+    },
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res_reg[:error_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res_reg[:error_jDMD_projected])),
+    Legend(["eDMD", "jDMD"])
+)
+# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_reg.tikz"), p_lqr_reg, include_preamble=false)
+
+p_lqr_perf = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel="Percent of samples",
+        ylabel="Tracking error",
+        legend_cell_align={left},
+        legend_pos="north west",
+        ymax=15e-2,
+        xmax=100,
+    },
+    PlotInc({lineopts..., color=color_nominal, style="solid"}, Coordinates(1:100, res_lqr_perf[:errors_nominal])),
+    PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, res_lqr_perf[:errors_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, res_lqr_perf[:errors_jDMD_projected])),
+    PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, res_lqr_perf[:errors_eDMD])),
+    PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, res_lqr_perf[:errors_jDMD])),
+    # Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+)
+#display(p_lqr_perf)
+# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_stabilization_performance.tikz"), 
+#     p_lqr_perf, include_preamble=false)
+
+p_lqr_window = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Window Percentage",
+        ylabel = "Stabilization error",
+        legend_pos = "north west"
+    },
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected])),
+    Legend(["eDMD", "jDMD"])
+)
+# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_training_window.tikz"), p_lqr_window, include_preamble=false)
+
+p_lqr_equilibrium = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Equilibirum offset",
+        ylabel = "Stabilization error",
+        legend_pos = "north west",
+        
+    },
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
+    Legend(["eDMD", "jDMD"])
+)
+# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz"), p_lqr_equilibrium, include_preamble=false)
 
 p_mpc = @pgf Axis(
     {
@@ -478,11 +534,11 @@ p_mpc = @pgf Axis(
         ymax=15e-2,
         xmax=100,
     },
-    PlotInc({lineopts..., color=color_nominal, style="solid"}, Coordinates(1:100, errors_nominal)),
-    PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, errors_eDMD_projected)),
-    PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, errors_jDMD_projected)),
-    PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, errors_eDMD)),
-    PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, errors_jDMD)),
+    PlotInc({lineopts..., color=color_nominal, style="solid"}, Coordinates(1:100, res_mpc_tracking[:errors_nominal])),
+    PlotInc({lineopts..., color=color_eDMD, style="solid"}, Coordinates(1:100, res_mpc_tracking[:errors_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, res_mpc_tracking[:errors_jDMD_projected])),
+    PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, res_mpc_tracking[:errors_eDMD])),
+    PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, res_mpc_tracking[:errors_jDMD])),
     Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
 )
 # display(p_mpc)

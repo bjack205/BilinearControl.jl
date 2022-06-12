@@ -22,7 +22,7 @@ using Infiltrator
 
 include("learned_models/edmd_utils.jl")
 include("constants.jl")
-const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_planar_quadrotor_results.jld2")
+const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_results.jld2")
 
 #############################################
 ## Functions for generating data and training models
@@ -106,7 +106,7 @@ function generate_planar_quadrotor_data()
     ## Stabilization trajectories 
     Random.seed!(1)
     num_train_lqr = 50
-    num_test_lqr = 10
+    num_test_lqr = 50
 
     # Generate a stabilizing LQR controller
     Qlqr = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0])
@@ -125,13 +125,14 @@ function generate_planar_quadrotor_data()
         Uniform(-0.25,0.25)
     ])
 
+    perc = 2.0
     x0_test_sampler = Product([
-        Uniform(-2.0,2.0),
-        Uniform(-2.0,2.0),
-        Uniform(-deg2rad(70),deg2rad(70)),
-        Uniform(-1.0,1.0),
-        Uniform(-1.0,1.0),
-        Uniform(-0.5,0.5)
+        Uniform(-1.0*perc,1.0*perc),
+        Uniform(-1.0*perc,1.0*perc),
+        Uniform(-deg2rad(40*perc),deg2rad(40*perc)),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.25*perc,0.25*perc)
     ])
 
     initial_conditions_train = [rand(x0_train_sampler) for _ in 1:num_train_lqr]
@@ -150,7 +151,7 @@ function generate_planar_quadrotor_data()
     #############################################
     Random.seed!(1)
     num_train_mpc = 50
-    num_test_mpc = 20
+    num_test_mpc = 35
 
     x0_train_sampler = Product([
         Uniform(-2.0,2.0),
@@ -158,16 +159,17 @@ function generate_planar_quadrotor_data()
         Uniform(-deg2rad(20),deg2rad(20)),
         Uniform(-0.5,0.5),
         Uniform(-0.5,0.5),
-        Uniform(-0.25,0.25)
+        Uniform(-0.2,0.2)
     ])
 
+    perc = 3.0
     x0_test_sampler = Product([
-        Uniform(-5.0,5.0),
-        Uniform(-5.0,5.0),
-        Uniform(-deg2rad(70),deg2rad(70)),
-        Uniform(-1.0,1.0),
-        Uniform(-1.0,1.0),
-        Uniform(-0.5,0.5)
+        Uniform(-2.0*perc,2.0*perc),
+        Uniform(-2.0*perc,2.0*perc),
+        Uniform(-deg2rad(20*perc),deg2rad(20*perc)),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.2*perc,0.2*perc)
     ])
 
     initial_conditions_mpc_train = [rand(x0_train_sampler) for _ in 1:num_train_mpc]
@@ -212,11 +214,11 @@ function generate_planar_quadrotor_data()
 
     # Generate test data
 
-    X_test_real_mpc = Matrix{Vector{Float64}}(undef, N_tf, num_test_mpc)
-    X_test_nom_mpc = Matrix{Vector{Float64}}(undef, N_tsim, num_test_mpc)
+    X_test_infeasible = Matrix{Vector{Float64}}(undef, N_tf, num_test_mpc)
+    X_nom_mpc = Matrix{Vector{Float64}}(undef, N_tsim, num_test_mpc)
 
-    U_test_real_mpc = Matrix{Vector{Float64}}(undef, N_tf-1, num_test_mpc)
-    U_test_nom_mpc = Matrix{Vector{Float64}}(undef, N_tsim-1, num_test_mpc)
+    U_test_infeasible = Matrix{Vector{Float64}}(undef, N_tf-1, num_test_mpc)
+    U_nom_mpc = Matrix{Vector{Float64}}(undef, N_tsim-1, num_test_mpc)
 
     for i = 1:num_test_mpc
 
@@ -228,11 +230,11 @@ function generate_planar_quadrotor_data()
         mpc_nom = TrackingMPC(dmodel_nom, X, U, Vector(T), Qmpc, Rmpc, Qfmpc; Nt=Nt)
         X_nom,U_nom,T_nom = simulatewithcontroller(dmodel_real, mpc_nom, X[1], t_sim, T[2])
 
-        X_test_real_mpc[:,i] = X
-        U_test_real_mpc[:,i] = U[1:end-1]
+        X_test_infeasible[:,i] = X
+        U_test_infeasible[:,i] = U[1:end-1]
 
-        X_test_nom_mpc[:,i] = X_nom
-        U_test_nom_mpc[:,i] = U_nom
+        X_nom_mpc[:,i] = X_nom
+        U_nom_mpc[:,i] = U_nom
     end
 
     # i = 1
@@ -251,8 +253,8 @@ function generate_planar_quadrotor_data()
     jldsave(joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"); 
         X_train_lqr, U_train_lqr,
         X_train_mpc, U_train_mpc,
-        X_test_mpc=X_test_nom_mpc, U_test_mpc=U_test_nom_mpc, 
-        X_test_mpc_ref=X_test_real_mpc, U_test_mpc_ref=U_test_real_mpc,
+        X_nom_mpc, U_nom_mpc, 
+        X_test_infeasible, U_test_infeasible,
         X_test_lqr, U_test_lqr, 
         tf, t_sim, dt
     )
@@ -288,10 +290,10 @@ function train_planar_quadrotor_models(num_lqr, num_mpc;  α=0.5, learnB=true, �
     U_train = [U_train_lqr U_train_mpc]
 
     # Test data
-    X_test_mpc = mpc_lqr_traj["X_test_mpc"]
-    U_test_mpc = mpc_lqr_traj["U_test_mpc"]
-    X_test_mpc_ref = mpc_lqr_traj["X_test_mpc_ref"]
-    U_test_mpc_ref = mpc_lqr_traj["U_test_mpc_ref"]
+    X_nom_mpc = mpc_lqr_traj["X_nom_mpc"]
+    U_nom_mpc = mpc_lqr_traj["U_nom_mpc"]
+    X_test_infeasible = mpc_lqr_traj["X_test_infeasible"]
+    U_test_infeasible = mpc_lqr_traj["U_test_infeasible"]
 
     # Metadata
     tf = mpc_lqr_traj["tf"]
@@ -338,10 +340,10 @@ function train_planar_quadrotor_models(num_lqr, num_mpc;  α=0.5, learnB=true, �
     Rmpc = Diagonal([1e-3, 1e-3])
     Qfmpc = 100*Qmpc
 
-    N_test = size(X_test_mpc,2)
+    N_test = size(X_nom_mpc,2)
     test_results = map(1:N_test) do i
-        X_ref = deepcopy(X_test_mpc_ref[:,i])
-        U_ref = deepcopy(U_test_mpc_ref[:,i])
+        X_ref = deepcopy(X_test_infeasible[:,i])
+        U_ref = deepcopy(U_test_infeasible[:,i])
         X_ref[end] .= xe
         push!(U_ref, ue)
 
@@ -411,9 +413,9 @@ results = load(REX_PLANAR_QUADROTOR_RESULTS_FILE)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
 res
-good_inds = 1:18
-plot(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])
-plot!(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])
+good_inds = 1:length(res[:nsamples])
+# plot(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])
+# plot!(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])
 p_time = @pgf Axis(
     {
         xmajorgrids,
@@ -426,7 +428,7 @@ p_time = @pgf Axis(
     PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])),
     Legend(["eDMD", "jDMD"])
 )
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_train_time.tikz"), p_time, include_preamble=false)
+pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_train_time.tikz"), p_time, include_preamble=false)
 
 p_ns = @pgf Axis(
     {
@@ -434,14 +436,14 @@ p_ns = @pgf Axis(
         ymajorgrids,
         xlabel = "Number of training samples",
         ylabel = "Tracking error",
-        ymax=5,
+        ymax=2.0,
     },
     PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:nsamples][good_inds], res[:nom_err_avg][good_inds])),
     PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:nsamples][good_inds], res[:eDMD_err_avg][good_inds])),
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:nsamples][good_inds], res[:jDMD_err_avg][good_inds])),
     Legend(["Nominal", "eDMD", "jDMD"])
 )
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_test_error.tikz"), p_ns, include_preamble=false)
+pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_test_error.tikz"), p_ns, include_preamble=false)
 
 #############################################
 ## Set up models for MPC Tracking
@@ -455,7 +457,7 @@ dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 model_real = Problems.SimulatedPlanarQuadrotor()  # this model has aero drag
 dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
-res = train_planar_quadrotor_models(0, 10, α=0.5, β=1.0, learnB=true, reg=1e-5)
+res = train_planar_quadrotor_models(0, 50, α=0.5, β=1.0, learnB=true, reg=1e-5)
 @show res.jDMD_err_avg
 @show res.eDMD_err_avg
 
@@ -473,10 +475,10 @@ model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
 mpc_lqr_traj = load(joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"))
 
 # Test data
-X_test_mpc = mpc_lqr_traj["X_test_mpc"]
-U_test_mpc = mpc_lqr_traj["U_test_mpc"]
-X_test_mpc_ref = mpc_lqr_traj["X_test_mpc_ref"]
-U_test_mpc_ref = mpc_lqr_traj["U_test_mpc_ref"]
+X_nom_mpc = mpc_lqr_traj["X_nom_mpc"]
+U_nom_mpc = mpc_lqr_traj["U_nom_mpc"]
+X_test_infeasible = mpc_lqr_traj["X_test_infeasible"]
+U_test_infeasible = mpc_lqr_traj["U_test_infeasible"]
 
 tf = mpc_lqr_traj["tf"]
 t_sim = mpc_lqr_traj["t_sim"]
@@ -487,9 +489,9 @@ dt = mpc_lqr_traj["dt"]
 #############################################
 
 # i = 1
-# X_ref = deepcopy(X_test_mpc_ref[:,i])
-# U_ref = deepcopy(U_test_mpc_ref[:,i])
-# X_nom_mpc = deepcopy(X_test_mpc[:,i])
+# X_ref = deepcopy(X_test_infeasible[:,i])
+# U_ref = deepcopy(U_test_infeasible[:,i])
+# X_nom_mpc_traj = deepcopy(X_nom_mpc[:,i])
 # push!(U_ref, Problems.trim_controls(model_real))
 # T_ref = range(0,tf,step=dt)
 # T_sim = range(0,t_sim,step=dt)
@@ -511,7 +513,7 @@ dt = mpc_lqr_traj["dt"]
 # plotstates(T_ref, X_ref, inds=1:3, xlabel="time (s)", ylabel="states",
 #             label=["x (true MPC)" "y (true MPC)" "θ (true MPC)"], legend=:topright, lw=2,
 #             linestyle=:dot, color=[1 2 3])
-# plotstates!(T_sim, X_nom_mpc, inds=1:3, xlabel="time (s)", ylabel="states",
+# plotstates!(T_sim, X_nom_mpc_traj, inds=1:3, xlabel="time (s)", ylabel="states",
 #             label=["x (nominal MPC)" "y (nominal MPC)" "θ (nominal MPC)"], legend=:topright, lw=2,
 #             linestyle=:dash, color=[1 2 3])
 # plotstates!(T_sim, X_mpc_eDMD_projected, inds=1:3, xlabel="time (s)", ylabel="states",
@@ -536,10 +538,10 @@ errors = map(percentages) do perc
         Uniform(-deg2rad(20*perc),deg2rad(20*perc)),
         Uniform(-0.5*perc,0.5*perc),
         Uniform(-0.5*perc,0.5*perc),
-        Uniform(-0.25*perc,0.25*perc)
+        Uniform(-0.2*perc,0.2*perc)
     ])
 
-    x0_test = [rand(x0_sampler) for i = 1:20]
+    x0_test = [rand(x0_sampler) for i = 1:50]
 
     error_eDMD_projected = mean(test_initial_conditions(model_real, model_eDMD_projected, x0_test, tf, tf, dt))
     error_jDMD_projected = mean(test_initial_conditions(model_real, model_jDMD_projected, x0_test, tf, tf, dt))
@@ -563,4 +565,4 @@ p_tracking = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res[:error_jDMD_projected])),
     Legend(["eDMD", "jDMD"])
 )
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_error_by_training_window.tikz"), p_tracking, include_preamble=false)
+pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_error_by_training_window.tikz"), p_tracking, include_preamble=false)
