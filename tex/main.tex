@@ -273,6 +273,15 @@ for Learning Bilinear, Control-affine Koopman Models}
 All continuous dynamics were discretized with an explicit fourth-order Runge Kutta 
 integrator.
 
+\subsection{Training}
+
+All models were trained by simulating the ``real'' system with an arbitrary controller to 
+collect data in the region of the state space relevant to the task. A set of fixed-length 
+trajectories were collected, each at a sample rate of 20 Hz. The bilinear eDMD model was
+trained using the same approach in \cite{Folkestad2021}. For the proposed jDMD method, the
+Jacobians of the nominal model were calculated at each of the sample points and the bilinear
+model was learned using the approach outlined in Section \ref{sec:methodology}.
+
 \subsection{Cartpole}
 As a simple benchmark example, we use the canonical cartpole system. In lieu of an actual 
 hardware experiment (left for future work), we specify two separate analytical models used 
@@ -287,15 +296,6 @@ experiments.
 We split the analysis of this system into two separate tasks: stabilization about the upward
 unstable equilibrium from perturbed initial condtions, and the swing-up task where the 
 system must successfully stabilize after starting from the downward equilibrium.
-
-\subsubsection{Training}
-
-All models were trained by simulating the ``real'' system with an arbitrary controller to 
-collect data in the region of the state space relevant to the task. A set of fixed-length 
-trajectories were collected, each at a sample rate of 20 Hz. The bilinear eDMD model was
-trained using the same approach in \cite{Folkestad2021}. For the proposed jDMD method, the
-Jacobians of the nominal model were calculated at each of the sample points and the bilinear
-model was learned using the approach outlined in Section \ref{sec:methodology}.
 
 \subsubsection{Stabilization}
 
@@ -381,7 +381,63 @@ reference, the training times are shown in Figure \ref{fig:cartpole_train_time}.
 the training algorithms haven't yet been optimized for max performance but reflect a decent 
 first implementation.
 
+\subsection{Planar Quadrotor}
+As another benchmark example, we use the planar quadrotor model, a simplification of the full quadrotor system with only 3 degrees of freedom. Like the cartpole study, we once again specify two separate analytical models used in simulation: the \textit{nominal} model is a simple planar quadrotor system without aerodynamic drag, whereas the \textit{simulated} model, used exclusively for simulating the system
+in place of a real hardware platform, includes aerodynamic drag, which acts as a viscous damping force. 
+Additionally, we altered the system properties (e.g. mass, rotor arm length, etc.) by ~5\% to incorporate additional mismatch between the nominal and simulated model. See the provided code for the actual values and models used in the experiments.
 
+\subsubsection{Stabilization}
+
+For stabilizing the system about the upward unstable equilibrium 50 initial conditions were
+collected using an LQR controller designed using the nominal model. The a basis function of 
+$\phi(x) = [\; 1,\; x,\; \sin(x),\; \cos(x),\; \sin(2x)\; ] \in \R^{17}$ was used. After
+learning both models, LQR and MPC controllers were designed using the nominal, eDMD, and
+jDMD model. For the learned bilinear models, a controller was designed using both the  
+Jacobians of the bilinear dynamics and the projected Jacobians \eqref{eq:projected_jacobians}. The MPC controllers linearized the dynamics about the equilibrium and solved the resulting equality-constrained quadratic program using Riccati recursion and a horizon of 41 time steps (2 seconds). Each controller was tested using 100 different initial conditions. The distance of the state after 4 seconds for the LQR and MPC controllers is shown in Figure
+
+\begin{figure}
+	\centering
+	\begin{subfigure}[t]{0.45\textwidth}
+		\includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
+		\caption{LQR stabilization with equilibrium offset}
+	\end{subfigure}
+	\begin{subfigure}[t]{0.45\textwidth}
+		\includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
+		\caption{LQR stabilization with varying "window" of initial condition sampling}
+	\end{subfigure}
+	\label{fig:cartpole_stabilization}
+	\caption{ LQR controller robustness to varying initial conditions and equilibrium offset }
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_reg.tikz}
+	\caption{LQR stabilization with equilibrium offset}
+	\label{fig:cartpole_stabilization}
+	\caption{ Robustness of jDMD and eDMD to regularization value. jDMD much more robust }
+\end{figure}
+
+\begin{figure}[t]
+	\centering
+	\begin{subfigure}[t]{0.48\textwidth}
+		\raggedleft
+		\includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_test_error.tikz}
+		\caption{MPC tracking error vs training samples for the cartpole. Tracking error is
+			defined as the average L2 error over all the test trajectories between the reference and
+			simulated trajectories. The proposed jDMD method immediately learns a model good enough
+			for control with just a couple hundred dynamics samples (2 swing-up trajectories).}
+		\label{fig:cartpole_mpc_test_error}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[t]{0.48\textwidth}
+		\raggedright
+		\includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_error_by_training_window.tikz}
+		\caption{MPC tracking error of quadrotor for various ranges of which to sample initial conditions. Percentage is determined by the limits of the range of training data, where 100\% is the limit of the training data's range}
+		\label{fig:cartpole_train_time}
+	\end{subfigure}
+\end{figure}
+
+\subsubsection{MPC Tracking Performance}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Limitations 

@@ -196,6 +196,13 @@ x0_sampler = Product([
     Uniform(-1,1),
     Uniform(-1,1),
 ])
+x0_sampler = Product([
+    Uniform(-0.7,0.7),
+    Uniform(pi-pi/4,pi+pi/4),
+    Uniform(-.2,.2),
+    Uniform(-.2,.2),
+])
+
 t_sim = 4.0
 x0_test = [rand(x0_sampler) for i = 1:100]
 errors_nominal = sort!(test_initial_conditions(dmodel_real, lqr_nominal, xe, x0_test, t_sim, dt))
