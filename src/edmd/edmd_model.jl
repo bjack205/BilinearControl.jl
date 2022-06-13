@@ -112,6 +112,7 @@ expandstate(::RD.DiscreteDynamics, x) = x
 
 RD.@autodiff struct ProjectedEDMDModel <: RD.DiscreteDynamics
     edmd_model::EDMDModel
+    ProjectedEDMDModel(model::EDMDModel) = new(model)
 end 
 ProjectedEDMDModel(model::RD.DiscreteDynamics) = model
 

@@ -37,6 +37,8 @@ function test_sample_size(;
     reg=1e-6,
     x_window=[1, deg2rad(30), 0.5, 0.5],
     test_window_ratio=1.0,
+    lifted=false,
+    ρ=1e-6,
 )
 
     ## Define the models
@@ -100,13 +102,24 @@ function test_sample_size(;
     Rmpc = Diagonal(fill(1e-3, 1))
     Qfmpc = Diagonal([1e2, 1e2, 1e1, 1e1])
     model_projected = EDMD.ProjectedEDMDModel(model)
-    mpc = TrackingMPC(
-        model_projected, X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
-    )
+    @show typeof(model_projected)
+    mpc = if lifted
+        n0 = EDMD.originalstatedim(model)
+        Y_ref = map(x->EDMD.expandstate(model,x), X_ref)
+        lifted_state_error(x,x0) = model_eDMD.kf(x) - x0
+        Qmpc_lifted = Diagonal([ρ; diag(Qmpc); fill(ρ, length(ye)-n0-1)])
+        Qfmpc_lifted = Diagonal([ρ; diag(Qfmpc); fill(ρ, length(ye)-n0-1)])
+        TrackingMPC(
+            model, Y_ref, U_ref, Vector(T_ref), Qmpc_lifted, Rmpc, Qfmpc_lifted; 
+            Nt=Nt, state_error=lifted_state_error,
+        )
+    else
+        TrackingMPC(
+            model_projected, X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+    end
 
     # Test mpc controller
-    # let mpc=mpc, num_test=num_test, model_real=dmodel_real, t_sim=t_sim, 
-    #             err_thresh=err_thresh, xg=xe, dt=dt
     # Set seed so that all are tested on the same conditions
     Random.seed!(100)
 
@@ -126,7 +139,6 @@ function test_sample_size(;
     average_error = mean(filter(x -> x < err_thresh, errors))
     success_rate = count(x -> x < err_thresh, errors) / num_test
     return success_rate, average_error
-    # end
 end
 
 #############################################
@@ -174,7 +186,6 @@ function find_min_sample_to_stabilize(mu_vals, num_train;
 end
 
 ##
-Threads.nthreads()
 x_window = [1.0, deg2rad(40), 0.5, 0.5]
 test_window_ratio = 0.5
 err_thresh = 0.1
@@ -182,28 +193,30 @@ err_thresh = 0.1
 reg=1e-4
 num_test = 20
 mu_vals = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-num_train = [2,3,4,5,6,7,8]
 num_train = [2:15; 20:5:100]
+num_test = 50
 
+# Test jDMD with alpha = 0.01
 α = 0.01
 @time res_jDMD = find_min_sample_to_stabilize(mu_vals, num_train; 
-    num_test=20, alg=:jDMD, x_window, test_window_ratio, reg, α
+    num_test, alg=:jDMD, x_window, test_window_ratio, reg, α
 )
-res_jDMD[:α] = 0.01
-res_jDMD
 
+# Test jDMD with alpha = 0.5
 α = 0.5
 @time res_jDMD_2 = find_min_sample_to_stabilize(mu_vals, num_train; 
-    num_test=20, alg=:jDMD, x_window, test_window_ratio, reg, α
+    num_test, alg=:jDMD, x_window, test_window_ratio, reg, α
 )
 
+# Test jDMD with alpha = 0.1
 α = 0.1
 @time res_jDMD_3 = find_min_sample_to_stabilize(mu_vals, num_train; 
-    num_test=50, alg=:jDMD, x_window, test_window_ratio, reg, α
+    num_test, alg=:jDMD, x_window, test_window_ratio, reg, α
 )
 
+# Tset eDMD
 @time res_eDMD = find_min_sample_to_stabilize(mu_vals, num_train; 
-    num_test=50, alg=:eDMD, x_window, test_window_ratio, reg, α
+    num_test, alg=:eDMD, x_window, test_window_ratio, reg, α
 )
 
 res_jDMD_all = [
@@ -257,3 +270,17 @@ p_bar = @pgf Axis(
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_friction_mismatch.tikz"), p_bar, include_preamble=false)
 
+
+#############################################
+## Min Trajectories to beat MPC 
+#############################################
+
+x_window = [1.0, deg2rad(40), 0.5, 0.5]
+test_window_ratio = 0.5
+err_thresh = 0.1
+μ = 0.1
+reg=1e-4
+num_test = 20
+mu_vals = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+num_train = [2,3,4,5,6,7,8]
+test_sample_size(; num_train=10, alg=:jDMD, num_test=50)

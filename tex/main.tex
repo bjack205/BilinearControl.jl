@@ -410,6 +410,13 @@ All continuous dynamics were discretized with an explicit fourth-order Runge Kut
 integrator. The code for the experiments is located at 
 \todo{include after review}.
 
+\subsection{Tasks}
+Here we briefly describe each of the tasks given to the simulated systems.
+\begin{itemize}
+  \item \textit{Cartpole Stabilization}: 
+\end{itemize}
+
+
 \subsection{Sample Efficiency}
 
 We highlight the sample efficiency of the proposed algorithm in Figures 
@@ -448,8 +455,19 @@ tasks, we trained the models by sampling uniformly from a given window of offset
 about the origin. 
 To test the generalizability of the methods we increased the relative size of the window 
 from which the test data was sampled, e.g. if the initial lateral position was trained on 
-data in the interval $[-1.5,1.5]$, we sampled the test initial condition from the window 
-$[\gamma -1.5, \gamma 1.5]$
+data in the interval $[-1.5,+1.5]$, we sampled the test initial condition from the window 
+$[-\gamma 1.5, +\gamma 1.5]$. As shown in the results, while the performance of the proposed
+algorithm remains relatively constant even when $\gamma = 2.5$, whereas the classic eDMD 
+approach looses performance and fails to generalize at all for the stabilization task using 
+and LQR controller (like due to poor derivative information), and up to $\gamma = 2$ for the 
+tracking task using a linear MPC controller.
+
+In Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} we show the effect 
+of changing the equilibrium position for the planar quadrotor, but keeping the delta initial
+conditions within the training window. As shown, eDMD doesn't generalize to other
+equilibrium points, despite the fact that the underlying dynamics are invariant to the
+equilibrium position. Our proposed approach, however, easily learns this from the derivative
+information provided by the nominal model.
 
 \subsection{Cartpole}
 As a simple benchmark example, we use the canonical cartpole system. The \textit{simulated}
