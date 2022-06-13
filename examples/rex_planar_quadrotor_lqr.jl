@@ -546,7 +546,7 @@ p_lqr_window = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected])),
     PlotInc({lineopts..., color="purple"}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected2])),
 
-    Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
+    # Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
 )
 # pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_training_window.tikz"), p_lqr_window, include_preamble=false)
 
