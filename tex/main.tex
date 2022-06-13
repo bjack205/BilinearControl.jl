@@ -52,13 +52,14 @@ for Learning Bilinear, Control-affine Koopman Models}
     approaches typically rely on local linear approximations of the nonlinear system, which
     are then used in any of a multitude of linear control techniques, such as PID, pole
     placement, Bode analysis, H-infinity, LQR, or linear MPC.  These approaches only work
-    well if the states of the system always remain close to the linearization point or
-    reference trajectory. The region for which these linearizations remain valid can be
-    extremely small for highly nonlinear systems.  Alternatively, model-based methods for
-    nonlinear control based on optimal control have shown great success, as long as the
-    model is well known and an accurate estimate of the global state can be provided. These
-    model-based techniques leverage centuries of insight into dynamical systems and have
-    demonstrated incredible performance on extremely complicated autonomous systems 
+    well if the states of the system always remain close to the equilibrium point or
+    reference trajectory about which the system was linearized. The region for which these
+    linearizations remain valid can be extremely small for highly nonlinear systems.
+    Alternatively, model-based methods for nonlinear control based on optimal control have
+    shown great success, as long as the model is well known and an accurate estimate of the
+    global state can be provided. These model-based techniques leverage centuries of insight
+    into dynamical systems and have demonstrated incredible performance on extremely
+    complicated autonomous systems 
     \cite{farshidian_efficient_2017,Kuindersma2014,Bjelonic2021,Subosits2019} .  On the
     other hand, data-driven techniques such as reinforcement learning have received
     tremendous attention over the last decade and have begun to demonstrate impressive
@@ -83,11 +84,34 @@ for Learning Bilinear, Control-affine Koopman Models}
     well-defined structure that is very amenable to specialized optimization-based
     controllers. By leveraging information from an analytical model, we can dramatically
     reduce the number of samples required to learn a good approximation of the true
-    nonlinear dynamics. 
+    nonlinear dynamics. We also show the effiectiveness of linear MPC on these systems, 
+    when the learned bilinear system is linearized and projected back into the original 
+    state space. The result is a fast, robust, and sample-efficient pipeline for quickly 
+    learning a model that beats previous Koopman-based linear MPC approaches as well as 
+    purely model-based linear MPC contollers that do not leverage data collected from the 
+    actual system. To efficiently learn these bilinear representations, we also propose 
+    a numerical technique that allows for large systems to be trained while limiting the 
+    peak memory required to solve the least-squares problem.
+
+    In summary, our contributions are:
+    * A novel extension to extended dynamic model decomposition (eDMD) that incorporates 
+      gradient information from an approximate analytic model
+    * A simple linear MPC control technique for learned bilinear control systems that is 
+      computationally efficient online, which, when combined with the proposed extension 
+      to eDMD, requires extremely little training data to get a good control policy
+    * A novel numerical method for recursively solving the least-squares problems that arise 
+      when learning bilinear dynamical systems using eDMD
     
-    \todo{bullet out contributions.}
-    
-    \todo{add summary of paper layout.}
+    The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
+    give some background on the appliciation of Koopman operator theory to controlled 
+    dynamical systems and review some related works. Section \ref{sec:methodology} describes
+    the proposed algorithm for combining data-driven and model-based approaches, along with 
+    the numerical method for solving the resulting large and sparse linear least-squares 
+    problems. Section \ref{sec:results} provides extensive numerical analysis of the 
+    proposed algorithm, applied to a simulated cartpole and planar quadrotor model, both 
+    subject to significant model mistmach. In Section \ref{sec:limitations} we discuss the 
+    limitations of the method, and finish with some concluding thoughts in Section 
+    \ref{sec:conclusion}.
 
 \section{Background and Related Work} \label{sec:Preliminaries/Background}
 
@@ -102,9 +126,10 @@ for Learning Bilinear, Control-affine Koopman Models}
   time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
   \begin{equation} \label{eq:discrete_dynamics} x_{k+1} = f(x_k, u_k) \end{equation} where
   $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is the
-  control vector.  This discrete approximation can be obtained for any continuous dynamical
-  system in many ways, including implicit and explicit Runge-Kutta methods, or by solving
-  the Discrete Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
+  control vector.  This discrete approximation can be obtained for any continuous-time, 
+  smooth dynamical system in many ways, including implicit and explicit Runge-Kutta methods,
+  or by solving the Discrete Euler-Lagrange equations
+  \cite{Brudigam2021a,Brudigam2021,Howell2022}.
 
   The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
   dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
@@ -112,9 +137,9 @@ for Learning Bilinear, Control-affine Koopman Models}
   \begin{equation} \label{eq:bilinear_dynamics}
       y_{k+1} = A y_k + B u_k + \sum_{i=1}^m u_{k,i} C_i y_k = g(y,u)
   \end{equation}
-  where $y = \phi(x)$ is a mapping from the finite-dimensional state space $\mathcal{X}$ to
-  the (possibly) infinite-dimensional Hilbert space of \textit{observables} $y \in
-  \mathcal{Y}$. We also assume the inverse map is approximately linear: $x = G y$. In
+  where $y = \phi(x)$ is a nonlinear mapping from the finite-dimensional state space
+  $\mathcal{X}$ to the (possibly) infinite-dimensional Hilbert space of \textit{observables}
+  $y \in \mathcal{Y}$. We also assume the inverse map is approximately linear: $x = G y$. In
   practice, we approximate \eqref{eq:discrete_dynamics} by choosing $\phi$ to be some
   arbitrary finite set of nonlinear functions of the state variables, which in general
   include the states themselves such that the linear mapping $G \in \R^{N_x \times N_y}$ is
@@ -131,10 +156,10 @@ for Learning Bilinear, Control-affine Koopman Models}
 
   The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned from samples
   of the system dynamics $(x_i^+,x_i,u_i)$ (where $x^+$ is the state at the next time step)
-  using extended Dynamic Mode Decomposition (eDMD), which is just the application of linear
-  least squares (LLS) to the lifted states.  Details of this method will be covered later
-  when we introduce our adaptation of eDMD and present an effective numerical technique for
-  solving the resulting LLS problems.
+  using extended Dynamic Mode Decomposition (eDMD) \cite{Williams2015}, which is just the
+  application of linear least squares (LLS) to the lifted states. Details of this method
+  will be covered in the next section where we introduce our adaptation of eDMD and present
+  an effective numerical technique for solving the resulting LLS problems.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Methodology
@@ -150,13 +175,14 @@ for Learning Bilinear, Control-affine Koopman Models}
   \begin{equation}
       x^+ = \tilde{f}(x,u)
   \end{equation}
-  we can evaluate the Jacobians of our approximate model $\hat{f}$ at each of the sample
-  points: $\tilde{A}_i = \pdv{\tilde{f}}{x}, \tilde{B}_i = \pdv{\tilde{f}}{x}$. After
-  choosing nonlinear mapping $\phi : \R^{N_x} \mapsto \R^{N_y}$ We then want to find a
+  we can evaluate the Jacobians of our approximate model $\tilde{f}$ at each of the sample
+  points: $\tilde{A}_i = \pdv{\tilde{f}}{x}, \tilde{B}_i = \pdv{\tilde{f}}{u}$. After
+  choosing a nonlinear mapping $\phi : \R^{N_x} \mapsto \R^{N_y}$ our goal is to find a
   bilinear dynamics model \eqref{eq:bilinear_dynamics} that matches the Jacobians of our
   approximate model, while also matching our dynamics samples. If we define $\hat{A}_j \in
   \R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
-  bilinear dynamics model, projected back into the original state space, our objective is to
+  bilinear dynamics model, projected back into the original state space (a formal definition 
+  of these terms will be provided in a few paragraphs), our objective is to
   find the matrices $A \in \R^{N_y \times N_y},B \in \R^{N_y \times N_u}$, and $C_{1:m} \in
   \R^{N_u} \times \R^{N_y \times N_y}$ that minimize the following objective:
 
@@ -165,9 +191,10 @@ for Learning Bilinear, Control-affine Koopman Models}
           \alpha  \sum_{j=1}^P \norm{\hat{A}_j - \tilde{A}_j}_2^2 + 
                                \norm{\hat{B}_j - \tilde{B}_j}_2^2 
   \end{equation}
-  where $\hat{y}_j^+ = g\left(\phi(x_j), u_j\right)$ is the output of our bilinear  dynamics
+  where $\hat{y}_j^+ = g\left(\phi(x_j), u_j\right)$ is the output of our bilinear dynamics
   model, and $y_j^+ = \phi(y_j^+)$ is the actual lifted state (i.e. observables) at the next
-  time step.
+  time step. Note that $\hat{y}_j$, $\hat{A}_j$, and $\hat{B}_j$ are all implicitly
+  functions of model parameters $A$, $B$, and $C_{1:m}$ we're trying to learn.
 
   While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
   least-squares, using techniques similar to those used previously in the literature
@@ -187,13 +214,14 @@ for Learning Bilinear, Control-affine Koopman Models}
   \begin{equation} \label{eq:bilinear_dynamics_z}
       \hat{y}^+ = E z.
   \end{equation}
-  The projected Jacobians of our bilinear model, $\hat{A}$ and $\hat{B}$, are simply the Jacobians 
-  of the bilinear dynamics in terms of the original state. We obtain these dynamics by ``lifting`` 
-  the state via $\phi$ and then projecting back onto the original states using $G$:
+  The previously-mentioned projected Jacobians of our bilinear model, $\hat{A}$ and
+  $\hat{B}$, are simply the Jacobians of the bilinear dynamics in terms of the original
+  state. We obtain these dynamics by ``lifting`` the state via $\phi$ and then projecting
+  back onto the original states using $G$:
   \begin{equation} \label{eq:projected_dynamics}
       x^+ = G \left( A \phi(x) + B u + \sum_{i=1}^m u_i C_i \phi(x) \right)  = \hat{f}(x,u) 
   \end{equation}
-  Differentiating these dynamics give us our projected Jacobians:
+  Differentiating these dynamics gives us our projected Jacobians:
   \begin{subequations} \label{eq:projected_jacobians}
   \begin{align}
       \hat{A}_j &= G \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
@@ -220,6 +248,10 @@ for Learning Bilinear, Control-affine Koopman Models}
           [0 \; 0 \; ... \; x] \\
       \end{bmatrix} \in \R^{N_z \times N_u}.
   \end{equation}
+  Note we define $\bar{A}_j = \bar{A}(x_j,u_j)$, $\bar{B}_j = \bar{B}(x_j,u_j)$ to lighten 
+  the notation, but want to emphasize that these terms are all purely functions of the input
+  data.
+
   Substituting \eqref{eq:bilinear_dynamics_z} and \eqref{eq:projected_jacobians} into
   \eqref{eq:lls_objective}, we can rewrite our LLS problem as:
   \begin{align}
@@ -269,7 +301,9 @@ for Learning Bilinear, Control-affine Koopman Models}
       }_2^2
   \end{align}
   such that the matrix of cofficients has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows and 
-  $N_y \cdot N_z$ columns.
+  $N_y \cdot N_z$ columns. We obtain the data for our bilinear model 
+  \eqref{eq:bilinear_dynamics} by solving this large, sparse linear least-squares 
+  problem.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Results
@@ -329,6 +363,90 @@ theory to controlled systems have used this technique of projecting back into th
 state space, although the benefits are immediately apparent: with just a few training 
 trajectories (3 for jDMD and 7 for eDMD) we can learn a model that improves upon our nominal
 LQR controller policy.
+
+\subsection{Efficient Recursive Least Squares}
+In its canonical formulation, a linear least squares problem can be represented as the
+following unconstrained optimization problem:
+\begin{align}
+    \min_x \|Fx - d\|_2^2.
+\end{align}
+The solution to this problem is found by solving for the $x$ in which the gradient of the
+objective function with respect to $x$ is zero, also known as the normal equations: 
+\begin{align}\label{eq:normal_eq}
+    (F^TF)x =F^Td,
+\end{align}
+For small to medium sized problems, this problem is most often solved with either a Cholesky
+or a QR decomposition.  Unfortunately, for very large problems where storage size and
+numerical conditioning become a concern, forming and factorizing the required matrices can
+be intractable.
+
+To deal with large problems like the one proposed in \eqref{opt:lls_matrix}, a recursive
+method is used that processes rows of $F$ and $d$ sequentially in batches, avoiding the need
+for forming or factorizing the whole matrix. To do this, the rows of $F$ and $d$ will be
+divided up into batches in the following manner:
+\begin{equation}
+    \begin{aligned}
+        F = \begin{bmatrix} F_1 \\ F_2 \\ \vdots \\ F_N \end{bmatrix}
+    \end{aligned},
+    \quad 
+    \begin{aligned}
+        d = \begin{bmatrix} d_1 \\ d_2 \\ \vdots \\ d_N \end{bmatrix}.
+    \end{aligned}
+\end{equation}
+The matrix $F^TF$ from \eqref{eq:normal_eq} can then be represented as the following sum:
+\begin{align}
+    F^TF = F_1^TF_1 + F_2^TF_2 + \ldots + F_N^TF,
+\end{align}
+with the right-hand side vector in \eqref{eq:normal_eq} expressed in a similar fashion:
+\begin{align}
+    F^Td = F_1^Td_1 + F_2^Td_2 + \ldots + F_N^Td_N.
+\end{align}
+The main idea of this recursive method is to assemble an upper triangular factorization of
+$A^TA$ by forming the factor of $A_1^TA_1$, and updating this factor with each additional
+batch. To do this, first a matrix "square-root" $U$ is defined as:
+\begin{equation}\label{eq:sqrtm}
+    \begin{aligned}
+        U = \sqrt{M + W}
+    \end{aligned}
+    \quad 
+    \rightarrow
+    \quad 
+    \begin{aligned}
+        U^TU = M + W,
+    \end{aligned}
+\end{equation}
+for two arbitrary matrices $M$ and $W$. As shown in \todo{cite altro once bib is in}, the
+upper-triangular matrix square root of a sum of matrices can be expressed as a function of
+each individual matrix square root by using a function $\operatorname{QR_R}$ that takes the
+QR decomposition of the input and returns only the upper triangular R. Using this with the
+variables introduced in \eqref{eq:sqrtm} results in the following:
+\begin{align}
+    \sqrt{M + W} &= \operatorname{QR_R}\bigg( \begin{bmatrix} \sqrt{M} \\ \sqrt{W} \end{bmatrix} \bigg)
+\end{align}
+Using this, the factorization of the $F^TF$ matrix can be updated using the following
+recursion:
+\begin{align}
+    \sqrt{F_{1:i}^TF_{1:i}} = \operatorname{QR_R}\bigg( \begin{bmatrix} \sqrt{F_{1:i-1}^TF_{1:i-1}} \\ F_i \end{bmatrix} \bigg).
+\end{align}
+The final algorithm for solving a least squares problem in a recursive-batch fashion is
+described in algorithm \ref{alg:rlsqr}. This algorithm can be modified to handle L2
+regularized least squares problems by simply replacing line 2 of algorithm \ref{alg:rlsqr}
+with $U\leftarrow \operatorname{QR_R}(\operatorname{vcat}(F_1,\sqrt{\rho}I))$, where $\rho$
+is the regularizer. 
+ \begin{algorithm} 
+	\begin{algorithmic}[1]
+		\caption{Recursive Batch Least Squares with QR}\label{alg:rlsqr}
+		\State \textbf{input} $F,\,d$  \Comment{problem data}
+		\State $U \leftarrow \operatorname{QR_R}(F_1)$ \Comment{form initial upper-triangular square-root}
+		\State $b \leftarrow F_1^Td_1$ \Comment{form initial right hand side vector}
+		\For{$i = 2:N$}
+% 		\State $U \leftarrow \operatorname{QR_R}([U^T \, A_i^T]^T) $ 
+        \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(U,F_i)) $ \Comment{update square-root with new batch}
+		\State $b \leftarrow b + F_i^Td_i$ \Comment{update right hand side with new batch}
+		\EndFor
+		\State \textbf{ouput} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
+	\end{algorithmic}
+\end{algorithm}
 
 % \begin{figure}
 %   \centering
@@ -499,10 +617,12 @@ of trajectories---this further hints at eDMD overfitting on the training data.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Limitations 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Limitations} \label{sec:limitations}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Conclusion 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conclusion} \label{sec:conclusion}
 
 \bibliography{references.bib}
 
