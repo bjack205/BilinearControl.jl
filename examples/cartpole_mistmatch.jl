@@ -364,8 +364,8 @@ res_eDMD_lifted = find_min_sample_to_beat_mpc(2:60, dt; alg=:eDMD, lifted=true,
 p_bar = @pgf Axis(
     {
         reverse_legend,
-        width="4in",
-        height="4cm",
+        # width="4in",
+        # height="4cm",
         xbar,
         ytick="data",
         yticklabels={"Projected", "Lifted"},

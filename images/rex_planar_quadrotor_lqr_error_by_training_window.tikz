@@ -213,6 +213,5 @@
             (2.5,0.009077034351143421)
         }
         ;
-    \legend{{eDMD$(\lambda = 0.0)$},{eDMD$(\lambda = 0.1)$},{jDMD$(\lambda = 10^{-5})$},{jDMD$(\lambda = 0.1)$}}
 \end{axis}
 \end{tikzpicture}
