@@ -1,0 +1,50 @@
+% Recommended preamble:
+\begin{tikzpicture}
+\begin{axis}[height={5cm}, width={5in}, bar width={7pt}, reverse legend, ybar, ymax={100}, legend pos={north west}, ylabel={Training trajectories to Stabilize}, xlabel={Coloumb Friction Coefficient}, nodes near coords]
+    \addplot+[no marks, color={rgb,1:red,0.1333;green,0.5451;blue,0.1333}]
+        coordinates {
+            (0.0,2.0)
+            (0.1,2.0)
+            (0.2,0)
+            (0.3,0)
+            (0.4,0)
+            (0.5,0)
+            (0.6,0)
+        }
+        ;
+    \addplot+[no marks, color={rgb,1:red,0.502;green,0.0;blue,0.502}]
+        coordinates {
+            (0.0,2.0)
+            (0.1,2.0)
+            (0.2,2.0)
+            (0.3,3.0)
+            (0.4,9.0)
+            (0.5,7.0)
+            (0.6,0)
+        }
+        ;
+    \addplot+[no marks, color={cyan}]
+        coordinates {
+            (0.0,2.0)
+            (0.1,2.0)
+            (0.2,2.0)
+            (0.3,2.0)
+            (0.4,3.0)
+            (0.5,7.0)
+            (0.6,12.0)
+        }
+        ;
+    \addplot+[no marks, color={orange}]
+        coordinates {
+            (0.0,5)
+            (0.1,4)
+            (0.2,75)
+            (0.3,3)
+            (0.4,75)
+            (0.5,0)
+            (0.6,0)
+        }
+        ;
+    \legend{{jDMD $(\alpha=0.5)$},{jDMD $(\alpha=0.1)$},{jDMD $(\alpha=0.01)$},{eDMD}}
+\end{axis}
+\end{tikzpicture}
