@@ -18,25 +18,25 @@
 for Learning Bilinear, Control-affine Koopman Models}
 
 \author{
-  Brian E. Jackson \\
-  Robotics Institute \\
-  Carnegie Mellon University\\
-  \texttt{brianjackson@cmu.edu} \\
-  \and
-  Jeong Hun Lee \\
-  Robotics Institute\\
-  Carnegie Mellon University\\
-  \texttt{jeonghunlee@cmu.edu} \\
-  \and
-  Kevin Tracy \\
-  Robotics Institute\\
-  Carnegie Mellon University\\
-  \texttt{ktracy@cmu.edu} \\
-  \and
-  Zachary Manchester \\
-  Robotics Institute\\
-  Carnegie Mellon University\\
-  \texttt{zacm@cmu.edu} \\
+Brian E. Jackson \\
+Robotics Institute \\
+Carnegie Mellon University\\
+\texttt{brianjackson@cmu.edu} \\
+\and
+Jeong Hun Lee \\
+Robotics Institute\\
+Carnegie Mellon University\\
+\texttt{jeonghunlee@cmu.edu} \\
+\and
+Kevin Tracy \\
+Robotics Institute\\
+Carnegie Mellon University\\
+\texttt{ktracy@cmu.edu} \\
+\and
+Zachary Manchester \\
+Robotics Institute\\
+Carnegie Mellon University\\
+\texttt{zacm@cmu.edu} \\
 }
 
 \begin{document}
@@ -46,282 +46,282 @@ for Learning Bilinear, Control-affine Koopman Models}
 
 \section{Introduction}
 
-    Controlling complex, underactuated, and highly nonlinear autonomous systems remains an
-    active area of research in robotics, despite decades of previous work exploring
-    effective algorithms and the development of substantial theoretical analysis. Classical
-    approaches typically rely on local linear approximations of the nonlinear system, which
-    are then used in any of a multitude of linear control techniques, such as PID, pole
-    placement, Bode analysis, H-infinity, LQR, or linear MPC.  These approaches only work
-    well if the states of the system always remain close to the equilibrium point or
-    reference trajectory about which the system was linearized. The region for which these
-    linearizations remain valid can be extremely small for highly nonlinear systems.
-    Alternatively, model-based methods for nonlinear optimal control have shown great
-    success, as long as the model is well known and an accurate estimate of the global state
-    can be provided. These model-based techniques leverage decades of insight into
-    dynamical systems and have demonstrated incredible performance on complicated
-    autonomous systems 
-    \cite{farshidian_efficient_2017,Kuindersma2014,Bjelonic2021,Subosits2019} .  On the
-    other hand, data-driven techniques such as reinforcement learning have received
-    tremendous attention over the last decade and have begun to demonstrate impressive
-    performance and robustness for complicated robotic systems in unstructured environments
-    \cite{Karnchanachari2020,Hoeller2020,Li2021}. While these approaches are attractive
-    since they require little to no previous knowledge about the system, they often require
-    large amounts of data and fail to generalize outside of the domain or task on which they
-    were ``trained.''
-    
-    In this work we propose a novel method that combines the benefits of model-based and
-    data-driven methods, based on recent work  applying Koopman Operator Theory to
-    controlled dynamical systems 
-    \cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}.
-    % \cite{Meduri2022,Bruder2021, Korda2021}
-    % \cite{Meduri2022, Folkestad2021, Bruder2021, Korda2018, Folkestad2020a, Folkestad2020b}.  
-    By leveraging data collected from an
-    unknown dynamical system along with derivative information from an approximate
-    analytical model, we can efficiently learn a bilinear representation of the system
-    dynamics that performs well when used in traditional model-based control techniques such
-    as linear MPC. By leveraging information from an analytical model, we can dramatically
-    reduce the number of samples required to learn a good approximation of the true
-    nonlinear dynamics. We also show the effiectiveness of linear MPC on these systems 
-    when the learned bilinear system is linearized and projected back into the original 
-    state space. The result is a fast, robust, and sample-efficient pipeline for quickly 
-    learning a model that beats previous Koopman-based linear MPC approaches as well as 
-    purely model-based linear MPC contollers that do not leverage data collected from the 
-    actual system. To efficiently learn these bilinear representations, we also propose 
-    a numerical technique that allows for large systems to be trained while limiting the 
-    peak memory required to solve the least-squares problem.
+Controlling complex, underactuated, and highly nonlinear autonomous systems remains an
+active area of research in robotics, despite decades of previous work exploring
+effective algorithms and the development of substantial theoretical analysis. Classical
+approaches typically rely on local linear approximations of the nonlinear system, which
+are then used in any of a multitude of linear control techniques, such as PID, pole
+placement, Bode analysis, H-infinity, LQR, or linear MPC.  These approaches only work
+well if the states of the system always remain close to the equilibrium point or
+reference trajectory about which the system was linearized. The region for which these
+linearizations remain valid can be extremely small for highly nonlinear systems.
+Alternatively, model-based methods for nonlinear optimal control have shown great
+success, as long as the model is well known and an accurate estimate of the global state
+can be provided. These model-based techniques leverage decades of insight into
+dynamical systems and have demonstrated incredible performance on complicated
+autonomous systems 
+\cite{farshidian_efficient_2017,Kuindersma2014,Bjelonic2021,Subosits2019} .  On the
+other hand, data-driven techniques such as reinforcement learning have received
+tremendous attention over the last decade and have begun to demonstrate impressive
+performance and robustness for complicated robotic systems in unstructured environments
+\cite{Karnchanachari2020,Hoeller2020,Li2021}. While these approaches are attractive
+since they require little to no previous knowledge about the system, they often require
+large amounts of data and fail to generalize outside of the domain or task on which they
+were ``trained.''
 
-    In summary, our contributions are:
-    \begin{itemize}
-        \item A novel extension to extended dynamic mode decomposition (eDMD) that
-        incorporates gradient information from an approximate analytic model;
+In this work we propose a novel method that combines the benefits of model-based and
+data-driven methods, based on recent work  applying Koopman Operator Theory to
+controlled dynamical systems 
+\cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}.
+% \cite{Meduri2022,Bruder2021, Korda2021}
+% \cite{Meduri2022, Folkestad2021, Bruder2021, Korda2018, Folkestad2020a, Folkestad2020b}.  
+By leveraging data collected from an
+unknown dynamical system along with derivative information from an approximate
+analytical model, we can efficiently learn a bilinear representation of the system
+dynamics that performs well when used in traditional model-based control techniques such
+as linear MPC. By leveraging information from an analytical model, we can dramatically
+reduce the number of samples required to learn a good approximation of the true
+nonlinear dynamics. We also show the effiectiveness of linear MPC on these systems 
+when the learned bilinear system is linearized and projected back into the original 
+state space. The result is a fast, robust, and sample-efficient pipeline for quickly 
+learning a model that beats previous Koopman-based linear MPC approaches as well as 
+purely model-based linear MPC contollers that do not leverage data collected from the 
+actual system. To efficiently learn these bilinear representations, we also propose 
+a numerical technique that allows for large systems to be trained while limiting the 
+peak memory required to solve the least-squares problem.
 
-        \item a simple linear MPC control technique for learned bilinear control systems
-        that is computationally efficient online, which, when combined with the proposed
-        extension to eDMD, requires extremely little training data to get a good control
-        policy; and
+In summary, our contributions are:
+\begin{itemize}
+  \item A novel extension to extended dynamic mode decomposition (eDMD) that
+  incorporates gradient information from an approximate analytic model;
+  
+  \item a simple linear MPC control technique for learned bilinear control systems
+  that is computationally efficient online, which, when combined with the proposed
+  extension to eDMD, requires extremely little training data to get a good control
+  policy; and
+  
+  \item a recursive, batch QR algorithm solving the least-squares problems that arise 
+  when learning bilinear dynamical systems using eDMD.
+\end{itemize}
 
-        \item a recursive, batch QR algorithm solving the least-squares problems that arise 
-        when learning bilinear dynamical systems using eDMD.
-    \end{itemize}
-    
-    The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
-    give some background on the appliciation of Koopman operator theory to controlled 
-    dynamical systems and review some related works. Section \ref{sec:methodology} describes
-    the proposed algorithm for combining data-driven and model-based approaches, along with 
-    the numerical method for solving the resulting large and sparse linear least-squares 
-    problems. Section \ref{sec:results} provides extensive numerical analysis of the 
-    proposed algorithm, applied to a simulated cartpole and planar quadrotor model, both 
-    subject to significant model mistmach. In Section \ref{sec:limitations} we discuss the 
-    limitations of the method, and finish with some concluding thoughts in Section 
-    \ref{sec:conclusion}.
+The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
+give some background on the appliciation of Koopman operator theory to controlled 
+dynamical systems and review some related works. Section \ref{sec:methodology} describes
+the proposed algorithm for combining data-driven and model-based approaches, along with 
+the numerical method for solving the resulting large and sparse linear least-squares 
+problems. Section \ref{sec:results} provides extensive numerical analysis of the 
+proposed algorithm, applied to a simulated cartpole and planar quadrotor model, both 
+subject to significant model mistmach. In Section \ref{sec:limitations} we discuss the 
+limitations of the method, and finish with some concluding thoughts in Section 
+\ref{sec:conclusion}.
 
 \section{Background and Related Work} \label{sec:Preliminaries/Background}
 
-  \subsection{The Koopman Operator}
-  The theoretical underpinnings of the Koopman operator and its application to dynamical
-  systems has been extensively studied, especially within the last decade 
-  \cite{Fasel2021,Proctor2018,Bruder2021,Williams2015}. Rather than describe the theory in
-  detail, we highlight the key concepts employed by the current work, and defer the
-  motivated reader to the existing literature on Koopman theory.
+\subsection{The Koopman Operator}
+The theoretical underpinnings of the Koopman operator and its application to dynamical
+systems has been extensively studied, especially within the last decade 
+\cite{Fasel2021,Proctor2018,Bruder2021,Williams2015}. Rather than describe the theory in
+detail, we highlight the key concepts employed by the current work, and defer the
+motivated reader to the existing literature on Koopman theory.
 
-  We start by assuming we have some discrete approximation a of controlled nonlinear,
-  time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
-  \begin{equation} \label{eq:discrete_dynamics} 
-    x^+ = f(x, u) 
-  \end{equation} 
-  where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector, $u_k \in \R^{N_u}$ is
-  the control vector, and $x^+$ is the state at the next time step. This discrete
-  approximation can be obtained for any continuous-time, smooth dynamical system in many
-  ways, including implicit and explicit Runge-Kutta methods, or by solving the Discrete
-  Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
+We start by assuming we have some discrete approximation a of controlled nonlinear,
+time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
+\begin{equation} \label{eq:discrete_dynamics} 
+  x^+ = f(x, u) 
+\end{equation} 
+where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector, $u_k \in \R^{N_u}$ is
+the control vector, and $x^+$ is the state at the next time step. This discrete
+approximation can be obtained for any continuous-time, smooth dynamical system in many
+ways, including implicit and explicit Runge-Kutta methods, or by solving the Discrete
+Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
 
-  The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
-  dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
-  \textit{bilinear} system:
-  \begin{equation} \label{eq:bilinear_dynamics}
-      y^+ = A y + B u + \sum_{i=1}^m u_i C_i y = g(y,u)
-  \end{equation}
-  where $y = \phi(x)$ is a nonlinear mapping from the finite-dimensional state space
-  $\mathcal{X}$ to the (possibly) infinite-dimensional Hilbert space of \textit{observables}
-  $y \in \mathcal{Y}$. We also assume the inverse map is approximately linear: $x = G y$. In
-  practice, we approximate \eqref{eq:discrete_dynamics} by choosing $\phi$ to be some
-  arbitrary finite set of nonlinear functions of the state variables, which in general
-  include the states themselves such that the linear mapping $G \in \R^{N_x \times N_y}$ is
-  exact.  Intuitively, $\phi$ ``lifts'' our states into a higher dimensional space where the
-  dynamics are approximately (bi)linear, effectively trading dimensionality for
-  (bi)linearity. This idea should be both unsurprising and familiar to most roboticsts,
-  since similar techniques have already been employed in other forms, such as
-  maximal-coordinate representations of rigid body dynamics
-  \cite{baraff_linear-time_1996-1,Brudigam2021a,Howell2022}, the
-  ``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that
-  solving large, sparse nonlinear optimization problems is often more effective than solving
-  small, tightly-coupled dense problems \todo{add citations from the trajectory optimization
-  literature}.
+The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
+dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
+\textit{bilinear} system:
+\begin{equation} \label{eq:bilinear_dynamics}
+  y^+ = A y + B u + \sum_{i=1}^m u_i C_i y = g(y,u)
+\end{equation}
+where $y = \phi(x)$ is a nonlinear mapping from the finite-dimensional state space
+$\mathcal{X}$ to the (possibly) infinite-dimensional Hilbert space of \textit{observables}
+$y \in \mathcal{Y}$. We also assume the inverse map is approximately linear: $x = G y$. In
+practice, we approximate \eqref{eq:discrete_dynamics} by choosing $\phi$ to be some
+arbitrary finite set of nonlinear functions of the state variables, which in general
+include the states themselves such that the linear mapping $G \in \R^{N_x \times N_y}$ is
+exact.  Intuitively, $\phi$ ``lifts'' our states into a higher dimensional space where the
+dynamics are approximately (bi)linear, effectively trading dimensionality for
+(bi)linearity. This idea should be both unsurprising and familiar to most roboticsts,
+since similar techniques have already been employed in other forms, such as
+maximal-coordinate representations of rigid body dynamics
+\cite{baraff_linear-time_1996-1,Brudigam2021a,Howell2022}, the
+``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that
+solving large, sparse nonlinear optimization problems is often more effective than solving
+small, tightly-coupled dense problems \todo{add citations from the trajectory optimization
+literature}.
 
-  The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned from samples
-  of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic Mode Decomposition (eDMD)
-  \cite{Williams2015}, which is just the application of linear least squares (LLS) to the
-  lifted states. Details of this method will be covered in the next section where we
-  introduce our adaptation of eDMD and present an effective numerical technique for solving
-  the resulting LLS problems.
+The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned from samples
+of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic Mode Decomposition (eDMD)
+\cite{Williams2015}, which is just the application of linear least squares (LLS) to the
+lifted states. Details of this method will be covered in the next section where we
+introduce our adaptation of eDMD and present an effective numerical technique for solving
+the resulting LLS problems.
 
-  \todo{mention the most related papers}
+\todo{mention the most related papers}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Methodology
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{EDMD with Jacobian Residual-Penalization} \label{sec:methodology}
-  Existing Koopman-based approaches to learning dynamical systems only rely on samples of
-  the unknown dynamics. Here we present a novel method for incorporating prior knowledge
-  about the dynamics by adding derivative information of an approximate model into the data
-  set to be learned via eDMD.
+Existing Koopman-based approaches to learning dynamical systems only rely on samples of
+the unknown dynamics. Here we present a novel method for incorporating prior knowledge
+about the dynamics by adding derivative information of an approximate model into the data
+set to be learned via eDMD.
 
-  Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an approximate discrete
-  dynamics model 
-  \begin{equation}
-      x^+ = \tilde{f}(x,u)
-  \end{equation}
-  we can evaluate the Jacobians of our approximate model $\tilde{f}$ at each of the sample
-  points: $\tilde{A}_i = \pdv{\tilde{f}}{x}, \tilde{B}_i = \pdv{\tilde{f}}{u}$. After
-  choosing a nonlinear mapping $\phi : \R^{N_x} \mapsto \R^{N_y}$ our goal is to find a
-  bilinear dynamics model \eqref{eq:bilinear_dynamics} that matches the Jacobians of our
-  approximate model, while also matching our dynamics samples. If we define $\hat{A}_j \in
-  \R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
-  bilinear dynamics model, projected back into the original state space (a formal definition
-  of these terms will be provided in a few paragraphs), our objective is to find the
-  matrices parameterizing our bilinear dynamics model, $A \in \R^{N_y \times N_y},B \in
-  \R^{N_y \times N_u}$, and $C_{1:m} \in \R^{N_u} \times \R^{N_y \times N_y}$, that minimize
-  the following objective:
+Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an approximate discrete
+dynamics model 
+\begin{equation}
+  x^+ = \tilde{f}(x,u)
+\end{equation}
+we can evaluate the Jacobians of our approximate model $\tilde{f}$ at each of the sample
+points: $\tilde{A}_i = \pdv{\tilde{f}}{x}, \tilde{B}_i = \pdv{\tilde{f}}{u}$. After
+choosing a nonlinear mapping $\phi : \R^{N_x} \mapsto \R^{N_y}$ our goal is to find a
+bilinear dynamics model \eqref{eq:bilinear_dynamics} that matches the Jacobians of our
+approximate model, while also matching our dynamics samples. If we define $\hat{A}_j \in
+\R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
+bilinear dynamics model, projected back into the original state space (a formal definition
+of these terms will be provided in a few paragraphs), our objective is to find the
+matrices parameterizing our bilinear dynamics model, $A \in \R^{N_y \times N_y},B \in
+\R^{N_y \times N_u}$, and $C_{1:m} \in \R^{N_u} \times \R^{N_y \times N_y}$, that minimize
+the following objective:
 
-  \begin{equation} \label{eq:lls_objective}
-      (1- \alpha) \sum_{j=1}^P \norm{\hat{y}_j - y_j^+}_2^2 + 
-          \alpha  \sum_{j=1}^P \norm{\hat{A}_j - \tilde{A}_j}_2^2 + 
-                               \norm{\hat{B}_j - \tilde{B}_j}_2^2 
-  \end{equation}
-  where $\hat{y}_j^+ = g\left(\phi(x_j), u_j\right)$ is the output of our bilinear dynamics
-  model, and $y_j^+ = \phi(x_j^+)$ is the actual lifted state (i.e. observables) at the next
-  time step. Note that $\hat{y}_j$, $\hat{A}_j$, and $\hat{B}_j$ are all implicitly
-  functions of the model parameters $A$, $B$, and $C_{1:m}$ we're trying to learn.
+\begin{equation} \label{eq:lls_objective}
+  (1- \alpha) \sum_{j=1}^P \norm{\hat{y}_j - y_j^+}_2^2 + 
+  \alpha  \sum_{j=1}^P \norm{\hat{A}_j - \tilde{A}_j}_2^2 + 
+  \norm{\hat{B}_j - \tilde{B}_j}_2^2 
+\end{equation}
+where $\hat{y}_j^+ = g\left(\phi(x_j), u_j\right)$ is the output of our bilinear dynamics
+model, and $y_j^+ = \phi(x_j^+)$ is the actual lifted state (i.e. observables) at the next
+time step. Note that $\hat{y}_j$, $\hat{A}_j$, and $\hat{B}_j$ are all implicitly
+functions of the model parameters $A$, $B$, and $C_{1:m}$ we're trying to learn.
 
-  While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
-  least-squares, using techniques similar to those used previously in the literature
-  \cite{Folkestad2021}.
+While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
+least-squares, using techniques similar to those used previously in the literature
+\cite{Folkestad2021}.
 
-  To start, we combine all the data we're trying to learn into a single matrix:
-  \begin{equation}
-      E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
-  \end{equation}
-  where $N_z = N_y + N_u + N_y \cdot N_u$.  We now rewrite the terms in
-  \eqref{eq:lls_objective} in terms of $E$. By defining the vector 
-  \begin{equation}
-      z = \begin{bmatrix} y^T & u^T & u_1 y^T & \dots & u_m y^T \end{bmatrix} \in \R^{N_z},
-  \end{equation}
-  we can write down 
-  the output of our bilinear dynamics \eqref{eq:bilinear_dynamics} as 
-  \begin{equation} \label{eq:bilinear_dynamics_z}
-      \hat{y}^+ = E z.
-  \end{equation}
-  The previously-mentioned projected Jacobians of our bilinear model, $\hat{A}$ and
-  $\hat{B}$, are simply the Jacobians of the bilinear dynamics in terms of the original
-  state. We obtain these dynamics by ``lifting`` the state via $\phi$ and then projecting
-  back onto the original states using $G$:
-  \begin{equation} \label{eq:projected_dynamics}
-      x^+ = G \left( A \phi(x) + B u + \sum_{i=1}^m u_i C_i \phi(x) \right)  = \hat{f}(x,u) 
-  \end{equation}
-  Differentiating these dynamics gives us our projected Jacobians:
-  \begin{subequations} \label{eq:projected_jacobians}
+To start, we combine all the data we're trying to learn into a single matrix:
+\begin{equation}
+  E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
+\end{equation}
+where $N_z = N_y + N_u + N_y \cdot N_u$.  We now rewrite the terms in
+\eqref{eq:lls_objective} in terms of $E$. By defining the vector 
+\begin{equation}
+  z = \begin{bmatrix} y^T & u^T & u_1 y^T & \dots & u_m y^T \end{bmatrix} \in \R^{N_z},
+\end{equation}
+we can write down 
+the output of our bilinear dynamics \eqref{eq:bilinear_dynamics} as 
+\begin{equation} \label{eq:bilinear_dynamics_z}
+  \hat{y}^+ = E z.
+\end{equation}
+The previously-mentioned projected Jacobians of our bilinear model, $\hat{A}$ and
+$\hat{B}$, are simply the Jacobians of the bilinear dynamics in terms of the original
+state. We obtain these dynamics by ``lifting`` the state via $\phi$ and then projecting
+back onto the original states using $G$:
+\begin{equation} \label{eq:projected_dynamics}
+  x^+ = G \left( A \phi(x) + B u + \sum_{i=1}^m u_i C_i \phi(x) \right)  = \hat{f}(x,u) 
+\end{equation}
+Differentiating these dynamics gives us our projected Jacobians:
+\begin{subequations} \label{eq:projected_jacobians}
   \begin{align}
-      \hat{A}_j &= \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
-                = G \left(A + \sum_{i=1}^m u_{j,i} C_i \right) \Phi(x_j)
-              %   = G A_j^x \phi(x_j)
-                = G E \bar{A}(x_j,u_j) = G E \bar{A}_j \\
-      \hat{B}_j &= \pdv{\hat{f}}{u}\left(x_j,u_j\right) 
-                = G \Big(B + \begin{bmatrix} C_1 x_j & \dots & C_m x_j \end{bmatrix} \Big)
-              %   = G B_j^u
-                = G E \bar{B}(x_j,u_j) = G E \bar{B}_j
+    \hat{A}_j &= \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
+    = G \left(A + \sum_{i=1}^m u_{j,i} C_i \right) \Phi(x_j)
+    %   = G A_j^x \phi(x_j)
+    = G E \bar{A}(x_j,u_j) = G E \bar{A}_j \\
+    \hat{B}_j &= \pdv{\hat{f}}{u}\left(x_j,u_j\right) 
+    = G \Big(B + \begin{bmatrix} C_1 x_j & \dots & C_m x_j \end{bmatrix} \Big)
+    %   = G B_j^u
+    = G E \bar{B}(x_j,u_j) = G E \bar{B}_j
   \end{align}
-  \end{subequations}
-  where $\Phi(x) = \pdv*{\phi}{x}$ is the Jacobian of the nonlinear map $\phi$, and
-  \begin{equation}
-      \bar{A}(x,u) =  \begin{bmatrix} 
-          I \\ 0 \\ u_1 I \\ u_2 I \\ \vdots \\ u_m I 
-      \end{bmatrix} \in \R^{N_z \times N_x}, \quad
-      \bar{B}(x,u) = \begin{bmatrix} 
-          0 \\ 
-          I \\ 
-          [x \; 0 \; ... \; 0] \\
-          [0 \; x \; ... \; 0] \\
-          \vdots \\
-          [0 \; 0 \; ... \; x] \\
-      \end{bmatrix} \in \R^{N_z \times N_u}.
-  \end{equation}
-  Note we define $\bar{A}_j = \bar{A}(x_j,u_j)$, $\bar{B}_j = \bar{B}(x_j,u_j)$ to lighten 
-  the notation, but want to emphasize that these terms are all purely functions of the input
-  data.
+\end{subequations}
+where $\Phi(x) = \pdv*{\phi}{x}$ is the Jacobian of the nonlinear map $\phi$, and
+\begin{equation}
+  \bar{A}(x,u) =  \begin{bmatrix} 
+    I \\ 0 \\ u_1 I \\ u_2 I \\ \vdots \\ u_m I 
+  \end{bmatrix} \in \R^{N_z \times N_x}, \quad
+  \bar{B}(x,u) = \begin{bmatrix} 
+    0 \\ 
+    I \\ 
+    [x \; 0 \; ... \; 0] \\
+    [0 \; x \; ... \; 0] \\
+    \vdots \\
+    [0 \; 0 \; ... \; x] \\
+  \end{bmatrix} \in \R^{N_z \times N_u}.
+\end{equation}
+Note we define $\bar{A}_j = \bar{A}(x_j,u_j)$, $\bar{B}_j = \bar{B}(x_j,u_j)$ to lighten 
+the notation, but want to emphasize that these terms are all purely functions of the input
+data.
 
-  Substituting \eqref{eq:bilinear_dynamics_z} and \eqref{eq:projected_jacobians} into
-  \eqref{eq:lls_objective}, we can rewrite our LLS problem as:
-  \begin{align}
-      \underset{E}{\text{minimize}} \;\; 
-          \sum_{j=0}^P
-          (1-\alpha) \norm{E z_j - y_j^+}_2^2 + 
-            \alpha  \norm{G E \bar{A}_j - \tilde{A}_j}_2^2 + 
-            \alpha  \norm{G E \bar{B}_j - \tilde{B}_j}_2^2 
-  \end{align}
-  which is equivalent to
-  \begin{align} \label{opt:lls_matrices}
-      \underset{E}{\text{minimize}} \;\; 
-          (1-\alpha) \norm{E \mathbf{Z_{1:P}} - \mathbf{Y^+_{1:P}} }_2^2 + 
-            \alpha  \norm{G E \mathbf{\bar{A}_{1:P}} - \mathbf{\tilde{A}_{1:P}}}_2^2 + 
-            \alpha  \norm{G E \mathbf{\bar{B}_{1:P}} - \mathbf{\tilde{B}_{1:P}}}_2^2
-  \end{align}
-  where $\mathbf{Z_{1:P}} \in \R^{N_z \times P} = [z_1 \; z_2 \; ... \; z_P]$ horizontally
-  concatenates all of the samples (equivalent definition for 
-  $\mathbf{Y^+_{1:P}} \in \R^{N_y \times P}$, 
-  $\mathbf{\bar{A}_{1:P}} \in \R^{N_z \times N_x \cdot P}$, 
-  $\mathbf{\tilde{A}_{1:P}} \in \R^{N_z \times N_x \cdot P}$,
-  $\mathbf{\bar{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$, and 
-  $\mathbf{\tilde{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$ ).
+Substituting \eqref{eq:bilinear_dynamics_z} and \eqref{eq:projected_jacobians} into
+\eqref{eq:lls_objective}, we can rewrite our LLS problem as:
+\begin{align}
+  \underset{E}{\text{minimize}} \;\; 
+  \sum_{j=0}^P
+  (1-\alpha) \norm{E z_j - y_j^+}_2^2 + 
+  \alpha  \norm{G E \bar{A}_j - \tilde{A}_j}_2^2 + 
+  \alpha  \norm{G E \bar{B}_j - \tilde{B}_j}_2^2 
+\end{align}
+which is equivalent to
+\begin{align} \label{opt:lls_matrices}
+  \underset{E}{\text{minimize}} \;\; 
+  (1-\alpha) \norm{E \mathbf{Z_{1:P}} - \mathbf{Y^+_{1:P}} }_2^2 + 
+  \alpha  \norm{G E \mathbf{\bar{A}_{1:P}} - \mathbf{\tilde{A}_{1:P}}}_2^2 + 
+  \alpha  \norm{G E \mathbf{\bar{B}_{1:P}} - \mathbf{\tilde{B}_{1:P}}}_2^2
+\end{align}
+where $\mathbf{Z_{1:P}} \in \R^{N_z \times P} = [z_1 \; z_2 \; ... \; z_P]$ horizontally
+concatenates all of the samples (equivalent definition for 
+$\mathbf{Y^+_{1:P}} \in \R^{N_y \times P}$, 
+$\mathbf{\bar{A}_{1:P}} \in \R^{N_z \times N_x \cdot P}$, 
+$\mathbf{\tilde{A}_{1:P}} \in \R^{N_z \times N_x \cdot P}$,
+$\mathbf{\bar{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$, and 
+$\mathbf{\tilde{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$ ).
 
-  We can rewrite \eqref{opt:lls_matrices} in standard form using the ``vec trick''
-  \begin{equation} \label{eq:vectrick}
-      \text{vec}(A X B) = (B^T \otimes A) \text{vec}(X)
-  \end{equation}
-  where $\text{vec}(A)$ stacks the columns of $A$ into a single vector.
+We can rewrite \eqref{opt:lls_matrices} in standard form using the ``vec trick''
+\begin{equation} \label{eq:vectrick}
+  \text{vec}(A X B) = (B^T \otimes A) \text{vec}(X)
+\end{equation}
+where $\text{vec}(A)$ stacks the columns of $A$ into a single vector.
 
-  Setting $E$ in \eqref{opt:lls_matrix} equal to $X$ in \eqref{eq:vectrick}, we get
-  \begin{align} \label{opt:lls_matrix}
-      \underset{E}{\text{minimize}} \;\;  
-      \norm{
-          \begin{bmatrix}
-              (1-\alpha)\cdot(\mathbf{Z_{1:P}})^T \otimes I_{N_y} \\
-              \alpha\cdot(\mathbf{\bar{A}_{1:P}})^T \otimes G \\
-              \alpha\cdot(\mathbf{\bar{G}_{1:P}})^T \otimes G \\
-          \end{bmatrix}
-          \text{vec}(E)
-          +
-          \begin{bmatrix}
-              (1-\alpha)\cdot\text{vec}(\mathbf{Y^+_{1:P}}) \\
-              \alpha\cdot\text{vec}(\mathbf{\tilde{A}_{1:P}}) \\
-              \alpha\cdot\text{vec}(\mathbf{\tilde{G}_{1:P}})
-          \end{bmatrix}
-      }_2^2
-  \end{align}
-  such that the matrix of cofficients has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows and 
-  $N_y \cdot N_z$ columns. We obtain the data for our bilinear model 
-  \eqref{eq:bilinear_dynamics} by solving this large, sparse linear least-squares 
-  problem.
+Setting $E$ in \eqref{opt:lls_matrix} equal to $X$ in \eqref{eq:vectrick}, we get
+\begin{align} \label{opt:lls_matrix}
+  \underset{E}{\text{minimize}} \;\;  
+  \norm{
+  \begin{bmatrix}
+    (1-\alpha)\cdot(\mathbf{Z_{1:P}})^T \otimes I_{N_y} \\
+    \alpha\cdot(\mathbf{\bar{A}_{1:P}})^T \otimes G \\
+    \alpha\cdot(\mathbf{\bar{G}_{1:P}})^T \otimes G \\
+  \end{bmatrix}
+  \text{vec}(E)
+  +
+  \begin{bmatrix}
+    (1-\alpha)\cdot\text{vec}(\mathbf{Y^+_{1:P}}) \\
+    \alpha\cdot\text{vec}(\mathbf{\tilde{A}_{1:P}}) \\
+    \alpha\cdot\text{vec}(\mathbf{\tilde{G}_{1:P}})
+  \end{bmatrix}
+  }_2^2
+\end{align}
+such that the matrix of cofficients has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows and 
+$N_y \cdot N_z$ columns. We obtain the data for our bilinear model 
+\eqref{eq:bilinear_dynamics} by solving this large, sparse linear least-squares 
+problem.
 
 \subsection{Efficient Recursive Least Squares}
 In its canonical formulation, a linear least squares problem can be represented as the
 following unconstrained optimization problem:
 \begin{align}
-    \min_x \|Fx - d\|_2^2.
+  \min_x \|Fx - d\|_2^2.
 \end{align}
 The solution to this problem is found by solving for the $x$ in which the gradient of the
 objective function with respect to $x$ is zero, also known as the normal equations: 
 \begin{align}\label{eq:normal_eq}
-    (F^TF)x =F^Td,
+  (F^TF)x =F^Td,
 \end{align}
 For small to medium sized problems, this problem is most often solved with either a Cholesky
 or a QR decomposition.  Unfortunately, for very large problems where storage size and
@@ -333,29 +333,29 @@ method is used that processes rows of $F$ and $d$ sequentially in batches, avoid
 for forming or factorizing the whole matrix. To do this, the rows of $F$ and $d$ will be
 divided up into batches in the following manner:
 \begin{equation}
-    \begin{aligned}
-        F = \begin{bmatrix} F_1 \\ F_2 \\ \vdots \\ F_N \end{bmatrix}
-    \end{aligned},
-    \quad 
-    \begin{aligned}
-        d = \begin{bmatrix} d_1 \\ d_2 \\ \vdots \\ d_N \end{bmatrix}.
-    \end{aligned}
+  \begin{aligned}
+    F = \begin{bmatrix} F_1 \\ F_2 \\ \vdots \\ F_N \end{bmatrix}
+  \end{aligned},
+  \quad 
+  \begin{aligned}
+    d = \begin{bmatrix} d_1 \\ d_2 \\ \vdots \\ d_N \end{bmatrix}.
+  \end{aligned}
 \end{equation}
 The matrix $F^TF$ from \eqref{eq:normal_eq} can then be represented as the following sum:
 \begin{align} \label{eq:F_sum}
-    F^TF = F_1^TF_1 + F_2^TF_2 + \ldots + F_N^TF,
+  F^TF = F_1^TF_1 + F_2^TF_2 + \ldots + F_N^TF,
 \end{align}
 with the right-hand side vector in \eqref{eq:normal_eq} expressed in a similar fashion:
 \begin{align}
-    F^Td = F_1^Td_1 + F_2^Td_2 + \ldots + F_N^Td_N.
+  F^Td = F_1^Td_1 + F_2^Td_2 + \ldots + F_N^Td_N.
 \end{align}
 The main idea of this recursive method is to maintain an upper-triangular ``square root''
 factor $U_i$ of the first $i$ terms of the sum \eqref{eq:F_sum}. Given the factorization 
 $U_i$, we can calculate $U_{k+1}$ using the $\operatorname{QR}$ decomposition, as shown in
 \cite{Howell2019}:
 \begin{equation}
-    U_{i+1} = \sqrt{U_i + F_{i+1}} = 
-    \operatorname{QR_R}\bigg( \begin{bmatrix} \sqrt{U_i} \\ \sqrt{F_{i+1}} \end{bmatrix} \bigg),
+  U_{i+1} = \sqrt{U_i + F_{i+1}} = 
+  \operatorname{QR_R}\bigg( \begin{bmatrix} \sqrt{U_i} \\ \sqrt{F_{i+1}} \end{bmatrix} \bigg),
 \end{equation}
 where $\operatorname{QR_R}$ returns the upper triangular matrix $R$ from the 
 $\operatorname{QR}$ decomposition. 
@@ -365,9 +365,9 @@ the original least squares problem, during the base case of our recursion. If we
 add an L2 regularization with weight $\rho$, we calculate $U_1$ as:
 
 \begin{equation}
-    U_1 =  \operatorname{QR_R}\bigg( 
-        \begin{bmatrix} \sqrt{F_1} \\ \sqrt{\rho} I \end{bmatrix}.
-    \bigg),
+  U_1 =  \operatorname{QR_R}\bigg( 
+  \begin{bmatrix} \sqrt{F_1} \\ \sqrt{\rho} I \end{bmatrix}.
+  \bigg),
 \end{equation}
 
 The final algorithm for solving a least squares problem in a recursive-batch fashion is
@@ -375,19 +375,19 @@ described in algorithm \ref{alg:rlsqr}. This algorithm can be modified to handle
 regularized least squares problems by simply replacing line 2 of algorithm \ref{alg:rlsqr}
 with $U\leftarrow \operatorname{QR_R}(\operatorname{vcat}(F_1,\sqrt{\rho}I))$, where $\rho$
 is the regularizer. 
- \begin{algorithm} 
-    \begin{algorithmic}[1]
-        \caption{Recursive Batch Least Squares with QR}\label{alg:rlsqr}
-        \State \textbf{input} $F,\,d$  \Comment{problem data}
-        \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(F_1,\sqrt{\rho}I))$ \Comment{form initial upper-triangular square-root}
-        \State $b \leftarrow F_1^Td_1$ \Comment{form initial right hand side vector}
-        \For{$i = 2:N$}
-% 		\State $U \leftarrow \operatorname{QR_R}([U^T \, A_i^T]^T) $ 
-        \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(U,F_i)) $ \Comment{update square-root with new batch}
-        \State $b \leftarrow b + F_i^Td_i$ \Comment{update right hand side with new batch}
-        \EndFor
-        \State \textbf{ouput} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
-    \end{algorithmic}
+\begin{algorithm} 
+  \begin{algorithmic}[1]
+    \caption{Recursive Batch Least Squares with QR}\label{alg:rlsqr}
+    \State \textbf{input} $F,\,d$  \Comment{problem data}
+    \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(F_1,\sqrt{\rho}I))$ \Comment{form initial upper-triangular square-root}
+    \State $b \leftarrow F_1^Td_1$ \Comment{form initial right hand side vector}
+    \For{$i = 2:N$}
+    % 		\State $U \leftarrow \operatorname{QR_R}([U^T \, A_i^T]^T) $ 
+    \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(U,F_i)) $ \Comment{update square-root with new batch}
+    \State $b \leftarrow b + F_i^Td_i$ \Comment{update right hand side with new batch}
+    \EndFor
+    \State \textbf{ouput} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
+  \end{algorithmic}
 \end{algorithm}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -407,17 +407,91 @@ trained using the same approach in \cite{Folkestad2021}. For the proposed jDMD m
 Jacobians of the nominal model were calculated at each of the sample points and the bilinear
 model was learned using the approach outlined in Section \ref{sec:methodology}.
 All continuous dynamics were discretized with an explicit fourth-order Runge Kutta 
-integrator. The code for the experiments is located at 
-\todo{include after review}.
+integrator. The code for the experiments is located at \todo{include after review}.
 
-\subsection{Tasks}
-Here we briefly describe each of the tasks given to the simulated systems.
-\begin{itemize}
-  \item \textit{Cartpole Stabilization}: 
-\end{itemize}
+\subsection{Models}
+\subsubsection{Cartpole Model}
 
+For several of the following analyses we use the canonical cartpole system.  The
+\textit{simulated} cartpole model included a $\tanh$ model of Columb friction between the
+cart and the floor, viscous damping at both joints, and a control deadband that was not
+included in the \textit{nominal} model. Additionally the mass of the cart and pole of the
+simulated model were altered by 20\% and 25\% with respect to the nominal model,
+respectively.  The following nonlinear mapping was used when learning the bilinear models: 
+$\phi(x) = [\, 1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\,
+T_4(x)\, ] \in \R^{33}$, where $T_i(x)$ is a Chebyshev polynomial of the first kind of order
+$i$.
 
+We analyze the system on two separate control tasks: 
+\begin{enumerate}
+  \item \textit{MPC Stabilization} about the upward unstable equilibrium, given initial
+  conditions sampled from a uniform distribution of $\pm[1.0,\; 40^\circ,\; 0.5,\; 0.5]$,
+  relative to the upward equilibrium. The control was calculated using a linear MPC policy
+  with a horizon of 1 second.
+  
+  \item \textit{Swingup} reference trajectory tracking with a linear MPC controller with a 
+  time horizon of 1 second. The 5 second swingup trajectories were generated using ALTRO, a 
+  high-performance open-source trajectory optimization solver \cite{Howell2019,Jackson2021}.
+\end{enumerate}
+
+\subsubsection{Planar Quadrotor}
+As another benchmark example, we use a planar quadrotor model, a simplification of the
+full quadrotor system with only 3 degrees of freedom. All model parameters were derived off 
+of a real physical system (including experimentally-determined force and torque curves). 
+The \textit{simulated} model included aerodynamic drag terms not included in the 
+\textit{nominal} model, as well as parametric error of about 5\% on the system properties 
+(e.g. mass, rotor arm length, etc.).
+
+We analyze the system on tasks nearly identical to those of the cartpole system:
+\begin{enumerate}
+  \item \textit{LQR Hover stabilization} where the system must stabilize about the origin 
+  given initial conditions sampled from the uniform distribution of $\pm[1.0,\; 1.0,\;
+  40^\circ,\; 0.5,\; 0.5,\; 0.25]$, centered about the origin. The system must stabilize 
+  using a traditional LQR controller.
+  
+  \item \textit{Linear MPC trajectory tracking} where the system is given an initial condition
+  take from the same distribution used for the stabilization task, but is asked to track a
+  linear trajectory back to the origin using a linear MPC controller.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Sample Efficiency}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \raggedleft
+    \includegraphics[width=\textwidth, height=5cm]{../images/cartpole_mpc_test_error.tikz}
+    \caption{MPC tracking error vs training samples for the cartpole swingup. Tracking error
+    is defined as the average L2 error over all the test trajectories between the reference
+    and simulated trajectories.}
+    \label{fig:cartpole_mpc_test_error}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \raggedleft
+    \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_test_error.tikz}
+    \caption{MPC tracking error vs training samples for the planar quadrotor. The proposed
+    jDMD method quickly improves upon the linear MPC controller based on the nominal model,
+    whereas eDMD never gets consistently improved performance.}
+    \label{fig:rex_planar_quadrotor_mpc_test_error}
+  \end{subfigure}
+  \caption{Effect of increased training data on controller performance. With just a few 
+    samples the proposed jDMD approach get better performance than the nominal 
+    MPC controller, whereas traditional eDMD taks more samples and never achieves the same 
+    level of performance.
+    \todo{combined this into a single plot? Add training time plot to the side?}}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.48\textwidth, height=5cm]{cartpole_mpc_train_time.tikz}
+  \caption{Training time for cartpole models as a function of training samples. The 
+  training time complexity is approximately linear.}
+  \label{fig:cartpole_train_time}
+\end{figure}
+
+
 
 We highlight the sample efficiency of the proposed algorithm in Figures 
 \ref{fig:cartpole_mpc_test_error} and \ref{fig:rex_planar_quadrotor_mpc_test_error}. For
@@ -432,10 +506,24 @@ from which the training data was sampled.
 The training time versus number of training samples is shown in Figure 
 \ref{fig:cartpole_train_time} for the cartpole swingup task. While the proposed approach 
 naturally takes longer since it includes much more information per sample (adding 
-$N_x + N_u + 1$ rows for every sample), the complexity the approximately linear and the 
+$N_x + N_u + 1$ rows for every sample), the complexity is approximately linear and the 
 solve times are on the order of seconds for simple systems.
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Lifted versus Projected MPC}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}
+  \centering
+  \includegraphics[width=0.7\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
+  \caption{Number of training trajectories requires to beat the nominal MPC controller.
+  The criteria is the L2 norm of the state from the goal state after 4 seconds.
+  The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
+  (17 states), whereas the ``Projected'' MPC contollers project the Jacobians of the 
+  bilinear system back into the original state space.
+  }
+  \label{fig:cartpole_lqr_samples}
+\end{figure}
 Figure \ref{fig:cartpole_lqr_samples} also highlights the sample efficiency of the proposed 
 method, while also comparing to the more typical approach of applying the MPC policy in the 
 lifted state space. As shown, the proposed method of applying linear MPC to the projected 
@@ -445,10 +533,37 @@ MPC policy, is more numerically robust (we found the lifted MPC policies tended 
 from numerical issues when using Riccati recursion to solve for long time horizons), and 
 it is straightforward to apply additional constraints to the original state variables.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Generalization}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] \centering
+  \begin{subfigure}[t]{0.45\textwidth}
+    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
+    \caption{LQR stabilization error over varying ranges of distribution for sampling
+    initial conditions. 
+    }
+    \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \raggedright
+    \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_error_by_training_window.tikz}
+    \caption{MPC tracking error of quadrotor over varying range of distribution for sampling
+    initial conditions. Drastically increasing error for eDMD suggests greater overfitting.
+    }
+    \label{fig:rex_planar_quadrotor_mpc_error_by_training_window}
+  \end{subfigure}
+  \caption{Generalizability with respect to initial conditions sampled outside of the 
+  training domain. The initial conditions are sampled from a uniform distribution, whose 
+  limits are determined by a scaling of the limits used for the training distribution. 
+  A training range fraction greater than $1$ indicates the
+  distribution range is beyond that used to generate the training trajectories.
+  }
+  \label{fig:training_window}
+\end{figure}
+
 We demonstrate the generalizability of the proposed method to tasks outside of its training
-domain in Figures \ref{fig:rex_planar_quadrotor_lqr_error_by_training_window} and 
-\ref{fig:rex_planar_quadrotor_mpc_error_by_training_window}. In both the quadrotor 
+domain in Figure \ref{fig:training_window}. In both the quadrotor 
 stabilization (Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_training_window}) and 
 trajectory tracking (Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window})
 tasks, we trained the models by sampling uniformly from a given window of offsets, centered 
@@ -469,8 +584,34 @@ equilibrium points, despite the fact that the underlying dynamics are invariant 
 equilibrium position. Our proposed approach, however, easily learns this from the derivative
 information provided by the nominal model.
 
+\subsection{Sensitivity to Model Mismatch}
+\begin{figure}
+  \centering
+  \includegraphics[width=1.0\textwidth, height=5cm]{cartpole_friction_mismatch.tikz}
+  \caption{Effect of increasing model mismatch. Displays the number of training trajectories
+    required to consistently stabilize the cartpole system, given an increasing friction 
+    coefficient, which the nominal model does not include at all. An entry of 0 signifies 
+    that a stabilizing controller wasn't found with less than 100 training trajectories.
+  }
+  \label{fig:cartpole_friction_mismatch}
+\end{figure}
+
+While we've introduced a significant mount of model mismatch in all of the examples so far, 
+a natural argument against model-based methods is that they're only as good as your model is
+at capturing the salient dynamics of the system. We investigated the effect of increasing
+model mismatch by incrementally increasing the Coloumb friction coefficient between the cart
+and the floor for the cartpole stabilization task. The results are shown in Figure 
+\ref{fig:cartpole_friction_mismatch}. As expected, the number of training trajectories 
+required to find a good stabilizing controller increases for the proposed approach, as long 
+as we set the $\alpha$ value low enough, which intuitively corresponds to a decreased 
+confidence in the nominal model. The samples required by eDMD varied widely, and was unable 
+to find a good enough model above friction values of 0.4. While this could likely be
+remedied by adjusting the nonlinear mapping $\phi$, the proposed approach works well with
+the given bases.
+
 \subsection{Cartpole}
-As a simple benchmark example, we use the canonical cartpole system. The \textit{simulated}
+As a simple benchmark example, we use the canonical cartpole system. 
+The \textit{simulated}
 cartpole model included a $\tanh$ model of Columb friction between the cart and the 
 floor, viscous damping at both joints, and a control deadband that was not included in the 
 \textit{nominal} model. Additionally the mass of the cart and pole of the simulated model 
@@ -509,222 +650,178 @@ training trajectories (1 for jDMD and 18 for eDMD) we can learn a model that imp
 our nominal LQR controller policy.
 
 % \begin{figure}
-%   \centering
-%   \begin{subfigure}[b]{0.40\textwidth}
-%     \includegraphics[width=\textwidth,height=5cm]{cartpole_lqr_stabilization_performance.tikz}
-%     \caption{LQR Controllers}
-%   \end{subfigure}
-%   \begin{subfigure}[b]{0.59\textwidth}
-%     \includegraphics[width=\textwidth,height=5cm]{cartpole_mpc_stabilization_performance.tikz}
-%     \caption{MPC Controller}
-%   \end{subfigure}
-%   \label{fig:cartpole_stabilization}
-%   \caption{Controller performance on the task of stabilizing the cartpole system about the 
-%   upward unstable equilibrium. Performance is plotted as the error }
-% \end{figure}
-\begin{figure}
-  \centering
-  \includegraphics[width=0.7\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
-  \caption{Number of training trajectories requires to beat the nominal MPC controller.
-    The criteria is the L2 norm of the state from the goal state after 4 seconds.
-    The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
-    (17 states), whereas the ``Projected'' MPC contollers project the Jacobians of the 
-    bilinear system back into the original state space.
-  }
-  \label{fig:cartpole_lqr_samples}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \begin{subfigure}[t]{0.48\textwidth}
-    \raggedleft
-    \includegraphics[width=\textwidth, height=5cm]{../images/cartpole_mpc_test_error.tikz}
-    \caption{MPC tracking error vs training samples for the cartpole. Tracking error is
-    defined as the average L2 error over all the test trajectories between the reference and
-    simulated trajectories. The proposed jDMD method immediately learns a model good enough
-    for control with just a couple hundred dynamics samples (2 swing-up trajectories).}
-    \label{fig:cartpole_mpc_test_error}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}[t]{0.48\textwidth}
-    \raggedright
-    \includegraphics[width=\textwidth, height=5cm]{cartpole_mpc_train_time.tikz}
-    \caption{Training time for cartpole models as a function of training samples. The 
-    training time complexity is approximately linear.}
-    \label{fig:cartpole_train_time}
-  \end{subfigure}
-\end{figure}
-
-\subsubsection{MPC Tracking Performance}
-
-To train the bilinear model for the swing-up task, we generated 50 training swing-up
-trajectories using ALTRO, an open-source nonlinear trajectory optimization solver 
-\cite{Howell2019,Jackson2021}, on the nominal cartpole model. Each trajectory was 5 seconds
-long and sampled at 20 Hz.  A linear MPC controller was then used to track the swing-up
-trajectories on the simulated system, resulting in significant tracking error due to the
-model mismatch.  After learning both models, a linear MPC policy using the projected 
-dynamics Jacobians was used to track the original swing-up trajectory generated by ALTRO. 
-
-The tracking error, defined as the average L2 norm of the error between the reference 
-trajectory and the actual trajectory of the simulated system for 10 test trajectories not 
-included in the training data, was recorded after training both the eDMD and jDMD models
-with an increasing number of trajectories. The results in Figure
-\ref{fig:cartpole_mpc_test_error} clearly show that jDMD produces a high-quality model with
-extremely few samples, whereas eDMD---even after many training samples---never achieves the 
-same level of performance. The lack of progress with increasing samples is likely a result 
-of poor variety in the training data: after enough samples both methods effectively learn 
-all the information that can be learned from the distribution from which the training data 
-is sampled. This example highlights the value of adding even just a little derivative 
-information to a data-driven approach: it dramatically increases sample efficiency while 
-also improving the quality of the learned model, especially when that model is used in 
-optimization-based controllers such as MPC that rely on derivative information. For 
-reference, the training times are shown in Figure \ref{fig:cartpole_train_time}. Note that 
-the training algorithms haven't yet been optimized for max performance but reflect a decent 
-first implementation.
-
-
-\subsection{Planar Quadrotor}
-As another benchmark example, we use the planar quadrotor model, a simplification of the
-full quadrotor system with only 3 degrees of freedom. The \textit{simulated} model included
-aerodynamic drag terms not included in the \textit{nominal}, as well as parametric error of 
-about 5\% on the system properties (e.g. mass, rotor arm length, etc.).
-
-Analysis of the planar quadrotor system is also split into 2 separate tasks: stabilization
-about the hover position with perturbed initial conditions, and a point-to-point translation
-where the system tracks a linear trajectory between two points with zero initial and 
-terminal velocity.
-
-\subsubsection{Stabilization}
-
-For stabilizing the system about the upward unstable equilibrium, we used an LQR controller
-designed using the nominal planar quadrotor model to collect various trajectories. To learn
-our bilinear eDMD and jDMD, the following nonlinear mapping was used: $\phi(x) = [\; 1,\;
-x,\; \sin(x),\; \cos(x),\; 2x^{2}-1\; ] \in \R^{25}$. After learning both models, respective
-LQR controllers were designed using the bilinear models' ``projected'' Jacobians
-\eqref{eq:projected_jacobians}. The LQR controllers linearized about hover at the origin ($x
-= [\;0,\; 0,\; 0,\;, 0\;  0\;  0\;]$) and solved the resulting equality-constrained
-quadratic program using Riccati recursion. Each controller was tested using 30 different
-initial conditions sampled from a uniform distribution of initial conditions centered about
-the hover position.
-
-To study how robust eDMD and jDMD are to regularization, we trained multiple bilinear eDMD
-and jDMD models with increasing L2 (Tikhonov) regularization values. LQR controllers were
-designed for each model and tested with 100 initial conditions sampled from a uniform
-distribution centered about the hover position. The average L2 error of the state after 5.0
-seconds of simulation, which we'll refer to in this section as the stabilization error, was
-recorded for each model. As shown in Figure
-\ref{fig:rex_planar_quadrotor_lqr_error_by_reg}, the proposed jDMD method remains robust
-over a range of small regularization values ($<10^{-1}$) when compared to nominal eDMD, which 
-clearly has a local optimal around $10^0$. This supports what we found empirically, that 
-jDMD tends to be much ``easier'' to train and is far more robust to hyperparameters such as 
-the regularization value, when compared to eDMD.
-
-As suggested by Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_reg}, eDMD without
-regularization performs best, but may be prone to overfitting. Therefore, we test eDMD's and
-jDMD's respective LQR controllers on initial conditions sampled from increasingly larger
-uniform distributions to analyze the generalizability of the lifted, bilinear models. The
-LQR controllers are tested on 100 samples generated from the uniform distribution, and the
-average stabilization error is recorded. As seen in Figure
-\ref{fig:rex_planar_quadrotor_lqr_error_by_training_window}, jDMD's LQR controller is much
-more robust than eDMD, even when the initial conditions go beyond the scope of the training
-data. This suggests that adding Jacobian information not only makes eDMD more sample
-efficient, but can also decrease overfitting and improve generalization. 
-
-To further study the robustness of eDMD and jDMD, we tasked the respective LQR controllers for eDMD and jDMD to stabilize under increasingly-varying equilibrium positions. 50 equilibrium positions are sampled from a uniform distribution with increasing bounds, which represent the maximum offset from the origin. The samples are used to test the models' LQR controllers before recording the average stabilization error. The results in Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} show that jDMD is very robust to the change in equilibrium and is able to successfully stabilize about the equilibrium despite the increasing offset. This is expected because stabilization performance should be invariant with respect to the quadrotor's equilibrium position, and this information is provided by the Jacobians in jDMD. eDMD's increasing inability to stabilize for greater equilibrium offsets is likely a result of eDMD being overfitted to the training trajectories, which all stabilize about the origin. Therefore, this example once again highlights the value of adding Jacobian information: it is not only a data augmentation technique for sample efficiency, but also a regularizer that can decrease overfitting, making the learned models (and subsequent controllers) more robust and generalizable.
-
-\begin{figure}
-    \centering
-    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_reg.tikz}
-    \caption{LQR stabilization with equilibrium offset}
-    \label{fig:rex_planar_quadrotor_lqr_error_by_reg}
-    \caption{ LQR stabilization error over a range of L2 regularization values. jDMD is much more robust and consistent over small regularization values.}
-\end{figure}
-
-\begin{figure}
-    \centering
-    \begin{subfigure}[t]{0.45\textwidth}
-        \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
-        \caption{LQR stabilization error over increasing equilibrium offset}
-        \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
-    \end{subfigure}
-    \begin{subfigure}[t]{0.45\textwidth}
-        \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
-        \caption{LQR stabilization error over varying range of distribution for sampling initial conditions. A training range fraction greater than $1$ indicates the distribution range is beyond that used to generate the training trajectories}
-        \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
-    \end{subfigure}
-    \caption{ LQR controller robustness to varying initial conditions and equilibrium offset. jDMD is much more robust overall with an ability to stabilize outside the scope of training data }
-\end{figure}
-
-\subsubsection{MPC Tracking Performance}
-
-To train the bilinear model for the MPC tracking task, we generated 50 infeasible point-point
-linear trajectories that all ended at the origin with the planar quadrotor in hover. The starting
-initial condition of the system was sampled from a uniform distribution about the origin.
-A linear MPC controller was then used to track the infeasible linear trajectories on the
-simulated system, resulting in significant tracking error due to the model mismatch. 
-After learning both models, a linear MPC policy (identical to the cartpole example) was
-used to track the original linear trajectory as best as possible.
-
-The tracking error we recorded for 35 test trajectories after training both the eDMD 
-and jDMD models with an increasing number of trajectories. Like the cartpole example,
-results in Figure \ref{fig:rex_planar_quadrotor_mpc_test_error} clearly show that jDMD
-produces a high-quality model for MPC tracking with extremely few samples, whereas eDMD
----even after many training samples---is never able to develop a model with consistent
-and similar performance. This is once again highlighted
-in the results of Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window}, which
-show that eDMD is only able to successfully track trajectories before falling apart when the
-range of test trajectories exceeds that of the training data. Meanwhile, jDMD is able to consistently
-track the trajectory to the goal state, despite having greater tracking error in a certain range
-of trajectories---this further hints at eDMD overfitting on the training data.
-
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}[t]{0.48\textwidth}
-        \raggedleft
-        \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_test_error.tikz}
-        \caption{MPC tracking error vs training samples for the planar quadrotor. The proposed jDMD method again learns a model good enough with ~1000 samples while eDMD is never able to converge to a good-enough model.}
-        \label{fig:rex_planar_quadrotor_mpc_test_error}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.48\textwidth}
-        \raggedright
-        \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_error_by_training_window.tikz}
-        \caption{MPC tracking error of quadrotor over varying range of distribution for sampling initial conditions. Drastically increasing error for eDMD suggests greater overfitting.}
-        \label{fig:rex_planar_quadrotor_mpc_error_by_training_window}
-    \end{subfigure}
-\end{figure}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Limitations 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Limitations} \label{sec:limitations}
-As with most data-driven techniques, it is hard to definitely declare that the proposed 
-method will increase performance in all cases. It is possible that having an extremely poor
-analytical model may hurt rather than help the training process. However, we found that even
-when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
-during the learning process), it still dramatically improves the sample efficiency. It is 
-also quite possible that the performance gaps between eDMD and jDMD shown here can be 
-reduced through better selection of basis functions and better training data sets; however,
-given that the proposed approach converges to eDMD as $\alpha \rightarrow 0$, we see no 
-reason to not adopt the proposed methodology as simply tune $\alpha$ based on the 
-confidence of the model and the quantity (and quality) of training data.
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Conclusion 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Conclusion and Future Work} \label{sec:conclusion}
-We have presented a simple but powerful extension to eDMD, a model-based method for learning
-a bilinear representation of arbitrary dynamical systems, that incoporates derivative 
-information from an analytical mode. When combined with a simple linear
-MPC policy that projects the learned dynamics back into the original state space, we have 
-shown that the resulting pipline can dramatically increase sample efficiency, often 
-improving over a nominal MPC policy with just a few sample trajectories. Substantial areas 
-for future work remain: most notably testing the proposed pipeline on hardware. Additional 
-directions include lifelong learning or adaptive control applications, residual dynamics 
-learning, as well as the development of specialized numerical methods for solving nonlinear 
-optimal control problems using the learned bilinear dynamics.
-
-\bibliography{references.bib}
-
-\end{document}
+  %   \centering
+  %   \begin{subfigure}[b]{0.40\textwidth}
+    %     \includegraphics[width=\textwidth,height=5cm]{cartpole_lqr_stabilization_performance.tikz}
+    %     \caption{LQR Controllers}
+    %   \end{subfigure}
+    %   \begin{subfigure}[b]{0.59\textwidth}
+      %     \includegraphics[width=\textwidth,height=5cm]{cartpole_mpc_stabilization_performance.tikz}
+      %     \caption{MPC Controller}
+      %   \end{subfigure}
+      %   \label{fig:cartpole_stabilization}
+      %   \caption{Controller performance on the task of stabilizing the cartpole system about the 
+      %   upward unstable equilibrium. Performance is plotted as the error }
+      % \end{figure}
+      
+      
+      \subsubsection{MPC Tracking Performance}
+      
+      To train the bilinear model for the swing-up task, we generated 50 training swing-up
+      trajectories using ALTRO, an open-source nonlinear trajectory optimization solver 
+      \cite{Howell2019,Jackson2021}, on the nominal cartpole model. Each trajectory was 5 seconds
+      long and sampled at 20 Hz.  A linear MPC controller was then used to track the swing-up
+      trajectories on the simulated system, resulting in significant tracking error due to the
+      model mismatch.  After learning both models, a linear MPC policy using the projected 
+      dynamics Jacobians was used to track the original swing-up trajectory generated by ALTRO. 
+      
+      The tracking error, defined as the average L2 norm of the error between the reference 
+      trajectory and the actual trajectory of the simulated system for 10 test trajectories not 
+      included in the training data, was recorded after training both the eDMD and jDMD models
+      with an increasing number of trajectories. The results in Figure
+      \ref{fig:cartpole_mpc_test_error} clearly show that jDMD produces a high-quality model with
+      extremely few samples, whereas eDMD---even after many training samples---never achieves the 
+      same level of performance. The lack of progress with increasing samples is likely a result 
+      of poor variety in the training data: after enough samples both methods effectively learn 
+      all the information that can be learned from the distribution from which the training data 
+      is sampled. This example highlights the value of adding even just a little derivative 
+      information to a data-driven approach: it dramatically increases sample efficiency while 
+      also improving the quality of the learned model, especially when that model is used in 
+      optimization-based controllers such as MPC that rely on derivative information. For 
+      reference, the training times are shown in Figure \ref{fig:cartpole_train_time}. Note that 
+      the training algorithms haven't yet been optimized for max performance but reflect a decent 
+      first implementation.
+      
+      
+      \subsection{Planar Quadrotor}
+      As another benchmark example, we use the planar quadrotor model, a simplification of the
+      full quadrotor system with only 3 degrees of freedom. The \textit{simulated} model included
+      aerodynamic drag terms not included in the \textit{nominal}, as well as parametric error of 
+      about 5\% on the system properties (e.g. mass, rotor arm length, etc.).
+      
+      Analysis of the planar quadrotor system is also split into 2 separate tasks: stabilization
+      about the hover position with perturbed initial conditions, and a point-to-point translation
+      where the system tracks a linear trajectory between two points with zero initial and 
+      terminal velocity.
+      
+      \subsubsection{Stabilization}
+      
+      For stabilizing the system about the upward unstable equilibrium, we used an LQR controller
+      designed using the nominal planar quadrotor model to collect various trajectories. To learn
+      our bilinear eDMD and jDMD, the following nonlinear mapping was used: $\phi(x) = [\; 1,\;
+      x,\; \sin(x),\; \cos(x),\; 2x^{2}-1\; ] \in \R^{25}$. After learning both models, respective
+      LQR controllers were designed using the bilinear models' ``projected'' Jacobians
+      \eqref{eq:projected_jacobians}. The LQR controllers linearized about hover at the origin ($x
+      = [\;0,\; 0,\; 0,\;, 0\;  0\;  0\;]$) and solved the resulting equality-constrained
+      quadratic program using Riccati recursion. Each controller was tested using 30 different
+      initial conditions sampled from a uniform distribution of initial conditions centered about
+      the hover position.
+      
+      To study how robust eDMD and jDMD are to regularization, we trained multiple bilinear eDMD
+      and jDMD models with increasing L2 (Tikhonov) regularization values. LQR controllers were
+      designed for each model and tested with 100 initial conditions sampled from a uniform
+      distribution centered about the hover position. The average L2 error of the state after 5.0
+      seconds of simulation, which we'll refer to in this section as the stabilization error, was
+      recorded for each model. As shown in Figure
+      \ref{fig:rex_planar_quadrotor_lqr_error_by_reg}, the proposed jDMD method remains robust
+      over a range of small regularization values ($<10^{-1}$) when compared to nominal eDMD, which 
+      clearly has a local optimal around $10^0$. This supports what we found empirically, that 
+      jDMD tends to be much ``easier'' to train and is far more robust to hyperparameters such as 
+      the regularization value, when compared to eDMD.
+      
+      As suggested by Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_reg}, eDMD without
+      regularization performs best, but may be prone to overfitting. Therefore, we test eDMD's and
+      jDMD's respective LQR controllers on initial conditions sampled from increasingly larger
+      uniform distributions to analyze the generalizability of the lifted, bilinear models. The
+      LQR controllers are tested on 100 samples generated from the uniform distribution, and the
+      average stabilization error is recorded. As seen in Figure
+      \ref{fig:rex_planar_quadrotor_lqr_error_by_training_window}, jDMD's LQR controller is much
+      more robust than eDMD, even when the initial conditions go beyond the scope of the training
+      data. This suggests that adding Jacobian information not only makes eDMD more sample
+      efficient, but can also decrease overfitting and improve generalization. 
+      
+      To further study the robustness of eDMD and jDMD, we tasked the respective LQR controllers for eDMD and jDMD to stabilize under increasingly-varying equilibrium positions. 50 equilibrium positions are sampled from a uniform distribution with increasing bounds, which represent the maximum offset from the origin. The samples are used to test the models' LQR controllers before recording the average stabilization error. The results in Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} show that jDMD is very robust to the change in equilibrium and is able to successfully stabilize about the equilibrium despite the increasing offset. This is expected because stabilization performance should be invariant with respect to the quadrotor's equilibrium position, and this information is provided by the Jacobians in jDMD. eDMD's increasing inability to stabilize for greater equilibrium offsets is likely a result of eDMD being overfitted to the training trajectories, which all stabilize about the origin. Therefore, this example once again highlights the value of adding Jacobian information: it is not only a data augmentation technique for sample efficiency, but also a regularizer that can decrease overfitting, making the learned models (and subsequent controllers) more robust and generalizable.
+      
+      \begin{figure}
+        \centering
+        \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_reg.tikz}
+        \caption{LQR stabilization with equilibrium offset}
+        \label{fig:rex_planar_quadrotor_lqr_error_by_reg}
+        \caption{ LQR stabilization error over a range of L2 regularization values. jDMD is much more robust and consistent over small regularization values.}
+      \end{figure}
+      
+      \begin{figure}
+        \centering
+        \begin{subfigure}[t]{0.45\textwidth}
+          \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
+          \caption{LQR stabilization error over increasing equilibrium offset}
+          \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
+        \end{subfigure}
+        % \begin{subfigure}[t]{0.45\textwidth}
+        %   \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
+        %   \caption{LQR stabilization error over varying range of distribution for sampling
+        %   initial conditions. A training range fraction greater than $1$ indicates the
+        %   distribution range is beyond that used to generate the training trajectories}
+        %   \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
+        % \end{subfigure}
+        % \caption{ LQR controller robustness to varying initial conditions and equilibrium
+        % offset. jDMD is much more robust overall with an ability to stabilize outside the
+        % scope of training data }
+      \end{figure}
+      
+      \subsubsection{MPC Tracking Performance}
+      
+      To train the bilinear model for the MPC tracking task, we generated 50 infeasible point-point
+      linear trajectories that all ended at the origin with the planar quadrotor in hover. The starting
+      initial condition of the system was sampled from a uniform distribution about the origin.
+      A linear MPC controller was then used to track the infeasible linear trajectories on the
+      simulated system, resulting in significant tracking error due to the model mismatch. 
+      After learning both models, a linear MPC policy (identical to the cartpole example) was
+      used to track the original linear trajectory as best as possible.
+      
+      The tracking error we recorded for 35 test trajectories after training both the eDMD 
+      and jDMD models with an increasing number of trajectories. Like the cartpole example,
+      results in Figure \ref{fig:rex_planar_quadrotor_mpc_test_error} clearly show that jDMD
+      produces a high-quality model for MPC tracking with extremely few samples, whereas eDMD
+      ---even after many training samples---is never able to develop a model with consistent
+      and similar performance. This is once again highlighted
+      in the results of Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window}, which
+      show that eDMD is only able to successfully track trajectories before falling apart when the
+      range of test trajectories exceeds that of the training data. Meanwhile, jDMD is able to consistently
+      track the trajectory to the goal state, despite having greater tracking error in a certain range
+      of trajectories---this further hints at eDMD overfitting on the training data.
+      
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      % Limitations 
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      \section{Limitations} \label{sec:limitations}
+      As with most data-driven techniques, it is hard to definitely declare that the proposed 
+      method will increase performance in all cases. It is possible that having an extremely poor
+      analytical model may hurt rather than help the training process. However, we found that even
+      when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
+      during the learning process), it still dramatically improves the sample efficiency. It is 
+      also quite possible that the performance gaps between eDMD and jDMD shown here can be 
+      reduced through better selection of basis functions and better training data sets; however,
+      given that the proposed approach converges to eDMD as $\alpha \rightarrow 0$, we see no 
+      reason to not adopt the proposed methodology as simply tune $\alpha$ based on the 
+      confidence of the model and the quantity (and quality) of training data.
+      
+      
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      % Conclusion 
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      \section{Conclusion and Future Work} \label{sec:conclusion}
+      We have presented a simple but powerful extension to eDMD, a model-based method for learning
+      a bilinear representation of arbitrary dynamical systems, that incoporates derivative 
+      information from an analytical mode. When combined with a simple linear
+      MPC policy that projects the learned dynamics back into the original state space, we have 
+      shown that the resulting pipline can dramatically increase sample efficiency, often 
+      improving over a nominal MPC policy with just a few sample trajectories. Substantial areas 
+      for future work remain: most notably testing the proposed pipeline on hardware. Additional 
+      directions include lifelong learning or adaptive control applications, residual dynamics 
+      learning, as well as the development of specialized numerical methods for solving nonlinear 
+      optimal control problems using the learned bilinear dynamics.
+      
+      \bibliography{references.bib}
+      
+      \end{document}

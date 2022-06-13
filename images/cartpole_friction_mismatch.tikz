@@ -1,6 +1,6 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[height={5cm}, width={5in}, bar width={7pt}, reverse legend, ybar, ymax={100}, legend pos={north west}, ylabel={Training trajectories to Stabilize}, xlabel={Coloumb Friction Coefficient}, nodes near coords]
+\begin{axis}[bar width={7pt}, reverse legend, ybar, ymax={100}, legend pos={north west}, ylabel={Training trajectories to Stabilize}, xlabel={Coloumb Friction Coefficient}, nodes near coords]
     \addplot+[no marks, color={rgb,1:red,0.1333;green,0.5451;blue,0.1333}]
         coordinates {
             (0.0,2.0)

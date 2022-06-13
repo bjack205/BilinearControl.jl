@@ -204,3 +204,39 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     metadata = (;t_train=t_sim, t_ref=tf, dt)
     return X_train, U_train, X_test, U_test, X_ref, U_ref, metadata
 end
+
+function generate_stabilizing_mpc_controller(model, t_sim, dt; 
+        Nt=41, ρ=1e-6, 
+        Qmpc = Diagonal(fill(1e-0,4)),
+        Rmpc = Diagonal(fill(1e-3,1)),
+        Qfmpc = Diagonal([1e2,1e2,1e1,1e1]),
+    )
+    xe = [0,pi,0,0]
+    ue = [0.]
+    ye = EDMD.expandstate(model, xe)
+    lifted_state_error(x,x0) = model.kf(x) - x0
+
+    # Reference Trajectory
+    T_sim = range(0,t_sim,step=dt)
+    X_ref = [copy(xe) for t in T_sim]
+    U_ref = [copy(ue) for t in T_sim]
+    T_ref = copy(T_sim)
+    Y_ref = map(x->EDMD.expandstate(model,x), X_ref)
+
+    # Objective
+    is_lifted_model = length(ye) > length(xe)
+    if is_lifted_model
+        Qmpc_lifted = Diagonal([ρ; diag(Qmpc); fill(ρ, length(ye)-5)])
+        Qfmpc_lifted = Diagonal([ρ; diag(Qfmpc); fill(ρ, length(ye)-5)])
+        state_error = lifted_state_error
+    else
+        Qmpc_lifted = Qmpc 
+        Qfmpc_lifted = Qfmpc 
+        state_error = (x,x0)->(x-x0)
+    end
+
+    # MPC controller
+    TrackingMPC(model, 
+        Y_ref, U_ref, Vector(T_ref), Qmpc_lifted, Rmpc, Qfmpc_lifted; Nt=Nt, state_error
+    )
+end
