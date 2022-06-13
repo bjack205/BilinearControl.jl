@@ -35,7 +35,8 @@ function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, t
 end
 
 function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true, 
-        μ=0.1, μ_nom=0.0, max_lqr_samples=3*num_lqr
+        μ=0.1, μ_nom=0.0, max_lqr_samples=3*num_lqr,
+        x_window = [0.7,deg2rad(45),0.2,0.2]
     )
     #############################################
     ## Define the Models
@@ -59,11 +60,12 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     #############################################
 
     ## Stabilization trajectories 
-    num_train_lqr = num_lqr 
+    num_train_lqr = num_lqr
     num_test_lqr = 10
 
     # Generate a stabilizing LQR controller about the top
     Qlqr = Diagonal([1.0,10.0,1e-2,1e-2])
+    
     # Qlqr = Diagonal([0.2,10,1e-2,1e-2])  # this makes eDMD break...
     Rlqr = Diagonal([1e-3])
     xe = [0,pi,0,0]
@@ -72,12 +74,7 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     T_lqr = range(0, t_sim, step=dt)
 
     # Sample a bunch of initial conditions for the LQR controller
-    x0_sampler = Product([
-        Uniform(-0.7,0.7),
-        Uniform(pi-pi/4,pi+pi/4),
-        Uniform(-.2,.2),
-        Uniform(-.2,.2),
-    ])
+    x0_sampler = Product(collect(Uniform(x-dx,x+dx) for (x,dx) in zip(xe,x_window)))
     Random.seed!(1)
     initial_conditions_train = [rand(x0_sampler) for _ in 1:num_train_lqr]
     Random.seed!(1)

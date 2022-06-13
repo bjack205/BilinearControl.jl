@@ -549,7 +549,7 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
             u = getcontrol(ctrl, X[k], t)
             U[k] .= u
             RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
-        catch
+        catch e
             break
         end
     end
