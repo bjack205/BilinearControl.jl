@@ -55,11 +55,11 @@ for Learning Bilinear, Control-affine Koopman Models}
     well if the states of the system always remain close to the equilibrium point or
     reference trajectory about which the system was linearized. The region for which these
     linearizations remain valid can be extremely small for highly nonlinear systems.
-    Alternatively, model-based methods for nonlinear control based on optimal control have
-    shown great success, as long as the model is well known and an accurate estimate of the
-    global state can be provided. These model-based techniques leverage centuries of insight
-    into dynamical systems and have demonstrated incredible performance on extremely
-    complicated autonomous systems 
+    Alternatively, model-based methods for nonlinear optimal control have shown great
+    success, as long as the model is well known and an accurate estimate of the global state
+    can be provided. These model-based techniques leverage decades of insight into
+    dynamical systems and have demonstrated incredible performance on complicated
+    autonomous systems 
     \cite{farshidian_efficient_2017,Kuindersma2014,Bjelonic2021,Subosits2019} .  On the
     other hand, data-driven techniques such as reinforcement learning have received
     tremendous attention over the last decade and have begun to demonstrate impressive
@@ -79,12 +79,9 @@ for Learning Bilinear, Control-affine Koopman Models}
     unknown dynamical system along with derivative information from an approximate
     analytical model, we can efficiently learn a bilinear representation of the system
     dynamics that performs well when used in traditional model-based control techniques such
-    as linear MPC. The result is nonlinear dynamical system that is expressive enough to
-    capture the full nonlinear dynamics across a broad range of the state space, but has a
-    well-defined structure that is very amenable to specialized optimization-based
-    controllers. By leveraging information from an analytical model, we can dramatically
+    as linear MPC. By leveraging information from an analytical model, we can dramatically
     reduce the number of samples required to learn a good approximation of the true
-    nonlinear dynamics. We also show the effiectiveness of linear MPC on these systems, 
+    nonlinear dynamics. We also show the effiectiveness of linear MPC on these systems 
     when the learned bilinear system is linearized and projected back into the original 
     state space. The result is a fast, robust, and sample-efficient pipeline for quickly 
     learning a model that beats previous Koopman-based linear MPC approaches as well as 
@@ -94,13 +91,13 @@ for Learning Bilinear, Control-affine Koopman Models}
     peak memory required to solve the least-squares problem.
 
     In summary, our contributions are:
-    * A novel extension to extended dynamic model decomposition (eDMD) that incorporates 
-      gradient information from an approximate analytic model
-    * A simple linear MPC control technique for learned bilinear control systems that is 
+    * A novel extension to extended dynamic mode decomposition (eDMD) that incorporates 
+      gradient information from an approximate analytic model;
+    * a simple linear MPC control technique for learned bilinear control systems that is 
       computationally efficient online, which, when combined with the proposed extension 
-      to eDMD, requires extremely little training data to get a good control policy
-    * A novel numerical method for recursively solving the least-squares problems that arise 
-      when learning bilinear dynamical systems using eDMD
+      to eDMD, requires extremely little training data to get a good control policy; and
+    * a recursive, batch QR algorithm solving the least-squares problems that arise 
+      when learning bilinear dynamical systems using eDMD.
     
     The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
     give some background on the appliciation of Koopman operator theory to controlled 
@@ -124,18 +121,20 @@ for Learning Bilinear, Control-affine Koopman Models}
 
   We start by assuming we have some discrete approximation a of controlled nonlinear,
   time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
-  \begin{equation} \label{eq:discrete_dynamics} x_{k+1} = f(x_k, u_k) \end{equation} where
-  $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector and $u_k \in \R^{N_u}$ is the
-  control vector.  This discrete approximation can be obtained for any continuous-time, 
-  smooth dynamical system in many ways, including implicit and explicit Runge-Kutta methods,
-  or by solving the Discrete Euler-Lagrange equations
-  \cite{Brudigam2021a,Brudigam2021,Howell2022}.
+  \begin{equation} \label{eq:discrete_dynamics} 
+    x^+ = f(x, u) 
+  \end{equation} 
+  where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector, $u_k \in \R^{N_u}$ is
+  the control vector, and $x^+$ is the state at the next time step. This discrete
+  approximation can be obtained for any continuous-time, smooth dynamical system in many
+  ways, including implicit and explicit Runge-Kutta methods, or by solving the Discrete
+  Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
 
   The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
   dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
   \textit{bilinear} system:
   \begin{equation} \label{eq:bilinear_dynamics}
-      y_{k+1} = A y_k + B u_k + \sum_{i=1}^m u_{k,i} C_i y_k = g(y,u)
+      y^+ = A y + B u + \sum_{i=1}^m u_i C_i y = g(y,u)
   \end{equation}
   where $y = \phi(x)$ is a nonlinear mapping from the finite-dimensional state space
   $\mathcal{X}$ to the (possibly) infinite-dimensional Hilbert space of \textit{observables}
@@ -155,11 +154,11 @@ for Learning Bilinear, Control-affine Koopman Models}
   literature}.
 
   The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned from samples
-  of the system dynamics $(x_i^+,x_i,u_i)$ (where $x^+$ is the state at the next time step)
-  using extended Dynamic Mode Decomposition (eDMD) \cite{Williams2015}, which is just the
-  application of linear least squares (LLS) to the lifted states. Details of this method
-  will be covered in the next section where we introduce our adaptation of eDMD and present
-  an effective numerical technique for solving the resulting LLS problems.
+  of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic Mode Decomposition (eDMD)
+  \cite{Williams2015}, which is just the application of linear least squares (LLS) to the
+  lifted states. Details of this method will be covered in the next section where we
+  introduce our adaptation of eDMD and present an effective numerical technique for solving
+  the resulting LLS problems.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Methodology
@@ -181,10 +180,11 @@ for Learning Bilinear, Control-affine Koopman Models}
   bilinear dynamics model \eqref{eq:bilinear_dynamics} that matches the Jacobians of our
   approximate model, while also matching our dynamics samples. If we define $\hat{A}_j \in
   \R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
-  bilinear dynamics model, projected back into the original state space (a formal definition 
-  of these terms will be provided in a few paragraphs), our objective is to
-  find the matrices $A \in \R^{N_y \times N_y},B \in \R^{N_y \times N_u}$, and $C_{1:m} \in
-  \R^{N_u} \times \R^{N_y \times N_y}$ that minimize the following objective:
+  bilinear dynamics model, projected back into the original state space (a formal definition
+  of these terms will be provided in a few paragraphs), our objective is to find the
+  matrices parameterizing our bilinear dynamics model, $A \in \R^{N_y \times N_y},B \in
+  \R^{N_y \times N_u}$, and $C_{1:m} \in \R^{N_u} \times \R^{N_y \times N_y}$, that minimize
+  the following objective:
 
   \begin{equation} \label{eq:lls_objective}
       (1- \alpha) \sum_{j=1}^P \norm{\hat{y}_j - y_j^+}_2^2 + 
@@ -192,22 +192,22 @@ for Learning Bilinear, Control-affine Koopman Models}
                                \norm{\hat{B}_j - \tilde{B}_j}_2^2 
   \end{equation}
   where $\hat{y}_j^+ = g\left(\phi(x_j), u_j\right)$ is the output of our bilinear dynamics
-  model, and $y_j^+ = \phi(y_j^+)$ is the actual lifted state (i.e. observables) at the next
+  model, and $y_j^+ = \phi(x_j^+)$ is the actual lifted state (i.e. observables) at the next
   time step. Note that $\hat{y}_j$, $\hat{A}_j$, and $\hat{B}_j$ are all implicitly
-  functions of model parameters $A$, $B$, and $C_{1:m}$ we're trying to learn.
+  functions of the model parameters $A$, $B$, and $C_{1:m}$ we're trying to learn.
 
   While not immediately apparent, we can minimize \eqref{eq:lls_objective} using linear
   least-squares, using techniques similar to those used previously in the literature
   \cite{Folkestad2021}.
 
-  To start, we combine all the data we're trying to learn in a single matrix:
+  To start, we combine all the data we're trying to learn into a single matrix:
   \begin{equation}
-      E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z} \\
+      E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
   \end{equation}
   where $N_z = N_y + N_u + N_y \cdot N_u$.  We now rewrite the terms in
   \eqref{eq:lls_objective} in terms of $E$. By defining the vector 
   \begin{equation}
-      z = \begin{bmatrix} y^T & u^T & u_1 y^T & \dots & u_m y^T \end{bmatrix} \in \R^{N_z} 
+      z = \begin{bmatrix} y^T & u^T & u_1 y^T & \dots & u_m y^T \end{bmatrix} \in \R^{N_z},
   \end{equation}
   we can write down 
   the output of our bilinear dynamics \eqref{eq:bilinear_dynamics} as 
@@ -224,11 +224,11 @@ for Learning Bilinear, Control-affine Koopman Models}
   Differentiating these dynamics gives us our projected Jacobians:
   \begin{subequations} \label{eq:projected_jacobians}
   \begin{align}
-      \hat{A}_j &= G \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
+      \hat{A}_j &= \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
                 = G \left(A + \sum_{i=1}^m u_{j,i} C_i \right) \Phi(x_j)
               %   = G A_j^x \phi(x_j)
                 = G E \bar{A}(x_j,u_j) = G E \bar{A}_j \\
-      \hat{B}_i &= G \pdv{\hat{f}}{u}\left(x_j,u_j\right) 
+      \hat{B}_j &= \pdv{\hat{f}}{u}\left(x_j,u_j\right) 
                 = G \Big(B + \begin{bmatrix} C_1 x_j & \dots & C_m x_j \end{bmatrix} \Big)
               %   = G B_j^u
                 = G E \bar{B}(x_j,u_j) = G E \bar{B}_j
@@ -262,7 +262,7 @@ for Learning Bilinear, Control-affine Koopman Models}
             \alpha  \norm{G E \bar{B}_j - \tilde{B}_j}_2^2 
   \end{align}
   which is equivalent to
-  \begin{align} \label{opt:lls_matrix}
+  \begin{align} \label{opt:lls_matrices}
       \underset{E}{\text{minimize}} \;\; 
           (1-\alpha) \norm{E \mathbf{Z_{1:P}} - \mathbf{Y^+_{1:P}} }_2^2 + 
             \alpha  \norm{G E \mathbf{\bar{A}_{1:P}} - \mathbf{\tilde{A}_{1:P}}}_2^2 + 
@@ -276,7 +276,7 @@ for Learning Bilinear, Control-affine Koopman Models}
   $\mathbf{\bar{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$, and 
   $\mathbf{\tilde{B}_{1:P}} \in \R^{N_z \times N_u \cdot P}$ ).
 
-  We can rewrite \eqref{opt:lls_matrix} in standard form using the ``vec trick''
+  We can rewrite \eqref{opt:lls_matrices} in standard form using the ``vec trick''
   \begin{equation} \label{eq:vectrick}
       \text{vec}(A X B) = (B^T \otimes A) \text{vec}(X)
   \end{equation}
