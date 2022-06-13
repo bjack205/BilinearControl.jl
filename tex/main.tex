@@ -165,6 +165,8 @@ for Learning Bilinear, Control-affine Koopman Models}
   introduce our adaptation of eDMD and present an effective numerical technique for solving
   the resulting LLS problems.
 
+  \todo{mention the most related papers}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Methodology
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -408,6 +410,46 @@ All continuous dynamics were discretized with an explicit fourth-order Runge Kut
 integrator. The code for the experiments is located at 
 \todo{include after review}.
 
+\subsection{Sample Efficiency}
+
+We highlight the sample efficiency of the proposed algorithm in Figures 
+\ref{fig:cartpole_mpc_test_error} and \ref{fig:rex_planar_quadrotor_mpc_test_error}. For
+both the cartpole swingup and the quadrotor trajectory tracking tasks, the proposed method
+achieves better tracking than the nominal MPC controller after just a few training
+trajectories. In both cases, the classic eDMD approach never achieves the same level of
+performance as the proposed approach. The lack of continued progress with increasing samples
+is likely due to a lack of sufficient variety in the training data: after 30-40 training
+trajectories both methods have effectively learned as much as they can from the distribution
+from which the training data was sampled.
+
+The training time versus number of training samples is shown in Figure 
+\ref{fig:cartpole_train_time} for the cartpole swingup task. While the proposed approach 
+naturally takes longer since it includes much more information per sample (adding 
+$N_x + N_u + 1$ rows for every sample), the complexity the approximately linear and the 
+solve times are on the order of seconds for simple systems.
+
+\subsection{Lifted versus Projected MPC}
+Figure \ref{fig:cartpole_lqr_samples} also highlights the sample efficiency of the proposed 
+method, while also comparing to the more typical approach of applying the MPC policy in the 
+lifted state space. As shown, the proposed method of applying linear MPC to the projected 
+linearization is much more sample efficient than trying to apply it in the lifted state 
+space. This approach is also advantegeous because it reduces the solve time of the linear 
+MPC policy, is more numerically robust (we found the lifted MPC policies tended to suffer 
+from numerical issues when using Riccati recursion to solve for long time horizons), and 
+it is straightforward to apply additional constraints to the original state variables.
+
+\subsection{Generalization}
+We demonstrate the generalizability of the proposed method to tasks outside of its training
+domain in Figures \ref{fig:rex_planar_quadrotor_lqr_error_by_training_window} and 
+\ref{fig:rex_planar_quadrotor_mpc_error_by_training_window}. In both the quadrotor 
+stabilization (Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_training_window}) and 
+trajectory tracking (Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window})
+tasks, we trained the models by sampling uniformly from a given window of offsets, centered 
+about the origin. 
+To test the generalizability of the methods we increased the relative size of the window 
+from which the test data was sampled, e.g. if the initial lateral position was trained on 
+data in the interval $[-1.5,1.5]$, we sampled the test initial condition from the window 
+$[\gamma -1.5, \gamma 1.5]$
 
 \subsection{Cartpole}
 As a simple benchmark example, we use the canonical cartpole system. The \textit{simulated}
