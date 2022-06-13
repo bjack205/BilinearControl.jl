@@ -134,19 +134,11 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
 
     (;nom_err_avg, eDMD_err_avg, eDMD_success, jDMD_err_avg, jDMD_success, 
         t_train_eDMD, t_train_jDMD, num_lqr, num_swingup, nsamples=length(X_train), 
-        model_eDMD, model_jDMD)
+        )
 end
 
 ##
 generate_cartpole_data()
-2*120
-β = 240 / (38 * 120)
-res = train_cartpole_models(0, 50, α=0.5, β=1.0, learnB=true, reg=1e-3)
-res = train_cartpole_models(0, 8, α=0.5, β=1.0, learnB=true, reg=1e-4)
-res = train_cartpole_models(0, 30, α=0.00005, β=1.0, learnB=true, reg=1e-6)
-res.jDMD_err_avg
-res.eDMD_err_avg
-num_swingup[4]
 num_swingup = 2:2:36
 results = map(num_swingup) do N
     println("\nRunning with N = $N")
