@@ -15,8 +15,8 @@ const quad_motor_bm = -0.367697
 const quad_arm_len = 0.28
 const quad_min_throttle = 1148.0
 const quad_max_throttle = 1832.0
-const Ax = 0.1
-const Ay = 0.25
+const QUAD_CROSS_SECTIONAL_AREA_X = 0.25
+const QUAD_CROSS_SECTIONAL_AREA_Y = 0.5
 
 RD.@autodiff struct RexPlanarQuadrotor <: RD.ContinuousDynamics
     mass::Float64  # mass (kg)
@@ -58,7 +58,7 @@ SimulatedPlanarQuadrotor() = RexPlanarQuadrotor(; mass=1.05*quad_mass,
                                                 km=1.05*quad_motor_km,
                                                 bf=0.95*quad_motor_bf,
                                                 bm=0.95*quad_motor_bm,
-                                                cd=[0.1, 0.1])
+                                                cd=[0.3, 0.3])
 
 function trim_controls(model::RexPlanarQuadrotor)
     kf, bf = model.kf, model.bf
@@ -79,8 +79,8 @@ begin
         cd = model.cd
 
         # add aero drag where 1.27 is air density (kg/m^3)
-        df_x = -sign(x[4])*0.5*1.27*(x[4].^2)*cd[1]*Ax
-        df_y = -sign(x[5])*0.5*1.27*(x[5].^2)*cd[2]*Ay
+        df_x = -sign(x[4])*0.5*1.27*(x[4].^2)*cd[1]*QUAD_CROSS_SECTIONAL_AREA_X
+        df_y = -sign(x[5])*0.5*1.27*(x[5].^2)*cd[2]*QUAD_CROSS_SECTIONAL_AREA_Y
 
         thrust_1 = u[1]*kf + 2.0*bf + df_x
         thrust_2 = u[2]*kf + 2.0*bf + df_y
