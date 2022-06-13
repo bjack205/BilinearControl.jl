@@ -270,7 +270,6 @@ p_bar = @pgf Axis(
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_friction_mismatch.tikz"), p_bar, include_preamble=false)
 
-
 #############################################
 ## Min Trajectories to beat MPC 
 #############################################
