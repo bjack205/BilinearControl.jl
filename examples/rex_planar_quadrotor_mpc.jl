@@ -311,6 +311,128 @@ function train_planar_quadrotor_models(num_lqr, num_mpc;  α=0.5, learnB=true, �
     eigorders = [[0],[1],[1],[2,2]]
 
     t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders,
+        reg=1e-1, name="planar_quadrotor_eDMD")
+    t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom,
+        reg=reg, name="planar_quadrotor_jDMD"; α, β, learnB)
+
+    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+    model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+
+    eDMD_data = Dict(
+        :A=>model_eDMD.A, :B=>model_eDMD.B, :C=>model_eDMD.C, :g=>model_eDMD.g, :t_train=>t_train_eDMD
+    )
+    jDMD_data = Dict(
+        :A=>model_jDMD.A, :B=>model_jDMD.B, :C=>model_jDMD.C, :g=>model_jDMD.g, :t_train=>t_train_jDMD
+    )
+
+    #############################################
+    ## MPC Tracking
+    #############################################
+
+    xe = zeros(6)
+    ue = Problems.trim_controls(model_real)
+    Nt = 41  # MPC horizon
+    N_sim = length(T_sim)
+    N_ref = length(T_ref)
+
+    Qmpc = Diagonal([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    Rmpc = Diagonal([1e-3, 1e-3])
+    Qfmpc = 100*Qmpc
+
+    N_test = size(X_nom_mpc,2)
+    test_results = map(1:N_test) do i
+        X_ref = deepcopy(X_test_infeasible[:,i])
+        U_ref = deepcopy(U_test_infeasible[:,i])
+        X_ref[end] .= xe
+        push!(U_ref, ue)
+
+        X_ref_full = [X_ref; [copy(xe) for i = 1:N_sim - N_ref]]
+        mpc_nom = TrackingMPC(dmodel_nom, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+        mpc_eDMD = TrackingMPC(model_eDMD_projected, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+        mpc_jDMD = TrackingMPC(model_jDMD_projected, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+        X_mpc_nom, U_mpc_nom, T_mpc = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_sim, dt)
+        X_mpc_eDMD,U_mpc_eDMD,T_mpc = simulatewithcontroller(dmodel_real, mpc_eDMD, X_ref[1], t_sim, dt)
+        X_mpc_jDMD,U_mpc_jDMD,T_mpc = simulatewithcontroller(dmodel_real, mpc_jDMD, X_ref[1], t_sim, dt)
+
+        err_nom = norm(X_mpc_nom - X_ref_full) / N_sim
+        err_eDMD = norm(X_mpc_eDMD - X_ref_full) / N_sim
+        err_jDMD = norm(X_mpc_jDMD - X_ref_full) / N_sim
+
+        (; err_nom, err_eDMD, err_jDMD) #, t_train_eDMD, t_train_jDMD, num_lqr, num_swingup, nsamples=length(X_train)) end
+    end
+
+    nom_err_avg  = mean(filter(isfinite, map(x->x.err_nom, test_results)))
+    eDMD_err_avg = mean(filter(isfinite, map(x->x.err_eDMD, test_results)))
+    jDMD_err_avg = mean(filter(isfinite, map(x->x.err_jDMD, test_results)))
+    eDMD_success = count(isfinite, map(x->x.err_eDMD, test_results))
+    jDMD_success = count(isfinite, map(x->x.err_jDMD, test_results))
+
+    G = model_jDMD.g
+    kf = model_jDMD.kf
+
+    (;nom_err_avg, eDMD_err_avg, eDMD_success, jDMD_err_avg, jDMD_success, 
+        t_train_eDMD, t_train_jDMD, num_lqr, num_mpc, nsamples=length(X_train), 
+        eDMD_data, jDMD_data, G, kf, dt)
+end
+
+function train_planar_quadrotor_models_no_eDMD_reg(num_lqr, num_mpc;  α=0.5, learnB=true, β=1.0, reg=1e-6)
+
+    #############################################
+    ## Define the Models
+    #############################################
+
+    # Define Nominal Simulated REx Planar Quadrotor Model
+    model_nom = Problems.NominalPlanarQuadrotor()
+    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
+
+    # Define Mismatched "Real" REx Planar Quadrotor Model
+    model_real = Problems.SimulatedPlanarQuadrotor()  # this model has aero drag
+    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
+
+    #############################################  
+    ## Load Training and Test Data
+    #############################################  
+    mpc_lqr_traj = load(joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"))
+
+    # Training data
+    X_train_lqr = mpc_lqr_traj["X_train_lqr"][:,1:num_lqr]
+    U_train_lqr = mpc_lqr_traj["U_train_lqr"][:,1:num_lqr]
+    X_train_mpc = mpc_lqr_traj["X_train_mpc"][:,1:num_mpc]
+    U_train_mpc = mpc_lqr_traj["U_train_mpc"][:,1:num_mpc]
+
+    ## combine lqr and mpc training data
+    X_train = [X_train_lqr X_train_mpc]
+    U_train = [U_train_lqr U_train_mpc]
+
+    # Test data
+    X_nom_mpc = mpc_lqr_traj["X_nom_mpc"]
+    U_nom_mpc = mpc_lqr_traj["U_nom_mpc"]
+    X_test_infeasible = mpc_lqr_traj["X_test_infeasible"]
+    U_test_infeasible = mpc_lqr_traj["U_test_infeasible"]
+
+    # Metadata
+    tf = mpc_lqr_traj["tf"]
+    t_sim = mpc_lqr_traj["t_sim"]
+    dt = mpc_lqr_traj["dt"]
+
+    T_ref = range(0,tf,step=dt)
+    T_sim = range(0,t_sim,step=dt)
+
+    #############################################
+    ## Fit the training data
+    #############################################
+
+    # Define basis functions
+    eigfuns = ["state", "sine", "cosine", "chebyshev"]
+    eigorders = [[0],[1],[1],[2,2]]
+
+    t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders,
         reg=0.0, name="planar_quadrotor_eDMD")
     t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom,
         reg=reg, name="planar_quadrotor_jDMD"; α, β, learnB)
@@ -440,7 +562,7 @@ p_ns = @pgf Axis(
     PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:nsamples][good_inds], res[:nom_err_avg][good_inds])),
     PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:nsamples][good_inds], res[:eDMD_err_avg][good_inds])),
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:nsamples][good_inds], res[:jDMD_err_avg][good_inds])),
-    Legend(["Nominal", "eDMD", "jDMD"])
+    Legend(["nominal", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_test_error.tikz"), p_ns, include_preamble=false)
 
@@ -460,16 +582,25 @@ res = train_planar_quadrotor_models(0, 50, α=0.5, β=1.0, learnB=true, reg=1e-5
 @show res.jDMD_err_avg
 @show res.eDMD_err_avg
 
+res_no_reg = train_planar_quadrotor_models_no_eDMD_reg(0, 50, α=0.5, β=1.0, learnB=true, reg=1e-1)
+
 eDMD_data = res.eDMD_data
 jDMD_data = res.jDMD_data
 G = res.G
 kf = res.kf
 dt = res.dt
 
+eDMD_data_no_reg = res_no_reg.eDMD_data
+jDMD_data2 = res_no_reg.jDMD_data
+
 model_eDMD = EDMDModel(eDMD_data[:A],eDMD_data[:B],eDMD_data[:C],G,kf,dt,"planar_quadrotor_jDMD")
 model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
 model_jDMD = EDMDModel(jDMD_data[:A],jDMD_data[:B],jDMD_data[:C],G,kf,dt,"planar_quadrotor_jDMD")
 model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+model_jDMD2 = EDMDModel(jDMD_data2[:A],jDMD_data2[:B],jDMD_data2[:C],G,kf,dt,"planar_quadrotor_jDMD")
+model_jDMD_projected2 = EDMD.ProjectedEDMDModel(model_jDMD2)
+model_eDMD_no_reg = EDMDModel(eDMD_data_no_reg[:A],eDMD_data_no_reg[:B],eDMD_data_no_reg[:C],G,kf,dt,"planar_quadrotor_jDMD")
+model_eDMD_projected_no_reg = EDMD.ProjectedEDMDModel(model_eDMD_no_reg)
 
 mpc_lqr_traj = load(joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"))
 
@@ -529,7 +660,7 @@ dt = mpc_lqr_traj["dt"]
 percentages = 0.1:0.1:2.5
 errors = map(percentages) do perc
 
-    println("percentage of training window = $perc")
+    println("percentage of training range = $perc")
 
     x0_sampler = Product([
         Uniform(-2.0*perc,2.0*perc),
@@ -544,13 +675,21 @@ errors = map(percentages) do perc
 
     error_eDMD_projected = mean(test_initial_conditions(model_real, model_eDMD_projected, x0_test, tf, tf, dt))
     error_jDMD_projected = mean(test_initial_conditions(model_real, model_jDMD_projected, x0_test, tf, tf, dt))
+    error_jDMD_projected2 = mean(test_initial_conditions(model_real, model_jDMD_projected2, x0_test, tf, tf, dt))
+    error_eDMD_projected_no_reg = mean(test_initial_conditions(model_real, model_eDMD_projected_no_reg, x0_test, tf, tf, dt))
 
-    (;error_eDMD_projected, error_jDMD_projected)
+    (;error_eDMD_projected, error_jDMD_projected, error_eDMD_projected_no_reg, error_jDMD_projected2)
 
 end
 
 fields = keys(errors[1])
-res = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
+res_training_range = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
+jldsave(joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_training_range_results.jld2"); percentages, res_training_range)
+
+##
+results = load(joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_training_range_results.jld2"))
+percentages = results["percentages"]
+res_training_range = results["res_training_range"]
 
 p_tracking = @pgf Axis(
     {
@@ -560,8 +699,10 @@ p_tracking = @pgf Axis(
         ylabel = "Tracking error",
         legend_pos = "north west"
     },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res[:error_jDMD_projected])),
-    Legend(["eDMD", "jDMD"])
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res_training_range[:error_eDMD_projected])),
+    PlotInc({lineopts..., color="teal"}, Coordinates(percentages, res_training_range[:error_eDMD_projected_no_reg])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_training_range[:error_jDMD_projected])),
+    PlotInc({lineopts..., color="purple"}, Coordinates(percentages, res_training_range[:error_jDMD_projected2])),
+    Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_error_by_training_window.tikz"), p_tracking, include_preamble=false)
