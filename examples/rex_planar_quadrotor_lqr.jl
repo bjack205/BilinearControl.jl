@@ -304,7 +304,7 @@ res_lqr_window = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
 distances = 0:0.1:4
 errors = map(distances) do dist
 
-    println("percentage of training window = $dist")
+    println("equilibrium offset = $dist")
 
     if dist == 0
         xe_test = [zeros(6)]
@@ -498,7 +498,7 @@ p_lqr_window = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel = "Window Percentage",
+        xlabel = "Fraction of training range",
         ylabel = "Stabilization error",
         legend_pos = "north west"
     },
