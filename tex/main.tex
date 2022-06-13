@@ -633,11 +633,32 @@ of trajectories---this further hints at eDMD overfitting on the training data.
 % Limitations 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Limitations} \label{sec:limitations}
+As with most data-driven techniques, it is hard to definitely declare that the proposed 
+method will increase performance in all cases. It is possible that having an extremely poor
+analytical model may hurt rather than help the training process. However, we found that even
+when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
+during the learning process), it still dramatically improves the sample efficiency. It is 
+also quite possible that the performance gaps between eDMD and jDMD shown here can be 
+reduced through better selection of basis functions and better training data sets; however,
+given that the proposed approach converges to eDMD as $\alpha \rightarrow 0$, we see no 
+reason to not adopt the proposed methodology as simply tune $\alpha$ based on the 
+confidence of the model and the quantity (and quality) of training data.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Conclusion 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Conclusion} \label{sec:conclusion}
+\section{Conclusion and Future Work} \label{sec:conclusion}
+We have presented a simple but powerful extension to eDMD, a model-based method for learning
+a bilinear representation of arbitrary dynamical systems, that incoporates derivative 
+information from an analytical mode. When combined with a simple linear
+MPC policy that projects the learned dynamics back into the original state space, we have 
+shown that the resulting pipline can dramatically increase sample efficiency, often 
+improving over a nominal MPC policy with just a few sample trajectories. Substantial areas 
+for future work remain: most notably testing the proposed pipeline on hardware. Additional 
+directions include lifelong learning or adaptive control applications, residual dynamics 
+learning, as well as the development of specialized numerical methods for solving nonlinear 
+optimal control problems using the learned bilinear dynamics.
 
 \bibliography{references.bib}
 
