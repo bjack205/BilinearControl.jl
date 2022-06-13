@@ -30,7 +30,7 @@ res_cartpole = Dict(Pair.(fields, map(x->getfield.(results_cartpole, x), fields)
 
 good_inds = 1:18
 
-samples_cartpole = res_cartpole[:nsamples][good_inds] / 100
+samples_cartpole = res_cartpole[:nsamples][good_inds] / 121
 nom_err_avg_cartpole = res_cartpole[:nom_err_avg][good_inds]
 eDMD_err_avg_cartpole = res_cartpole[:eDMD_err_avg][good_inds]
 jDMD_err_avg_cartpole = res_cartpole[:jDMD_err_avg][good_inds]
@@ -40,9 +40,9 @@ results_planar_quad = load(REX_PLANAR_QUADROTOR_RESULTS_FILE)["results"]
 fields = keys(results_planar_quad[1])
 res_planar_quad = Dict(Pair.(fields, map(x->getfield.(results_planar_quad, x), fields)))
 
-good_inds = 1:length(res_planar_quad[:nsamples])
+good_inds = 1:18
 
-samples_planar_quad = res_planar_quad[:nsamples][good_inds] / 100
+samples_planar_quad = res_planar_quad[:nsamples][good_inds] / 121
 nom_err_avg_planar_quad = res_planar_quad[:nom_err_avg][good_inds]
 eDMD_err_avg_planar_quad = res_planar_quad[:eDMD_err_avg][good_inds]
 jDMD_err_avg_planar_quad = res_planar_quad[:jDMD_err_avg][good_inds]
@@ -54,18 +54,19 @@ p = @pgf Axis(
         ymajorgrids,
         xlabel = "Number of trajectories",
         ylabel = "Tracking error",
-        ymax=2,
+        ymax=3,
+        legend_pos = "north east",
     },
     PlotInc({lineopts..., color=color_nominal}, Coordinates(samples_cartpole, nom_err_avg_cartpole ./ median(nom_err_avg_cartpole))),
     PlotInc({lineopts..., color=color_eDMD}, Coordinates(samples_cartpole, eDMD_err_avg_cartpole ./ median(nom_err_avg_cartpole))),
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(samples_cartpole, jDMD_err_avg_cartpole ./ median(nom_err_avg_cartpole))),
 
-    PlotInc({lineopts..., color=color_nominal}, Coordinates(samples_planar_quad, nom_err_avg_planar_quad ./ median(nom_err_avg_planar_quad))),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(samples_planar_quad, eDMD_err_avg_planar_quad ./ median(nom_err_avg_planar_quad))),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(samples_planar_quad, jDMD_err_avg_planar_quad ./ median(nom_err_avg_planar_quad))),
+    PlotInc({lineopts..., color=color_nominal, style ="{dashed}"}, Coordinates(samples_planar_quad, nom_err_avg_planar_quad ./ median(nom_err_avg_planar_quad))),
+    PlotInc({lineopts..., color=color_eDMD, style ="{dashed}"}, Coordinates(samples_planar_quad, eDMD_err_avg_planar_quad ./ median(nom_err_avg_planar_quad))),
+    PlotInc({lineopts..., color=color_jDMD, style ="{dashed}"}, Coordinates(samples_planar_quad, jDMD_err_avg_planar_quad ./ median(nom_err_avg_planar_quad))),
 
-    Legend(["Nominal MPC (Cartpole)", "Nominal MPC (Planar Quad)", "eDMD (Cartpole)", "eDMD (Planar Quad)", 
-        "jDMD (Cartpole)", "jDMD (Planar Quad)"])
+    Legend(["Nominal MPC (Cartpole)", "eDMD (Cartpole)", "jDMD (Cartpole)", 
+            "Nominal MPC (Planar Quad)", "eDMD (Planar Quad)", "jDMD (Planar Quad)"])
 )
 
 pgfsave(joinpath(Problems.FIGDIR, "combined_mpc_test_error.tikz"), p, include_preamble=false)
