@@ -364,6 +364,90 @@ state space, although the benefits are immediately apparent: with just a few tra
 trajectories (3 for jDMD and 7 for eDMD) we can learn a model that improves upon our nominal
 LQR controller policy.
 
+\subsection{Efficient Recursive Least Squares}
+In its canonical formulation, a linear least squares problem can be represented as the
+following unconstrained optimization problem:
+\begin{align}
+    \min_x \|Fx - d\|_2^2.
+\end{align}
+The solution to this problem is found by solving for the $x$ in which the gradient of the
+objective function with respect to $x$ is zero, also known as the normal equations: 
+\begin{align}\label{eq:normal_eq}
+    (F^TF)x =F^Td,
+\end{align}
+For small to medium sized problems, this problem is most often solved with either a Cholesky
+or a QR decomposition.  Unfortunately, for very large problems where storage size and
+numerical conditioning become a concern, forming and factorizing the required matrices can
+be intractable.
+
+To deal with large problems like the one proposed in \eqref{opt:lls_matrix}, a recursive
+method is used that processes rows of $F$ and $d$ sequentially in batches, avoiding the need
+for forming or factorizing the whole matrix. To do this, the rows of $F$ and $d$ will be
+divided up into batches in the following manner:
+\begin{equation}
+    \begin{aligned}
+        F = \begin{bmatrix} F_1 \\ F_2 \\ \vdots \\ F_N \end{bmatrix}
+    \end{aligned},
+    \quad 
+    \begin{aligned}
+        d = \begin{bmatrix} d_1 \\ d_2 \\ \vdots \\ d_N \end{bmatrix}.
+    \end{aligned}
+\end{equation}
+The matrix $F^TF$ from \eqref{eq:normal_eq} can then be represented as the following sum:
+\begin{align}
+    F^TF = F_1^TF_1 + F_2^TF_2 + \ldots + F_N^TF,
+\end{align}
+with the right-hand side vector in \eqref{eq:normal_eq} expressed in a similar fashion:
+\begin{align}
+    F^Td = F_1^Td_1 + F_2^Td_2 + \ldots + F_N^Td_N.
+\end{align}
+The main idea of this recursive method is to assemble an upper triangular factorization of
+$A^TA$ by forming the factor of $A_1^TA_1$, and updating this factor with each additional
+batch. To do this, first a matrix "square-root" $U$ is defined as:
+\begin{equation}\label{eq:sqrtm}
+    \begin{aligned}
+        U = \sqrt{M + W}
+    \end{aligned}
+    \quad 
+    \rightarrow
+    \quad 
+    \begin{aligned}
+        U^TU = M + W,
+    \end{aligned}
+\end{equation}
+for two arbitrary matrices $M$ and $W$. As shown in \todo{cite altro once bib is in}, the
+upper-triangular matrix square root of a sum of matrices can be expressed as a function of
+each individual matrix square root by using a function $\operatorname{QR_R}$ that takes the
+QR decomposition of the input and returns only the upper triangular R. Using this with the
+variables introduced in \eqref{eq:sqrtm} results in the following:
+\begin{align}
+    \sqrt{M + W} &= \operatorname{QR_R}\bigg( \begin{bmatrix} \sqrt{M} \\ \sqrt{W} \end{bmatrix} \bigg)
+\end{align}
+Using this, the factorization of the $F^TF$ matrix can be updated using the following
+recursion:
+\begin{align}
+    \sqrt{F_{1:i}^TF_{1:i}} = \operatorname{QR_R}\bigg( \begin{bmatrix} \sqrt{F_{1:i-1}^TF_{1:i-1}} \\ F_i \end{bmatrix} \bigg).
+\end{align}
+The final algorithm for solving a least squares problem in a recursive-batch fashion is
+described in algorithm \ref{alg:rlsqr}. This algorithm can be modified to handle L2
+regularized least squares problems by simply replacing line 2 of algorithm \ref{alg:rlsqr}
+with $U\leftarrow \operatorname{QR_R}(\operatorname{vcat}(F_1,\sqrt{\rho}I))$, where $\rho$
+is the regularizer. 
+ \begin{algorithm} 
+	\begin{algorithmic}[1]
+		\caption{Recursive Batch Least Squares with QR}\label{alg:rlsqr}
+		\State \textbf{input} $F,\,d$  \Comment{problem data}
+		\State $U \leftarrow \operatorname{QR_R}(F_1)$ \Comment{form initial upper-triangular square-root}
+		\State $b \leftarrow F_1^Td_1$ \Comment{form initial right hand side vector}
+		\For{$i = 2:N$}
+% 		\State $U \leftarrow \operatorname{QR_R}([U^T \, A_i^T]^T) $ 
+        \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(U,F_i)) $ \Comment{update square-root with new batch}
+		\State $b \leftarrow b + F_i^Td_i$ \Comment{update right hand side with new batch}
+		\EndFor
+		\State \textbf{ouput} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
+	\end{algorithmic}
+\end{algorithm}
+
 % \begin{figure}
 %   \centering
 %   \begin{subfigure}[b]{0.40\textwidth}
