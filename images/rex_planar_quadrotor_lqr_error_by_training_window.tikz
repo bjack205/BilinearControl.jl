@@ -1,6 +1,6 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Window Percentage}, ylabel={Stabilization error}, legend pos={north west}]
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Fraction of training range}, ylabel={Stabilization error}, legend pos={north west}]
     \addplot+[no marks, very thick, color={orange}]
         coordinates {
             (0.1,0.10238375213919212)

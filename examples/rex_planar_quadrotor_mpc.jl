@@ -20,7 +20,6 @@ import BilinearControl.Problems
 using Test
 using Infiltrator
 
-include("learned_models/edmd_utils.jl")
 include("constants.jl")
 const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_results.jld2")
 
@@ -557,7 +556,7 @@ p_tracking = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel = "Window Percentage",
+        xlabel = "Fraction of training range",
         ylabel = "Tracking error",
         legend_pos = "north west"
     },
