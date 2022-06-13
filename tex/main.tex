@@ -91,13 +91,18 @@ for Learning Bilinear, Control-affine Koopman Models}
     peak memory required to solve the least-squares problem.
 
     In summary, our contributions are:
-    * A novel extension to extended dynamic mode decomposition (eDMD) that incorporates 
-      gradient information from an approximate analytic model;
-    * a simple linear MPC control technique for learned bilinear control systems that is 
-      computationally efficient online, which, when combined with the proposed extension 
-      to eDMD, requires extremely little training data to get a good control policy; and
-    * a recursive, batch QR algorithm solving the least-squares problems that arise 
-      when learning bilinear dynamical systems using eDMD.
+    \begin{itemize}
+        \item A novel extension to extended dynamic mode decomposition (eDMD) that
+        incorporates gradient information from an approximate analytic model;
+
+        \item a simple linear MPC control technique for learned bilinear control systems
+        that is computationally efficient online, which, when combined with the proposed
+        extension to eDMD, requires extremely little training data to get a good control
+        policy; and
+
+        \item a recursive, batch QR algorithm solving the least-squares problems that arise 
+        when learning bilinear dynamical systems using eDMD.
+    \end{itemize}
     
     The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
     give some background on the appliciation of Koopman operator theory to controlled 
