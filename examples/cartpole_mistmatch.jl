@@ -129,6 +129,9 @@ function test_sample_size(;
     # end
 end
 
+#############################################
+## Min Trajectories to Stabilize
+#############################################
 function find_min_sample_to_stabilize(mu_vals, num_train; 
         err_thresh=0.1, success_rate_thresh=0.95, repeats_required = 2, verbose=true, 
         kwargs...
@@ -208,16 +211,49 @@ res_jDMD_all = [
     merge(res_jDMD_3, Dict(:α=>0.1)),
     merge(res_jDMD_2, Dict(:α=>0.5)),
 ]
-jldsave(CARTPOLE_MISMATCH_RESULTS; res_jDMD = res_jDMD_all)
+jldsave(CARTPOLE_MISMATCH_RESULTS; res_jDMD = res_jDMD_all, res_eDMD, mu_vals, num_train)
 
-@time res_jDMD = find_min_sample_to_stabilize(mu_vals, num_train; 
-    num_test=20, alg=:jDMD, x_window, test_window_ratio, reg, α
-)
+## Plot the results
+using PGFPlotsX
+using LaTeXStrings
+using Colors
+colorant"dark green"
+results_mismatch = load(CARTPOLE_MISMATCH_RESULTS)
 
-success_rate, average_error = test_sample_size(;num_train=9, alg=:jDMD, μ=0.5,
-    num_test=50, err_thresh, reg, x_window, test_window_ratio, α=0.1
-)
+mu_vals = results_mismatch["mu_vals"]
+num_train = results_mismatch["num_train"]
+setzerotonan(x) = x ≈ zero(x) ? 0 : x
+getsamples(d) = map(k->setzerotonan(getindex(d, k)), mu_vals)
 
-success_rate, average_error = test_sample_size(;num_train=100, alg=:eDMD, μ=0.4,
-    num_test=50, err_thresh, reg=1e-4, x_window, test_window_ratio, α=0.1
+res_jDMD_0p5  = getsamples(results_mismatch["res_jDMD"][3])
+res_jDMD_0p1  = getsamples(results_mismatch["res_jDMD"][2])
+res_jDMD_0p01 = getsamples(results_mismatch["res_jDMD"][1])
+res_eDMD      = getsamples(results_mismatch["res_eDMD"])
+
+setzerotona(x) = x ≈ zero(x) ? "N/A" : x
+
+mu_vals
+res_jDMD_0p01
+
+p_bar = @pgf Axis(
+    {
+        height="5cm",
+        width="5in",
+        bar_width = "7pt",
+        reverse_legend,
+        ybar,
+        ymax=100,
+        legend_pos = "north west",
+        ylabel = "Training trajectories to Stabilize",
+        xlabel = "Coloumb Friction Coefficient",
+        nodes_near_coords
+    },
+    PlotInc({no_marks, color=colorant"forest green"}, Coordinates(mu_vals, res_jDMD_0p5)),
+    PlotInc({no_marks, color=colorant"purple"}, Coordinates(mu_vals, res_jDMD_0p1)),
+    PlotInc({no_marks, color=color_jDMD}, Coordinates(mu_vals, res_jDMD_0p01)),
+    PlotInc({no_marks, color=color_eDMD}, Coordinates(mu_vals, res_eDMD)),
+    # PlotInc({no_marks, color=color_eDMD}, Coordinates([eDMD_projected_samples,eDMD_samples], [0,1])),
+    Legend(["jDMD " * L"(\alpha=0.5)", "jDMD " * L"(\alpha=0.1)", "jDMD " * L"(\alpha=0.01)", "eDMD"])
 )
+pgfsave(joinpath(Problems.FIGDIR, "cartpole_friction_mismatch.tikz"), p_bar, include_preamble=false)
+
