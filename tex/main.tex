@@ -5,6 +5,7 @@
 \usepackage{brian}
 \graphicspath{{../images/}}
 \usepackage[export]{adjustbox}
+\usepackage{wrapfig}
 % \usepackage{biblatex}
 
 % Bibliography
@@ -43,6 +44,23 @@ Carnegie Mellon University\\
 \maketitle
 
 \todo{Add abstract}
+\begin{abstract}
+  Combining the benefits of data-driven and model-based control tech- niques for nonlinear
+  dynamics systems has many potential advantages. Compared to purely data-driven approaches,
+  this could include benefits such as increasing sampling efficiency, reducing training
+  time, or increasing generalization. For purely model-based approaches such as
+  model-predictive control, this could in- crease robustness to model uncertainty or improve
+  overall performance by adapt- ing the controller based on observations from the real
+  system. We present a novel extension to previous data-driven approaches based on Koopman
+  operator theory that combines many of the benefits of model-based and data-driven
+  approaches.  By including derivative information from an approximate analytical model, we
+  show that we can quickly learn an efficient bilinear representation of the system
+  dynamics, that, when combined with a novel linear MPC method that projects the dynamics
+  into the original state space, offers performance improvements over nominal linear MPC
+  with just a few training trajectories. We demonstrate in- creased sampling efficiency,
+  increased generalization, and robustness to training hyperparameters compared to previous
+  approaches
+\end{abstract}
 
 \section{Introduction}
 
@@ -117,7 +135,6 @@ limitations of the method, and finish with some concluding thoughts in Section
 
 \section{Background and Related Work} \label{sec:Preliminaries/Background}
 
-\subsection{The Koopman Operator}
 The theoretical underpinnings of the Koopman operator and its application to dynamical
 systems has been extensively studied, especially within the last decade 
 \cite{Fasel2021,Proctor2018,Bruder2021,Williams2015}. Rather than describe the theory in
@@ -444,6 +461,7 @@ All reference trajectories for the swingup task were generated using ALTRO
 For the planar quadrotor, the \textit{simulated} model included aerodynamic drag terms not
 included in the \textit{nominal} model, as well as parametric error of about 5\% on the
 system properties (e.g. mass, rotor arm length, etc.).
+\todo{add Koopman function}
 
 % We analyze the system on tasks nearly identical to those of the cartpole system:
 % \begin{enumerate}
@@ -508,28 +526,41 @@ solve times are on the order of seconds for simple systems.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Lifted versus Projected MPC}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure}
-  \centering
-  \begin{subfigure}[b]{0.50\textwidth}
-    \includegraphics[width=\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
-    \caption{Number of training trajectories requires to beat the nominal MPC controller.
-    The criteria is the L2 norm of the state from the goal state after 4 seconds.
-    The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
-    (17 states), whereas the ``Projected'' MPC contollers project the Jacobians of the 
-    bilinear system back into the original state space.
-    \todo{make this into a table instead?}
-    }
-    \label{fig:cartpole_lqr_samples}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}[b]{0.48\textwidth}
-    \centering
-    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
-    \caption{LQR stabilization error over increasing equilibrium offset}
-    \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
-  \end{subfigure}
-\end{figure}
-Figure \ref{fig:cartpole_lqr_samples} also highlights the sample efficiency of the proposed 
+% \begin{figure}
+%   \centering
+%   \begin{subfigure}[b]{0.50\textwidth}
+%     \includegraphics[width=\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
+%     \caption{Number of training trajectories requires to beat the nominal MPC controller.
+%     The criteria is the L2 norm of the state from the goal state after 4 seconds.
+%     The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
+%     (17 states), whereas the ``Projected'' MPC contollers project the Jacobians of the 
+%     bilinear system back into the original state space.
+%     \todo{make this into a table instead?}
+%     }
+%     \label{fig:cartpole_lqr_samples}
+%   \end{subfigure}
+%   \hfill
+%   \begin{subfigure}[b]{0.48\textwidth}
+%     \centering
+%     \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
+%     \caption{LQR stabilization error over increasing equilibrium offset}
+%     \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
+%   \end{subfigure}
+% \end{figure}
+% \begin{wraptable}{r}{5.0cm}
+% \begin{tabular}{ccc}\\
+% \toprule  
+% MPC       & eDMD & jDMD \\
+% \midrule
+% Lifted    & 17   &          15 \\
+% Projected & 18   &  \textbf{2} \\
+% \bottomrule
+% \end{tabular}
+% \caption{Training trajectories required to beat nominal MPC}
+% \label{tab:mpc_comp}
+% \end{wraptable} 
+
+Table \ref{fig:cartpole_lqr_samples} also highlights the sample efficiency of the proposed 
 method, while also comparing to the more typical approach of applying the MPC policy in the 
 lifted state space. As shown, the proposed method of applying linear MPC to the projected 
 linearization is much more sample efficient than trying to apply it in the lifted state 
@@ -543,16 +574,20 @@ it is straightforward to apply additional constraints to the original state vari
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t] \centering
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
-    \caption{Stabilization error for the quadrotor LQR stabilization task}
-    \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
-  \end{subfigure}
-  \hfill
-  \begin{subfigure}[t]{0.49\textwidth}
     \raggedright
     \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_error_by_training_window.tikz}
     \caption{Tracking error for the quadrotor MPC reference trajectory tracking task.}
     \label{fig:rex_planar_quadrotor_mpc_error_by_training_window}
+    % \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
+    % \caption{Stabilization error for the quadrotor LQR stabilization task}
+    % \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
+    \caption{LQR stabilization error over increasing equilibrium offset}
+    \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
   \end{subfigure}
   \caption{Generalizability with respect to initial conditions sampled outside of the 
   training domain. The initial conditions are sampled from a uniform distribution, whose 
@@ -594,6 +629,8 @@ information provided by the nominal model.
   required to consistently stabilize the cartpole system, given an increasing friction 
   coefficient, which the nominal model does not include at all. An entry of 0 signifies 
   that a stabilizing controller wasn't found with less than 100 training trajectories.
+  The nominal MPC controller failed to stabilize once the friction coefficient went above 
+  0.1.
   }
   \label{fig:cartpole_friction_mismatch}
 \end{figure}
