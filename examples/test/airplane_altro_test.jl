@@ -68,7 +68,7 @@ U_ref = res["U_ref"]
 T_ref = res["T_ref"]
 u_trim = res["u_trim"] 
 dt = T_ref[2] 
-Aref,Bref = EDMD.linearize(dmodel_nom, X_ref, U_ref, T_ref)
+
 n,m = 12,4
 Nt = 21
 Qk = Diagonal([fill(1e1, 3); fill(1e1, 3); fill(1e-1, 3); fill(1e-1, 3)])
@@ -83,6 +83,17 @@ mpc = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
     xmin,xmax,umin,umax
 )
 
+##
+t_sim = T_ref[end]
+X_mpc,_,T_mpc = simulatewithcontroller(dmodel_real, mpc, X_ref[1], t_sim, dt)
+
+plotstates(T_ref, X_ref, inds=[1,3,6,7], label=["x" "z" "pitch" "vx"], legend=:outerright)
+plotstates!(T_mpc, X_mpc, inds=[1,3,6,7], s=:dash, c=[1 2 3 4], lw=2)
+
+visualize!(vis, model_real, t_sim, X_ref)
+visualize!(vis, model_real, t_sim, X_mpc)
+
+##
 #
 dx = zeros(n)
 dx[1] = 0.0
@@ -97,6 +108,9 @@ dx[1] = 0.1
 x = X_ref[k] + dx
 
 ## Solve for control
+
+
+##
 t = (k-1)*dt
 Nh = min(Nt, N_ref - k)
 mpc_inds = k-1 .+ (1:Nh)
@@ -130,8 +144,8 @@ k += 1
 T_ref[k-1]
 X_ref[k-1]
 X_mpc[1]
-plotstates(T_ref, X_ref, inds=[1,3,6,7], label=["x" "z" "pitch" "vx"], legend=:outerright)
-plotstates!(T_mpc, X_mpc, inds=[1,3,6,7], s=:dash, c=[1 2 3 4], lw=2)
+plotstates(t_ref, x_ref, inds=[1,3,6,7], label=["x" "z" "pitch" "vx"], legend=:outerright)
+plotstates!(t_mpc, x_mpc, inds=[1,3,6,7], s=:dash, c=[1 2 3 4], lw=2)
 
 ## Simulate with Linear MPC
 Qk = Diagonal([fill(1e-0, 3); fill(1e-0, 3); fill(1e-1, 3); fill(1e-1, 3)])
