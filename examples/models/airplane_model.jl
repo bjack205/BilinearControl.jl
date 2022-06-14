@@ -271,6 +271,10 @@ function propwash(p::YakPlane, thr)::SVector{3}
         v = @SVector zeros(3)
     end
 end
+function propwash(p::YakPlane{LinearAeroCoefficients}, thr)::SVector{3}
+    trim_thr = 24; # control input for zero thrust (deadband)
+    v = @SVector [5.568*thr^0.199 - 8.859, 0, 0];
+end
 
 "Dynamic pressure"
 function p_dyn(p::YakPlane, v)
@@ -281,9 +285,13 @@ end
 3rd order polynomial fit to glide-test data
 Good to about ±20°
 """
-function Cl_wing(p::YakPlane, a)
+function Cl_wing(p::YakPlane{ExperimentalAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
     cl = -27.52*a^3 - .6353*a^2 + 6.089*a;
+end
+function Cl_wing(p::YakPlane{LinearAeroCoefficients}, a)
+    a = clamp(a, -0.5*pi, 0.5*pi)
+    cl = 2pi*a  # flat plate
 end
 
 """ Lift coefficient (alpha in radians)
@@ -298,9 +306,14 @@ end
 2nd order polynomial fit to glide-test data
 Good to about ±20°
 """
-function Cd_wing(p::YakPlane, a)
+function Cd_wing(p::YakPlane{ExperimentalAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
     cd = 2.08*a^2 + .0612;
+end
+function Cd_wing(p::YakPlane{LinearAeroCoefficients}, a)
+    a = clamp(a, -0.5*pi, 0.5*pi)
+    cd = 0.05
+    # cd = 2.08*a^2 + .0612;
 end
 
 """ Drag coefficient (alpha in radians)
