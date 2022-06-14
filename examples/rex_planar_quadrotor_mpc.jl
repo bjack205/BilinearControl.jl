@@ -508,15 +508,7 @@ end
 #############################################
 
 generate_planar_quadrotor_data()
-num_traj = 2:2:50
-
-β = 240 / (38 * 120)
-res = train_planar_quadrotor_models(0, 50, α=0.5, β=1.0, learnB=true, reg=1e-5);
-# res = train_planar_quadrotor_models(0, 10, α=0.5, β=1.0, learnB=true, reg=1e-4)
-# res = train_cartpole_models(0, 5, α=0.5, β=1.0, learnB=false, reg=1e-4)
-@show res.jDMD_err_avg
-@show res.eDMD_err_avg
-num_traj[4]
+num_traj = 2:2:36   
 results = map(num_traj) do N
     println("\nRunning with N = $N")
     res = train_planar_quadrotor_models(0,N, α=0.5, β=1.0, learnB=true, reg=1e-5)
@@ -534,7 +526,6 @@ results = load(REX_PLANAR_QUADROTOR_RESULTS_FILE)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
 res
-good_inds = 1:length(res[:nsamples])
 # plot(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])
 # plot!(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])
 p_time = @pgf Axis(
@@ -555,14 +546,13 @@ p_ns = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel = "Number of training samples",
-        ylabel = "Tracking error",
+        xlabel = "Number of training trajectories", ylabel = "Tracking error",
         ymax=2.0,
     },
-    PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:nsamples][good_inds], res[:nom_err_avg][good_inds])),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:nsamples][good_inds], res[:eDMD_err_avg][good_inds])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:nsamples][good_inds], res[:jDMD_err_avg][good_inds])),
-    Legend(["nominal", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})"])
+    PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:num_mpc], res[:nom_err_avg])),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:num_mpc], res[:eDMD_err_avg])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:num_mpc], res[:jDMD_err_avg])),
+    Legend(["nominal", "eDMD", "jDMD"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_test_error.tikz"), p_ns, include_preamble=false)
 

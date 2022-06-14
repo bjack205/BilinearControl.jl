@@ -156,9 +156,6 @@ results = load(CARTPOLE_RESULTS_FILE)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
 res
-good_inds = 1:18
-plot(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])
-plot!(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])
 p = @pgf Axis(
     {
         xmajorgrids,
@@ -167,8 +164,8 @@ p = @pgf Axis(
         ylabel = "Training time (sec)",
         legend_pos = "north west",
     },
-    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples][good_inds], res[:t_train_eDMD][good_inds])),
-    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples][good_inds], res[:t_train_jDMD][good_inds])),
+    PlotInc({no_marks, "very thick", "orange"}, Coordinates(res[:nsamples], res[:t_train_eDMD])),
+    PlotInc({no_marks, "very thick", "cyan"}, Coordinates(res[:nsamples], res[:t_train_jDMD])),
     Legend(["eDMD", "jDMD"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_train_time.tikz"), p, include_preamble=false)
@@ -177,13 +174,13 @@ p = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel = "Number of training samples",
+        xlabel = "Number of training trajectories",
         ylabel = "Tracking error",
         ymax=0.2,
     },
-    PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:nsamples][good_inds], res[:nom_err_avg][good_inds])),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:nsamples][good_inds], res[:eDMD_err_avg][good_inds])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:nsamples][good_inds], res[:jDMD_err_avg][good_inds])),
-    Legend(["Nominal", "eDMD", "jDMD"])
+    PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:num_swingup], res[:nom_err_avg])),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:num_swingup], res[:eDMD_err_avg])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:num_swingup], res[:jDMD_err_avg])),
+    # Legend(["Nominal", "eDMD", "jDMD"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)

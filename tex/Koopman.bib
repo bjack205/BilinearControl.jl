@@ -12,12 +12,18 @@
   keywords = {Convex optimization,Convexification,Interior point method algorithms,Optimal control,Planetary soft landing}
 }
 
-@inproceedings{Baraff,
-  title = {Linear-Time Dynamics Using {{Lagrange}} Multipliers},
-  booktitle = {Proceedings of the 23rd Annual Conference on {{Computer}} Graphics and Interactive Techniques},
+@inproceedings{Baraff1996,
+  title = {Linear-{{Time Dynamics Using Lagrange Multipliers}}},
+  booktitle = {{{ACM SIGGRAPH}} 96},
   author = {Baraff, David},
+  date = {1996},
   pages = {137--146},
-  publisher = {{ACM}}
+  doi = {10.1145/237170.237226},
+  url = {http://portal.acm.org/citation.cfm?doid=237170.237226},
+  urldate = {2018-03-28},
+  abstract = {Current linear-time simulation methods for articulated figures are based exclusively on reduced-coordinate formulations. This paper describes a general, non-iterative linear-time simulation method based instead on Lagrange multipliers. Lagrange multiplier methods are important for computer graphics applications because they bypass the difficult (and often intractable) problem of parameterizing a system’s degrees of freedom. Given a loop-free set of n equality constraints acting between pairs of bodies, the method takes O(n) time to compute the system’s dynamics. The method does not rely on matrix bandwidth, so no assumptions about the constraints’ topology are needed. Bodies need not be rigid, constraints can be of various dimensions, and unlike reduced-coordinate approaches, nonholonomic (e.g. velocity-dependent) constraints are allowed. An additional set of k one-dimensional constraints which induce loops and/or handle inequalities can be accommodated with cost O(kn). This makes it practical to simulate complicated, closedloop articulated figures with joint-limits and contact at interactive rates. A complete description of a sample implementation is provided in pseudocode.},
+  eventtitle = {{{ACM SIGGRAPH}} 96},
+  file = {/home/brian/Zotero/storage/QYJYN9QF/Baraff - 1996 - Linear-time dynamics using Lagrange multipliers.pdf}
 }
 
 @article{Bjelonic2021,
@@ -177,6 +183,26 @@
   file = {/home/brian/Zotero/storage/BLPDUBMD/Folkestad et al. - 2021 - Quadrotor Trajectory Tracking with Learned Dynamic.pdf;/home/brian/Zotero/storage/9C9LBAWY/2110.html}
 }
 
+@article{Fong2011,
+  title = {{{LSMR}}: {{An Iterative Algorithm}} for {{Sparse Least-Squares Problems}}},
+  shorttitle = {{{LSMR}}},
+  author = {Fong, David Chin-Lung and Saunders, Michael},
+  date = {2011-01},
+  journaltitle = {SIAM Journal on Scientific Computing},
+  shortjournal = {SIAM J. Sci. Comput.},
+  volume = {33},
+  number = {5},
+  pages = {2950--2971},
+  publisher = {{Society for Industrial and Applied Mathematics}},
+  issn = {1064-8275},
+  doi = {10.1137/10079687X},
+  url = {https://epubs.siam.org/doi/abs/10.1137/10079687X},
+  urldate = {2022-06-14},
+  abstract = {An iterative method LSMR is presented for solving linear systems \$Ax=b\$ and least-squares problems \$\textbackslash min \textbackslash |Ax-b\textbackslash |\_2\$, with A being sparse or a fast linear operator. LSMR is based on the Golub–Kahan bidiagonalization process. It is analytically equivalent to the MINRES method applied to the normal equation \$A\^T\textbackslash! Ax = A\^T\textbackslash! b\$, so that the quantities \$\textbackslash |A\^T\textbackslash! r\_k\textbackslash |\$ are monotonically decreasing (where \$r\_k = b - Ax\_k\$ is the residual for the current iterate \$x\_k\$). We observe in practice that \$\textbackslash |r\_k\textbackslash |\$ also decreases monotonically, so that compared to LSQR (for which only \$\textbackslash |r\_k\textbackslash |\$ is monotonic) it is safer to terminate LSMR early. We also report some experiments with reorthogonalization.},
+  keywords = {15A06,65F10,65F20,65F22,65F25,65F35,65F50,93E24,conjugate-gradient method,Golub–Kahan process,iterative method,Krylov subspace method,least-squares problem,LSQR,minimum-residual method,MINRES,sparse matrix},
+  file = {/home/brian/Zotero/storage/XUMW7ZDS/Fong and Saunders - 2011 - LSMR An Iterative Algorithm for Sparse Least-Squa.pdf}
+}
+
 @article{Garstka2021,
   title = {{{COSMO}}: {{A Conic Operator Splitting Method}} for {{Convex Conic Problems}}},
   author = {Garstka, Michael and Cannon, Mark and Goulart, Paul},
@@ -269,20 +295,6 @@
   keywords = {control theory,machine learning,model predictive control,nonlinear dynamics,sparse identification of nonlinear dynamics,sparse identification of nonlineardynamics,system identification}
 }
 
-@article{Kaiser2018a,
-  title = {Sparse Identification of Nonlinear Dynamics for Model Predictive Control in the Low-Data Limit},
-  author = {Kaiser, E. and Kutz, J. N. and Brunton, S. L.},
-  date = {2018-11},
-  journaltitle = {Proceedings of the Royal Society A},
-  volume = {474},
-  number = {2219},
-  publisher = {{The Royal Society Publishing}},
-  doi = {10.1098/RSPA.2018.0335},
-  url = {https://royalsocietypublishing.org/doi/abs/10.1098/rspa.2018.0335},
-  abstract = {Data-driven discovery of dynamics via machine learning is pushing the frontiers of modelling and control efforts, providing a tremendous opportunity to extend the reach of model predictive control ...},
-  keywords = {control theory,machine learning,model predictive control,nonlinear dynamics,sparse identification of nonlinear dynamics,sparse identification of nonlineardynamics,system identification}
-}
-
 @article{Karnchanachari2020,
   title = {Practical {{Reinforcement Learning For MPC}}: {{Learning}} from Sparse Objectives in under an Hour on a Real Robot},
   author = {Karnchanachari, Napat and Valls, Miguel I and David Hoeller, Sevensensech and Hutter, Marco},
@@ -352,6 +364,24 @@
   publisher = {{Taylor \& Francis}},
   abstract = {In this work, a predictive control framework is presented for feedback stabilization of nonlinear systems. To achieve this, we integrate Koopman operator theory with Lyapunov-based model predictive control (LMPC). The main idea is to transform nonlinear dynamics from state-space to function space using Koopman eigenfunctions-for control affine systems this results in a bilinear model in the (lifted) function space. Then, a predictive controller is formulated in Koopman eigenfunction coordinates which uses an auxiliary Control Lyapunov Function (CLF) based bounded controller as a constraint to ensure stability of the Koopman system in the function space. Provided there exists a continuously differentiable inverse mapping between the original state-space and (lifted) function space, we show that the designed controller is capable of translating the feedback stabiliz-ability of the Koopman bilinear system to the original nonlinear system. Remarkably, the feedback control design proposed in this work remains completely data-driven and does not require any explicit knowledge of the original system. Furthermore, due to the bilinear structure of the Koopman model, seeking a CLF is no longer a bottleneck for LMPC. Benchmark numerical examples demonstrate the utility of the proposed feedback control design.},
   keywords = {con-trol Lyapunov functions,feedback stabilization,Index Terms-Koopman operator,model predictive control}
+}
+
+@article{Paige1982,
+  title = {{{LSQR}}: {{An Algorithm}} for {{Sparse Linear Equations}} and {{Sparse Least Squares}}},
+  shorttitle = {{{LSQR}}},
+  author = {Paige, Christopher C. and Saunders, Michael A.},
+  date = {1982-03},
+  journaltitle = {ACM Transactions on Mathematical Software},
+  shortjournal = {ACM Trans. Math. Softw.},
+  volume = {8},
+  number = {1},
+  pages = {43--71},
+  issn = {0098-3500, 1557-7295},
+  doi = {10.1145/355984.355989},
+  url = {https://dl.acm.org/doi/10.1145/355984.355989},
+  urldate = {2022-06-14},
+  langid = {english},
+  file = {/home/brian/Zotero/storage/GD52P95G/Paige and Saunders - 1982 - LSQR An Algorithm for Sparse Linear Equations and.pdf}
 }
 
 @article{Parikh2014,
