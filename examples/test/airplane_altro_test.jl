@@ -32,6 +32,7 @@ model_real = Problems.SimulatedAirplane()
 dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
+##
 tf = 2.0
 dt = 0.05
 prob = AirplaneProblem(;tf, dt)
@@ -45,7 +46,7 @@ X_ref = Vector.(states(solver))
 U_ref = push!(Vector.(controls(solver)), u_trim)
 T_ref = TO.gettimes(solver)
 norm(X_ref[end][7:end])
-jldsave(joinpath(Problems.DATADIR, "plane_data.jld2"); X_ref, U_ref, T_ref)
+jldsave(joinpath(Problems.DATADIR, "plane_data.jld2"); X_ref, U_ref, T_ref, u_trim)
 
 ## Simulate open-loop with real dynamics
 X_real, = simulate(dmodel_real, U_ref, X_ref[1], tf, dt)
@@ -61,6 +62,12 @@ visualize!(vis, model_real, tf, X_sim)
 norm(X_sim[end][7:end])
 
 ## Simulate with OSQP controller
+res = load(joinpath(Problems.DATADIR, "plane_data.jld2"))
+X_ref = res["X_ref"]
+U_ref = res["U_ref"]
+T_ref = res["T_ref"]
+u_trim = res["u_trim"] 
+dt = T_ref[2] 
 Aref,Bref = EDMD.linearize(dmodel_nom, X_ref, U_ref, T_ref)
 n,m = 12,4
 Nt = 21
@@ -70,8 +77,11 @@ Qf = 10 * copy(Qk)
 t_mpc = (Nt-1) * dt
 xmax = [fill(0.5,3); fill(1.0, 3); fill(1.0, 3); fill(10.0, 3)]
 xmin = -xmax
-umin = fill(0.0, 4)
-umax = fill(255.0, 4)
+umin = fill(0.0, 4) - u_trim
+umax = fill(255.0, 4) - u_trim
+mpc = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+    xmin,xmax,umin,umax
+)
 
 #
 dx = zeros(n)
@@ -81,9 +91,9 @@ k = 1
 t = 0.0
 N_ref = length(X_ref)
 
-k = 19 
+k = 1 
 dx = zeros(n)
-dx[1] = 0.5
+dx[1] = 0.1
 x = X_ref[k] + dx
 
 ## Solve for control
@@ -100,8 +110,13 @@ q = [zeros(n) for k = 1:Nh]
 r = [zeros(m) for k = 1:Nh-1]
 
 dx = x - X_ref[k]
-dX,dU, = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
-u = dU[1] + U_ref[k]
+# dX,dU, = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
+# dX,dU, = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx)
+# u = dU[1] + U_ref[k]
+u = EDMD.getcontrol(mpc, x, t)
+dX = mpc.X[1:Nh]
+u
+x
 
 # Simulate forward
 x = RD.discrete_dynamics(dmodel_real, x, u, t, dt)
@@ -110,6 +125,7 @@ X_mpc = X_ref[mpc_inds] .+ dX
 T_mpc = t .+ range(0,length=Nh,step=dt)
 t += dt
 k += 1
+@show k
 
 T_ref[k-1]
 X_ref[k-1]
