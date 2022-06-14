@@ -1,7 +1,7 @@
 % Recommended preamble:
 \begin{tikzpicture}
 \begin{axis}[xmajorgrids, ymajorgrids, xlabel={Fraction of training range}, ylabel={Tracking error}, legend pos={north west}]
-    \addplot+[no marks, very thick, color={orange}]
+    \addplot+[no marks, color={orange}, thick]
         coordinates {
             (0.1,0.27253077898936157)
             (0.2,0.26818109769830134)
@@ -30,7 +30,7 @@
             (2.5,0.4272238515495804)
         }
         ;
-    \addplot+[no marks, very thick, color={teal}]
+    \addplot+[no marks, very thick, color={orange}, line width={2.0}]
         coordinates {
             (0.1,0.004259453294888972)
             (0.2,0.007044080066994838)
@@ -59,7 +59,7 @@
             (2.5,0.8316442562789225)
         }
         ;
-    \addplot+[no marks, very thick, color={cyan}]
+    \addplot+[no marks, color={cyan}, thick]
         coordinates {
             (0.1,0.03998821301446496)
             (0.2,0.04019446812840812)
@@ -88,7 +88,7 @@
             (2.5,0.11169345282234781)
         }
         ;
-    \addplot+[no marks, very thick, color={purple}]
+    \addplot+[no marks, very thick, color={cyan}, line width={2.0}]
         coordinates {
             (0.1,0.16057729743877985)
             (0.2,0.15886118782779915)

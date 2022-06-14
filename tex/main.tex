@@ -454,7 +454,7 @@ included in the \textit{nominal} model, as well as parametric error of about 5\%
 system properties (e.g. mass, rotor arm length, etc.). The model was trained using a 
 nonlinear mapping of $\phi(x) = [\, 1,\,
 x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
-\R^{\todo{get dimension}}$. 
+\R^{25}$. 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -506,6 +506,13 @@ quadrotor training}.
 \subsection{Generalization}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t] \centering
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
+    \caption{LQR stabilization error over increasing equilibrium offset}
+    \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
+  \end{subfigure}
+  \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \raggedright
     \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_error_by_training_window.tikz}
@@ -515,18 +522,12 @@ quadrotor training}.
     % \caption{Stabilization error for the quadrotor LQR stabilization task}
     % \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
   \end{subfigure}
-  \hfill
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
-    \caption{LQR stabilization error over increasing equilibrium offset}
-    \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
-  \end{subfigure}
   \caption{Generalizability with respect to initial conditions sampled outside of the 
   training domain. The initial conditions are sampled from a uniform distribution, whose 
   limits are determined by a scaling of the limits used for the training distribution. 
   A training range fraction greater than $1$ indicates the
-  distribution range is beyond that used to generate the training trajectories.
+  distribution range is beyond that used to generate the training trajectories. The thick 
+  lines represent the algorithm with a heavy regularization parameter.
   }
   \label{fig:training_window}
 \end{figure}

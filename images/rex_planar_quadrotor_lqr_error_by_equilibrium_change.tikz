@@ -1,7 +1,7 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Equilibirum offset}, ylabel={Stabilization error}, legend pos={north west}, ymax={200}]
-    \addplot+[no marks, very thick, color={orange}]
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Equilibrium offset}, ylabel={Stabilization error}, legend pos={north west}, ymax={200}]
+    \addplot+[no marks, color={orange}, thick]
         coordinates {
             (0.0,1.8073786533029672)
             (0.1,2.2278968738865434)
@@ -46,7 +46,7 @@
             (4.0,172.29747355052118)
         }
         ;
-    \addplot+[no marks, very thick, color={teal}]
+    \addplot+[no marks, very thick, color={orange}, line width={2}]
         coordinates {
             (0.0,3.7565435563689857)
             (0.1,4.389378212687861)
@@ -91,7 +91,7 @@
             (4.0,49.15149010872232)
         }
         ;
-    \addplot+[no marks, very thick, color={cyan}]
+    \addplot+[no marks, color={cyan}, thick]
         coordinates {
             (0.0,0.002882568277842577)
             (0.1,0.002835852751986659)
@@ -136,7 +136,7 @@
             (4.0,1.2984220659435204)
         }
         ;
-    \addplot+[no marks, very thick, color={purple}]
+    \addplot+[no marks, very thick, color={cyan}, line width={2}]
         coordinates {
             (0.0,0.0028983424205388446)
             (0.1,0.002839664955891049)
@@ -181,6 +181,5 @@
             (4.0,35.83148731040764)
         }
         ;
-    \legend{{eDMD$(\lambda = 0.0)$},{eDMD$(\lambda = 0.1)$},{jDMD$(\lambda = 10^{-5})$},{jDMD$(\lambda = 0.1)$}}
 \end{axis}
 \end{tikzpicture}
