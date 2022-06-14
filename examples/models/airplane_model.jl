@@ -15,7 +15,7 @@ Has 4 control inputs: throttle, aileron, elevator, rudder. All inputs nominally 
     YakPlane(R; kwargs...)
 where `R <: Rotation{3}`. See the source code for the keyword parameters and their default values.
 """
-RD.@autodiff Base.@kwdef mutable struct YakPlane{C,R,T} <: RD.RigidBody{R}
+RD.@autodiff Base.@kwdef mutable struct YakPlane{C,T} <: RobotDynamics.ContinuousDynamics
     g::T = 9.81; #Gravitational acceleration (m/s^2)
     rho::T = 1.2; #Air density at 20C (kg/m^3)
     m::T = .075; #Mass of plane (kg)
@@ -75,24 +75,18 @@ RD.@autodiff Base.@kwdef mutable struct YakPlane{C,R,T} <: RD.RigidBody{R}
     g_thr::T = 0.006763; #maps control input to Newtons of thrust
     g_mot::T = 3000*2*pi/60*7/255; #maps control input to motor rad/sec
 end
+RD.state_dim(::YakPlane) = 12
 RD.control_dim(::YakPlane) = 4
 
 # (::Type{<:YakPlane})(::Type{Rot}=MRP{Float64}; coeffs=:experimental, kwargs...) where Rot =
 #     YakPlane{ExperimentalAeroCoefficients,Rot,Float64}(; kwargs...)
 # YakPlane(;kwargs...) = YakPlane{ExperimentalAeroCoefficients,MRP,Float64}(;kwargs...)
-YakPlane{C}(;kwargs...) where C = YakPlane{C,MRP,Float64}(;kwargs...)
+YakPlane{C}(;kwargs...) where C = YakPlane{C,Float64}(;kwargs...)
 
 SimulatedAirplane() = YakPlane{ExperimentalAeroCoefficients}()
 NominalAirplane() = YakPlane{LinearAeroCoefficients}()
 
 trim_controls(model::YakPlane) = @SVector [41.6666, 106, 74.6519, 106]
-
-function RobotDynamics.dynamics(p::YakPlane{<:UnitQuaternion}, x, u, t=0)
-    if isempty(u)
-        u = @SVector zeros(4)
-    end
-    yak_dynamics(p, SVector{13}(x), SVector{4}(u), t) 
-end
 
 function RobotDynamics.dynamics(p::YakPlane, x, u, t=0)
     if isempty(u)
@@ -102,7 +96,10 @@ function RobotDynamics.dynamics(p::YakPlane, x, u, t=0)
 end
 
 function yak_dynamics(p::YakPlane, x::StaticVector, u::StaticVector, t=0)
-    r,q,v,w = RobotDynamics.parse_state(p, x)
+    r = SA[x[1],x[2],x[3]]
+    q = MRP(x[4],x[5],x[6])
+    v = SA[x[7],x[8],x[9]]
+    w = SA[x[10],x[11],x[12]]
 
     Q = SMatrix(q)
 
@@ -216,7 +213,7 @@ function yak_dynamics(p::YakPlane, x::StaticVector, u::StaticVector, t=0)
     #         F/p.m;
     #         p.Jinv*T];
     #
-    RobotDynamics.build_state(p, rdot, qdot, vdot, wdot)
+    [rdot; qdot; vdot; wdot]
 end
 
 @generated function RD.dynamics!(model::YakPlane{R}, xdot, x, u) where R
@@ -272,8 +269,13 @@ function propwash(p::YakPlane, thr)::SVector{3}
     end
 end
 function propwash(p::YakPlane{LinearAeroCoefficients}, thr)::SVector{3}
-    trim_thr = 24; # control input for zero thrust (deadband)
-    v = @SVector [5.568*thr^0.199 - 8.859, 0, 0];
+    v = @SVector [0.06thr, 0, 0];
+    # trim_thr = 24; # control input for zero thrust (deadband)
+    # if thr > trim_thr
+    #     v = @SVector [5.568*thr^0.199 - 8.859, 0, 0];
+    # else #deadband
+    #     v = @SVector zeros(3)
+    # end
 end
 
 "Dynamic pressure"
@@ -292,6 +294,7 @@ end
 function Cl_wing(p::YakPlane{LinearAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
     cl = 2pi*a  # flat plate
+    # cl = -27.52*a^3 - .6353*a^2 + 6.089*a;
 end
 
 """ Lift coefficient (alpha in radians)
@@ -312,7 +315,7 @@ function Cd_wing(p::YakPlane{ExperimentalAeroCoefficients}, a)
 end
 function Cd_wing(p::YakPlane{LinearAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
-    cd = 0.05
+    cd = 0.05 + a^2
     # cd = 2.08*a^2 + .0612;
 end
 
@@ -389,6 +392,9 @@ function get_trim(model::YakPlane, x_trim, u_guess;
         # Compute Newton step
         R = ∇r(z) 
         dz = -(R \ res)
+        
+        # Line search
+        α = 1.0
         z += dz
     end
     utrim = z[iu]

@@ -186,6 +186,7 @@ function set_airplane!(vis, ::Problems.YakPlane; color=nothing, scale=0.15)
     settransform!(vis["robot"]["geom"], compose(Translation(0,0,0.07),LinearMap( RotY(pi/2)*RotZ(-pi/2) * scale)))
 end
 orientation(model::Problems.YakPlane, x) = UnitQuaternion(MRP(x[4], x[5], x[6]))
+# orientation(model::Problems.YakPlane, x) = UnitQuaternion(x[4:7])
 
 #############################################
 # Generic Methods
