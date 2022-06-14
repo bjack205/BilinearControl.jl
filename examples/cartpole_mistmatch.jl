@@ -155,7 +155,7 @@ function find_min_sample_to_stabilize(
 )
     samples_required = Dict(Pair.(mu_vals, zeros(Int, length(mu_vals))))
     success_counts = Dict(Pair.(mu_vals, zeros(Int, length(mu_vals))))
-    mu_vals_remaining = copy(mu_vals)
+    mu_vals_remaining = copy(collect(mu_vals))
     inds_lock = ReentrantLock()
 
     for N in num_train
@@ -198,31 +198,38 @@ end
 ##
 test_window_ratio = 0.5
 reg = 1e-4
-num_train = [2:15; 20:5:100]
+num_train = [2:25; 25:5:100]
+mu_vals = 0:0.1:0.6
 num_test = 50
+repeats_required = 4
 
 # Test jDMD with alpha = 0.01
 α = 0.01
 @time res_jDMD = find_min_sample_to_stabilize(
-    mu_vals, num_train; num_test, alg=:jDMD, x_window, test_window_ratio, reg, α
+    mu_vals, num_train; num_test, alg=:jDMD, test_window_ratio, reg, α,
+    repeats_required
 )
 
 # Test jDMD with alpha = 0.5
 α = 0.5
 @time res_jDMD_2 = find_min_sample_to_stabilize(
-    mu_vals, num_train; num_test, alg=:jDMD, x_window, test_window_ratio, reg, α
+    mu_vals, num_train; num_test, alg=:jDMD, test_window_ratio, reg, α,
+    repeats_required
 )
 
 # Test jDMD with alpha = 0.1
 α = 0.1
 @time res_jDMD_3 = find_min_sample_to_stabilize(
-    mu_vals, num_train; num_test, alg=:jDMD, x_window, test_window_ratio, reg, α
+    mu_vals, num_train; num_test, alg=:jDMD, test_window_ratio, reg, α,
+    repeats_required
 )
 
-# Tset eDMD
+# Test eDMD
 @time res_eDMD = find_min_sample_to_stabilize(
-    mu_vals, num_train; num_test, alg=:eDMD, x_window, test_window_ratio, reg, α
+    mu_vals, num_train; num_test, alg=:eDMD, test_window_ratio, reg=1e-6, α,
+    repeats_required
 )
+res_eDMD
 
 res_jDMD_all = [
     merge(res_jDMD, Dict(:α => 0.01)),
@@ -251,14 +258,15 @@ p_bar = @pgf Axis(
     {
         # height = "5cm",
         # width = "5in",
-        bar_width = "7pt",
-        reverse_legend,
+        bar_width = "5pt",
+        # reverse_legend,
         ybar,
-        ymax = 100,
-        legend_pos = "north west",
+        ymax = 22,
+        legend_pos = "outer north east",
         ylabel = "Training trajectories to Stabilize",
         xlabel = "Coloumb Friction Coefficient",
         nodes_near_coords,
+        legend_cell_align = ["left"],
     },
     PlotInc({no_marks, color = colorant"forestgreen"}, Coordinates(mu_vals, res_jDMD_0p5)),
     PlotInc({no_marks, color = colorant"purple"}, Coordinates(mu_vals, res_jDMD_0p1)),
@@ -359,6 +367,11 @@ res_eDMD = find_min_sample_to_beat_mpc(2:40, dt; alg=:eDMD, lifted=false, repeat
 res_eDMD_lifted = find_min_sample_to_beat_mpc(2:60, dt; alg=:eDMD, lifted=true, 
     repeats_required=4,
 )
+
+res_jDMD = 2
+res_jDMD_lifted = 15
+res_eDMD = 18
+res_eDMD_lifted = 17
 
 # Generate plot
 p_bar = @pgf Axis(
