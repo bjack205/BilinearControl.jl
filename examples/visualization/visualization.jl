@@ -166,6 +166,28 @@ function visualize!(vis, model::RobotZoo.Pendulum, x::AbstractVector)
 end
 
 #############################################
+# Airplane
+#############################################
+function set_airplane!(vis, ::Problems.YakPlane; color=nothing, scale=0.15)
+    meshfile = joinpath(Problems.DATADIR,"piper","piper_pa18.obj")
+    # meshfile = joinpath(@__DIR__,"..","data","meshes","cirrus","Cirrus.obj")
+    # meshfile = joinpath(@__DIR__,"..","data","meshes","piper","piper_scaled.obj")
+    jpg = joinpath(Problems.DATADIR,"piper","piper_diffuse.jpg")
+    if isnothing(color)
+        img = PngImage(jpg)
+        texture = Texture(image=img)
+        # mat = MeshLambertMaterial(map=texture) 
+        mat = MeshPhongMaterial(map=texture) 
+    else
+        mat = MeshPhongMaterial(color=color)
+    end
+    obj = MeshFileGeometry(meshfile)
+    setobject!(vis["robot"]["geom"], obj, mat)
+    settransform!(vis["robot"]["geom"], compose(Translation(0,0,0.07),LinearMap( RotY(pi/2)*RotZ(-pi/2) * scale)))
+end
+orientation(model::Problems.YakPlane, x) = UnitQuaternion(MRP(x[4], x[5], x[6]))
+
+#############################################
 # Generic Methods
 #############################################
 
