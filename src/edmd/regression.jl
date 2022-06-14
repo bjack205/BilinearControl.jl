@@ -68,18 +68,20 @@ function rls_qr(b::AbstractVector{<:AbstractFloat}, A::SparseMatrixCSC{Float64, 
 end
 
 function rls_qr(b::AbstractVector{<:AbstractFloat}, A::AbstractMatrix{<:AbstractFloat};
-    batchsize=Int(floor(size(A)[1]/10)), Q=0.0, verbose=false)
+    batchsize=Int(floor(size(A)[1]/20)), Q=0.0, verbose=false)
 
-    m, _ = size(A)
+    m, n = size(A)
+
+    rem_m = m - 3*n
     
-    if batchsize == 0 || batchsize >= m
+    if batchsize == 0 || batchsize >= rem_m
         m_batch = 1
-        batch_size_1 = 1
+        batch_size_1 = Int(3*n)
         batches = m
     else
         m_batch = batchsize 
-        batches = Int(floor(m/m_batch))
-        batch_size_1 = m_batch + Int(mod(m, m_batch))
+        batches = Int(floor(rem_m/m_batch))
+        batch_size_1 = Int(3*n) + Int(mod(rem_m, m_batch))
     end
 
     verbose && println("# Batches: $batches")
@@ -88,18 +90,19 @@ function rls_qr(b::AbstractVector{<:AbstractFloat}, A::AbstractMatrix{<:Abstract
     
     # QR factorization on 1st batch
     
-    A_i = A[1:batch_size_1, :]
+    A_i = sparse(A[1:batch_size_1, :])
     b_i = b[1:batch_size_1]
     
     if Q == 0.0
-        U = qr(A_i).R
+        U, _, Pcol = qrr(A_i)
     else
-        U = qr([A_i; sqrt(Q)*I]).R
+        U, _, Pcol = qrr([A_i; sqrt(Q)*I])
     end
+
     rhs = A_i'*b_i
 
     # now at each batch we are going to
-    for i = 0:batches-2
+    for i = 0:batches-1
 
         verbose && print("\u1b[1F")
         verbose && println("Batch $(i+2)")
@@ -107,16 +110,20 @@ function rls_qr(b::AbstractVector{<:AbstractFloat}, A::AbstractMatrix{<:Abstract
         
         # determine next batch
         batch_start = batch_size_1 + i*m_batch + 1
-        A_i = A[batch_start:batch_start+m_batch-1, :]
-        b_i = b[batch_start:batch_start+m_batch-1]
+        batch_end = batch_start+m_batch-1
+
+        A_i = sparse(A[batch_start:batch_end, :])
+        b_i = b[batch_start:batch_end]
 
         # update our cholesky factor U with the new Ai
-        U = qr([U; A_i]).R
+        U, _, Pcol = qrr([U*Pcol'; A_i])
         
         # add to the right hand side
         rhs += A_i'*b_i
 
     end
+
+    U = U*Pcol'
 
     verbose && println("Solving LLS")
     verbose && @show norm(U'*U - A'*A)
@@ -128,6 +135,68 @@ function rls_qr(b::AbstractVector{<:AbstractFloat}, A::AbstractMatrix{<:Abstract
     return x_rls
 
 end
+
+# function rls_qr(b::AbstractVector{<:AbstractFloat}, A::AbstractMatrix{<:AbstractFloat};
+#     batchsize=Int(floor(size(A)[1]/10)), Q=0.0, verbose=false)
+
+#     m, _ = size(A)
+    
+#     if batchsize == 0 || batchsize >= m
+#         m_batch = 1
+#         batch_size_1 = 1
+#         batches = m
+#     else
+#         m_batch = batchsize 
+#         batches = Int(floor(m/m_batch))
+#         batch_size_1 = m_batch + Int(mod(m, m_batch))
+#     end
+
+#     verbose && println("# Batches: $batches")
+#     verbose && println("")
+#     verbose && println("Batch 1")
+    
+#     # QR factorization on 1st batch
+    
+#     A_i = A[1:batch_size_1, :]
+#     b_i = b[1:batch_size_1]
+    
+#     if Q == 0.0
+#         U = qr(A_i).R
+#     else
+#         U = qr([A_i; sqrt(Q)*I]).R
+#     end
+#     rhs = A_i'*b_i
+
+#     # now at each batch we are going to
+#     for i = 0:batches-2
+
+#         verbose && print("\u1b[1F")
+#         verbose && println("Batch $(i+2)")
+#         verbose && print("\u1b[0K")
+        
+#         # determine next batch
+#         batch_start = batch_size_1 + i*m_batch + 1
+#         A_i = A[batch_start:batch_start+m_batch-1, :]
+#         b_i = b[batch_start:batch_start+m_batch-1]
+
+#         # update our cholesky factor U with the new Ai
+#         U = qr([U; A_i]).R
+        
+#         # add to the right hand side
+#         rhs += A_i'*b_i
+
+#     end
+
+#     verbose && println("Solving LLS")
+#     verbose && @show norm(U'*U - A'*A)
+#     verbose && @show norm(rhs - A'*b)
+#     verbose && println("")
+
+#     x_rls = U\(U'\rhs)
+
+#     return x_rls
+
+# end
 
 function rls_chol(Y::AbstractVector{<:AbstractFloat}, 
     X::AbstractMatrix{<:AbstractFloat}; verbose=false)
@@ -480,11 +549,13 @@ Run the jDMD algorithm on the training data, using the provided model to regular
 Jacobians of the learned model.
 """
 function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.DiscreteDynamics; 
-        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0
+        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0, verbose=false
     )
     n0 = length(X_train[1])
     m = length(U_train[1])
     T_train = range(0,step=dt,length=size(X_train,1))
+
+    verbose && println("Performing koopman transform...")
 
     # Generate transform
     Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, function_list, order_list);
@@ -510,6 +581,8 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     ## Convert states to lifted Koopman states
     # Y_train = map(kf, X_train)
 
+    verbose && println("Calculating Jacobians...")
+
     ## Calculate Jacobian of Koopman transform
     F_train = map(cinds_jac) do cind 
         x = X_train[cind]
@@ -520,19 +593,27 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     G = spdiagm(n0,n,1=>ones(n0)) 
     @assert function_list[1] == "state"
 
+    verbose && println("Building LLS problem...")
+
     ## Build Least Squares Problem
     W,s = BilinearControl.EDMD.build_edmd_data(
         Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB)
 
     n = length(Z_train[1])
 
+    verbose && println("Building sparse A matrix...")
+
     ## Create sparse LLS matrix
     #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
-    Wsparse = sparse(W)
+    @time Wsparse = sparse(W)
+
+    verbose && println("Solving with RLS-QR...")
 
     ## Solve with RLS
-    x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
+    @time x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
     E = reshape(x_rls,n,:)
+
+    verbose && println("Splitting data...")
 
     ## Extract out bilinear dynamics
     mB = m * learnB
@@ -548,6 +629,8 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     end
 
     C = C_list
+
+    verbose && println("Creating jDMD model...")
 
     EDMDModel(A,B,C,G,kf,dt,name)
 end
