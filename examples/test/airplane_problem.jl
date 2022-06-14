@@ -1,6 +1,7 @@
 function AirplaneProblem(;dt=0.05, tf=2.0)
     # Discretization
     model = Problems.SimulatedAirplane()
+    model = Problems.NominalAirplane()
     N = round(Int, tf/dt) + 1
     dt = tf / (N-1)
 
