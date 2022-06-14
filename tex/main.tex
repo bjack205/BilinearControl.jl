@@ -133,7 +133,7 @@ In summary, our contributions are:
 
 The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
 give some background on the application of Koopman operator theory to controlled 
-dynamical systems and review some related works. Section \ref{sec:methodology} describes
+dynamical systems and review some related works. Section \ref{sec:jdmd} describes
 the proposed algorithm for combining data-driven and model-based approaches, along with 
 the numerical method for solving the resulting large and sparse linear least-squares 
 problems. Section \ref{sec:results} provides extensive numerical analysis of the 
@@ -490,9 +490,7 @@ All models were trained by simulating the ``true'' system with an arbitrary cont
 collect data in the region of the state space relevant to the task. A set of fixed-length 
 trajectories were collected, each at a sample rate of 20 Hz. The bilinear eDMD model was
 trained using the same approach introduced by Folkestad and Burdick \cite{Folkestad2021}.
-For the proposed jDMD method, the Jacobians of the nominal model were calculated at each of
-the sample points and the bilinear model was learned using the approach outlined in Section
-\ref{sec:methodology}.  All continuous dynamics were discretized with an explicit
+All continuous dynamics were discretized with an explicit
 fourth-order Runge Kutta integrator. The code for the experiments is located at
 \todo{include after review}.  
 
@@ -525,43 +523,36 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
 \begin{figure}[t]
   \centering
   \begin{subfigure}[t]{0.48\textwidth}
-    \raggedleft
-    % \includegraphics[width=\textwidth, height=5cm]{../images/cartpole_mpc_test_error.tikz}
-    \includegraphics[width=\textwidth, height=5cm]{combined_mpc_test_error.tikz}
-    \caption{MPC tracking error vs training samples for both the cartpole (solid lines)
-    and planar quadrotor (dashed lines). Tracking error
-    is defined as the average L2 error over all the test trajectories between the reference
-    and simulated trajectories, and is normalized by the error of the nominal MPC controller
-    (black horizontal line).}
+    \includegraphics[width=\textwidth, height=5cm]{../images/cartpole_mpc_test_error.tikz}
+    % \includegraphics[width=\textwidth, height=5cm]{combined_mpc_test_error.tikz}
+    \caption{Cartpole}
     \label{fig:cartpole_mpc_test_error}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth, height=5cm]{cartpole_mpc_train_time.tikz}
-    \caption{Training time for cartpole models as a function of training samples, using a 
-    preliminary implementation of the algorithm described in Section \ref{sec:rls}. The 
-    training time complexity is approximately linear.}
-    \label{fig:cartpole_train_time}
+    \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_test_error.tikz}
+    \caption{Planar Quadrotor}
+    \label{fig:planar_quad_mpc_test_error}
+    % \includegraphics[width=\textwidth, height=5cm]{cartpole_mpc_train_time.tikz}
+    % \caption{Training time for cartpole models as a function of training samples, using a 
+    % preliminary implementation of the algorithm described in Section \ref{sec:rls}. The 
+    % training time complexity is approximately linear.}
+    % \label{fig:cartpole_train_time}
   \end{subfigure}
-  \caption{Effect of increased training data on controller performance (left) and training 
-  times (right) for the eDMD (orange) and jDMD (cyan) algorithms.}
+  \caption{MPC tracking error vs training trajectories for both the cartpole (left) and
+  planar quadrotor (right). Tracking error is defined as the average L2 error over all the
+  test trajectories between the reference and simulated trajectories.}
+  \label{fig:sample_efficiency}
 \end{figure}
 
 We highlight the sample efficiency of the proposed algorithm in Figure 
-\ref{fig:cartpole_mpc_test_error}. For both the cartpole swing up and the quadrotor
-trajectory tracking tasks, the proposed method achieves better tracking than the nominal MPC
-controller after just a few training trajectories. In both cases, the classic eDMD approach
-never achieves the same level of performance as the proposed approach. The lack of continued
-progress with increasing samples is likely due to a lack of sufficient variety in the
-training data: after 30-40 training trajectories both methods have effectively learned as
-much as they can from the distribution from which the training data was sampled.
-
-The training time versus number of training samples is shown in Figure 
-\ref{fig:cartpole_train_time} for the cartpole swing up task. While the proposed approach 
-naturally takes longer since it includes much more information per sample (adding 
-$N_x + N_u + 1$ rows for every sample), the complexity is approximately linear and the 
-solve times are on the order of seconds for these simple systems \todo{add lines for 
-quadrotor training}.
+\ref{fig:sample_efficiency}. For both the cartpole swing up and the quadrotor trajectory
+tracking tasks, the proposed method achieves better tracking than the nominal MPC controller
+after just a few training trajectories. In both cases, the classic eDMD approach never
+achieves the same level of performance as the proposed approach. We note the lack of
+continued progress with increasing samples is likely due to a lack of sufficient variety in
+the training data: after 30-40 training trajectories both methods have effectively learned
+as much as they can from the distribution from which the training data was sampled. 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -634,97 +625,76 @@ information provided by the nominal model.
   \vspace{-1\baselineskip}
   \label{tab:mpc_comp}
 \end{wraptable} 
-% \begin{figure}
-  %   \centering
-  %   \begin{subfigure}[b]{0.50\textwidth}
-    %     \includegraphics[width=\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
-    %     \caption{Number of training trajectories requires to beat the nominal MPC controller.
-    %     The criteria is the L2 norm of the state from the goal state after 4 seconds.
-    %     The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
-    %     (17 states), whereas the ``Projected'' MPC controllers project the Jacobians of the 
-    %     bilinear system back into the original state space.
-    %     \todo{make this into a table instead?}
-    %     }
-    %     \label{fig:cartpole_lqr_samples}
-    %   \end{subfigure}
-    %   \hfill
-    %   \begin{subfigure}[b]{0.48\textwidth}
-      %     \centering
-      %     \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
-      %     \caption{LQR stabilization error over increasing equilibrium offset}
-      %     \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
-      %   \end{subfigure}
-      % \end{figure}
       
-      Table \ref{tab:mpc_comp} also highlights the sample efficiency of the proposed method, while
-      also comparing to the more typical approach of applying the MPC policy in the lifted state
-      space \cite{Korda2018,Folkestad2021,Narasingam2022}.  As shown, the proposed method of
-      applying linear MPC to the projected linearization is much more sample efficient than trying
-      to apply it in the lifted state space. This approach is also advantageous because it reduces
-      the solve time of the linear MPC policy, is more numerically robust (we found the lifted MPC
-      policies tended to suffer from numerical issues when using Riccati recursion to solve for
-      long time horizons), and it is straightforward to apply additional constraints to the
-      original state variables.
-      
-      \subsection{Sensitivity to Model Mismatch}
-      \begin{figure}
-        \centering
-        \includegraphics[width=1.0\textwidth, height=5.5cm]{cartpole_friction_mismatch.tikz}
-        \caption{Effect of increasing model mismatch. Displays the number of training trajectories
-        required to consistently stabilize the cartpole system, given an increasing friction 
-        coefficient, which the nominal model does not include at all. An entry of 0 signifies 
-        that a stabilizing controller wasn't found with less than 100 training trajectories.
-        The nominal MPC controller failed to stabilize once the friction coefficient went above 
-        0.1.
-        }
-        \label{fig:cartpole_friction_mismatch}
-      \end{figure}
-      
-      While we've introduced a significant mount of model mismatch in all of the examples so far, 
-      a natural argument against model-based methods is that they're only as good as your model is
-      at capturing the salient dynamics of the system. We investigated the effect of increasing
-      model mismatch by incrementally increasing the Coulomb friction coefficient between the cart
-      and the floor for the cartpole stabilization task. The results are shown in Figure 
-      \ref{fig:cartpole_friction_mismatch}. As expected, the number of training trajectories 
-      required to find a good stabilizing controller increases for the proposed approach, as long 
-      as we set the $\alpha$ value low enough, which intuitively corresponds to a decreased 
-      confidence in the nominal model. The samples required by eDMD varied widely, and was unable 
-      to find a good enough model above friction values of 0.4. While this could likely be
-      remedied by adjusting the nonlinear mapping $\phi$, the proposed approach works well with
-      the given bases.
-      
-      
-      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      % Limitations 
-      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      \section{Limitations} \label{sec:limitations}
-      As with most data-driven techniques, it is hard to definitely declare that the proposed 
-      method will increase performance in all cases. It is possible that having an extremely poor
-      analytical model may hurt rather than help the training process. However, we found that even
-      when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
-      during the learning process), it still dramatically improves the sample efficiency. It is 
-      also quite possible that the performance gaps between eDMD and jDMD shown here can be 
-      reduced through better selection of basis functions and better training data sets; however,
-      given that the proposed approach converges to eDMD as $\alpha \rightarrow 0$, we see no 
-      reason to not adopt the proposed methodology as simply tune $\alpha$ based on the 
-      confidence of the model and the quantity (and quality) of training data.
-      
-      
-      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      % Conclusion 
-      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      \section{Conclusion and Future Work} \label{sec:conclusion}
-      We have presented a simple but powerful extension to eDMD, a model-based method for learning
-      a bilinear representation of arbitrary dynamical systems, that incorporates derivative 
-      information from an analytical mode. When combined with a simple linear
-      MPC policy that projects the learned dynamics back into the original state space, we have 
-      shown that the resulting pipeline can dramatically increase sample efficiency, often 
-      improving over a nominal MPC policy with just a few sample trajectories. Substantial areas 
-      for future work remain: most notably testing the proposed pipeline on hardware. Additional 
-      directions include lifelong learning or adaptive control applications, residual dynamics 
-      learning, as well as the development of specialized numerical methods for solving nonlinear 
-      optimal control problems using the learned bilinear dynamics.
-      
-      \bibliography{Koopman.bib}
-      
-      \end{document}
+Table \ref{tab:mpc_comp} also highlights the sample efficiency of the proposed method, while
+also comparing to the more typical approach of applying the MPC policy in the lifted state
+space \cite{Korda2018,Folkestad2021,Narasingam2022}.  As shown, the proposed method of
+applying linear MPC to the projected linearization is much more sample efficient than trying
+to apply it in the lifted state space. This approach is also advantageous because it reduces
+the solve time of the linear MPC policy, is more numerically robust (we found the lifted MPC
+policies tended to suffer from numerical issues when using Riccati recursion to solve for
+long time horizons), and it is straightforward to apply additional constraints to the
+original state variables.
+
+\subsection{Sensitivity to Model Mismatch}
+\begin{figure}
+  \centering
+  \includegraphics[width=1.0\textwidth, height=5.5cm]{cartpole_friction_mismatch.tikz}
+  \caption{Effect of increasing model mismatch. Displays the number of training trajectories
+  required to consistently stabilize the cartpole system, given an increasing friction 
+  coefficient, which the nominal model does not include at all. An entry of 0 signifies 
+  that a stabilizing controller wasn't found with less than 100 training trajectories.
+  The nominal MPC controller failed to stabilize once the friction coefficient went above 
+  0.1.
+  }
+  \label{fig:cartpole_friction_mismatch}
+\end{figure}
+
+While we've introduced a significant mount of model mismatch in all of the examples so far, 
+a natural argument against model-based methods is that they're only as good as your model is
+at capturing the salient dynamics of the system. We investigated the effect of increasing
+model mismatch by incrementally increasing the Coulomb friction coefficient between the cart
+and the floor for the cartpole stabilization task. The results are shown in Figure 
+\ref{fig:cartpole_friction_mismatch}. As expected, the number of training trajectories 
+required to find a good stabilizing controller increases for the proposed approach, as long 
+as we set the $\alpha$ value low enough, which intuitively corresponds to a decreased 
+confidence in the nominal model. The samples required by eDMD varied widely, and was unable 
+to find a good enough model above friction values of 0.4. While this could likely be
+remedied by adjusting the nonlinear mapping $\phi$, the proposed approach works well with
+the given bases.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Limitations 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Limitations} \label{sec:limitations}
+As with most data-driven techniques, it is hard to definitely declare that the proposed 
+method will increase performance in all cases. It is possible that having an extremely poor
+analytical model may hurt rather than help the training process. However, we found that even
+when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
+during the learning process), it still dramatically improves the sample efficiency. It is 
+also quite possible that the performance gaps between eDMD and jDMD shown here can be 
+reduced through better selection of basis functions and better training data sets; however,
+given that the proposed approach converges to eDMD as $\alpha \rightarrow 0$, we see no 
+reason to not adopt the proposed methodology as simply tune $\alpha$ based on the 
+confidence of the model and the quantity (and quality) of training data.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Conclusion 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conclusion and Future Work} \label{sec:conclusion}
+We have presented a simple but powerful extension to eDMD, a model-based method for learning
+a bilinear representation of arbitrary dynamical systems, that incorporates derivative 
+information from an analytical mode. When combined with a simple linear
+MPC policy that projects the learned dynamics back into the original state space, we have 
+shown that the resulting pipeline can dramatically increase sample efficiency, often 
+improving over a nominal MPC policy with just a few sample trajectories. Substantial areas 
+for future work remain: most notably testing the proposed pipeline on hardware. Additional 
+directions include lifelong learning or adaptive control applications, residual dynamics 
+learning, as well as the development of specialized numerical methods for solving nonlinear 
+optimal control problems using the learned bilinear dynamics.
+
+\bibliography{Koopman.bib}
+
+\end{document}
