@@ -237,6 +237,7 @@ mpchorizon(mpc::TrackingMPC) = mpc.Nt[1]
 function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref),
         state_error=(x,x0)->(x-x0)
     ) where {L<:RD.DiscreteDynamics}
+    @assert size(Rk,1) == length(Uref[1])
     N = length(Xref)
     n = length(Xref[1])
     m = length(Uref[1])
