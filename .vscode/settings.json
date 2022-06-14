@@ -8,4 +8,13 @@
     "editor.wordSeparators": "`~#$%^&*()-=+[{]}\\|;:'\",.<>/?",
     "editor.tabSize": 4
   },
+  "cSpell.words": [
+    "cartpole",
+    "Chebyshev",
+    "Generalizability",
+    "Jacobians",
+    "Koopman",
+    "quadrotor",
+    "Riccati"
+  ],
 }

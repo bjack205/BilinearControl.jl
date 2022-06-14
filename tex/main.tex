@@ -45,7 +45,7 @@ Carnegie Mellon University\\
 
 \todo{Add abstract}
 \begin{abstract}
-  Combining the benefits of data-driven and model-based control tech- niques for nonlinear
+  Combining the benefits of data-driven and model-based control techniques for nonlinear
   dynamics systems has many potential advantages. Compared to purely data-driven approaches,
   this could include benefits such as increasing sampling efficiency, reducing training
   time, or increasing generalization. For purely model-based approaches such as
@@ -99,11 +99,11 @@ analytical model, we can efficiently learn a bilinear representation of the syst
 dynamics that performs well when used in traditional model-based control techniques such
 as linear MPC. By leveraging information from an analytical model, we can dramatically
 reduce the number of samples required to learn a good approximation of the true
-nonlinear dynamics. We also show the effiectiveness of linear MPC on these systems 
+nonlinear dynamics. We also show the effectiveness of linear MPC on these systems 
 when the learned bilinear system is linearized and projected back into the original 
 state space. The result is a fast, robust, and sample-efficient pipeline for quickly 
 learning a model that beats previous Koopman-based linear MPC approaches as well as 
-purely model-based linear MPC contollers that do not leverage data collected from the 
+purely model-based linear MPC controllers that do not leverage data collected from the 
 actual system. To efficiently learn these bilinear representations, we also propose 
 a numerical technique that allows for large systems to be trained while limiting the 
 peak memory required to solve the least-squares problem.
@@ -123,13 +123,13 @@ In summary, our contributions are:
 \end{itemize}
 
 The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
-give some background on the appliciation of Koopman operator theory to controlled 
+give some background on the application of Koopman operator theory to controlled 
 dynamical systems and review some related works. Section \ref{sec:methodology} describes
 the proposed algorithm for combining data-driven and model-based approaches, along with 
 the numerical method for solving the resulting large and sparse linear least-squares 
 problems. Section \ref{sec:results} provides extensive numerical analysis of the 
 proposed algorithm, applied to a simulated cartpole and planar quadrotor model, both 
-subject to significant model mistmach. In Section \ref{sec:limitations} we discuss the 
+subject to significant model mismatch. In Section \ref{sec:limitations} we discuss the 
 limitations of the method, and finish with some concluding thoughts in Section 
 \ref{sec:conclusion}.
 
@@ -142,7 +142,7 @@ detail, we highlight the key concepts employed by the current work, and defer th
 motivated reader to the existing literature on Koopman theory.
 
 We start by assuming we have some discrete approximation a of controlled nonlinear,
-time-dynamical system whose underlying continuous dynamics are Lipschitz continuous:
+time-dynamical system whose underlying continuous dynamics are Lipchitz continuous:
 \begin{equation} \label{eq:discrete_dynamics} 
   x^+ = f(x, u) 
 \end{equation} 
@@ -166,7 +166,7 @@ arbitrary finite set of nonlinear functions of the state variables, which in gen
 include the states themselves such that the linear mapping $G \in \R^{N_x \times N_y}$ is
 exact.  Intuitively, $\phi$ ``lifts'' our states into a higher dimensional space where the
 dynamics are approximately (bi)linear, effectively trading dimensionality for
-(bi)linearity. This idea should be both unsurprising and familiar to most roboticsts,
+(bi)linearity. This idea should be both unsurprising and familiar to most roboticists,
 since similar techniques have already been employed in other forms, such as
 maximal-coordinate representations of rigid body dynamics
 \cite{baraff_linear-time_1996-1,Brudigam2021a,Howell2022}, the
@@ -182,7 +182,13 @@ lifted states. Details of this method will be covered in the next section where 
 introduce our adaptation of eDMD and present an effective numerical technique for solving
 the resulting LLS problems.
 
-\todo{mention the most related papers}
+The current work is most closely related to recent work out of Caltech 
+\cite{Folkestad2020,Folkestad2021,Folkestad2021a} which learn a bilinear
+model and apply nonlinear model-predictive control directly on the learned bilinear 
+dynamics. Similarly, control Lyapunov functions were also recently used directly on the 
+learned bilinear dynamics \cite{Narasingam2022}. These works build on a foundational paper
+applying MPC to nonlinear systems using Koopman operators to learn a linear model directly
+\cite{Korda2018}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Methodology
@@ -206,7 +212,7 @@ approximate model, while also matching our dynamics samples. If we define $\hat{
 \R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
 bilinear dynamics model, projected back into the original state space (a formal definition
 of these terms will be provided in a few paragraphs), our objective is to find the
-matrices parameterizing our bilinear dynamics model, $A \in \R^{N_y \times N_y},B \in
+matrices that parameterize our bilinear dynamics model, $A \in \R^{N_y \times N_y},B \in
 \R^{N_y \times N_u}$, and $C_{1:m} \in \R^{N_u} \times \R^{N_y \times N_y}$, that minimize
 the following objective:
 
@@ -324,7 +330,7 @@ Setting $E$ in \eqref{opt:lls_matrix} equal to $X$ in \eqref{eq:vectrick}, we ge
   \end{bmatrix}
   }_2^2
 \end{align}
-such that the matrix of cofficients has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows and 
+such that the matrix of coefficients has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows and 
 $N_y \cdot N_z$ columns. We obtain the data for our bilinear model 
 \eqref{eq:bilinear_dynamics} by solving this large, sparse linear least-squares 
 problem.
@@ -403,7 +409,7 @@ is the regularizer.
     \State $U \leftarrow \operatorname{QR_R}(\operatorname{vcat}(U,F_i)) $ \Comment{update square-root with new batch}
     \State $b \leftarrow b + F_i^Td_i$ \Comment{update right hand side with new batch}
     \EndFor
-    \State \textbf{ouput} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
+    \State \textbf{output} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
   \end{algorithmic}
 \end{algorithm}
 
@@ -435,14 +441,15 @@ data on hardware platforms in our lab.
 % \subsection{Models}
 % \subsubsection{Cartpole Model}
 
-The \textit{simulated} cartpole model included a $\tanh$ model of Columb friction between
-the cart and the floor, viscous damping at both joints, and a control deadband that was not
+The \textit{simulated} cartpole model included a $\tanh$ model of Coulomb friction between
+the cart and the floor, viscous damping at both joints, and a control dead band that was not
 included in the \textit{nominal} model. Additionally, the mass of the cart and pole model
 were altered by 20\% and 25\% with respect to the nominal model, respectively.  The
-following nonlinear mapping was used when learning the bilinear models: $\phi(x) = [\, 1,\,
+following nonlinear mapping was used when learning the bilinear models: 
+$\phi(x) = [\, 1,\,
 x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\, T_4(x)\, ] \in
 \R^{33}$, where $T_i(x)$ is a Chebyshev polynomial of the first kind of order $i$. 
-All reference trajectories for the swingup task were generated using ALTRO 
+All reference trajectories for the swing up task were generated using ALTRO 
 \cite{Howell2019,Jackson2021}.
 
 % We analyze the system on two separate control tasks: 
@@ -460,8 +467,10 @@ All reference trajectories for the swingup task were generated using ALTRO
 % \subsubsection{Planar Quadrotor}
 For the planar quadrotor, the \textit{simulated} model included aerodynamic drag terms not
 included in the \textit{nominal} model, as well as parametric error of about 5\% on the
-system properties (e.g. mass, rotor arm length, etc.).
-\todo{add Koopman function}
+system properties (e.g. mass, rotor arm length, etc.). The model was trained using a 
+nonlinear mapping of $\phi(x) = [\, 1,\,
+x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
+\R^{\todo{get dimension}}$. 
 
 % We analyze the system on tasks nearly identical to those of the cartpole system:
 % \begin{enumerate}
@@ -508,7 +517,7 @@ system properties (e.g. mass, rotor arm length, etc.).
 
 We highlight the sample efficiency of the proposed algorithm in Figures 
 \ref{fig:cartpole_mpc_test_error} and \ref{fig:rex_planar_quadrotor_mpc_test_error}. For
-both the cartpole swingup and the quadrotor trajectory tracking tasks, the proposed method
+both the cartpole swing up and the quadrotor trajectory tracking tasks, the proposed method
 achieves better tracking than the nominal MPC controller after just a few training
 trajectories. In both cases, the classic eDMD approach never achieves the same level of
 performance as the proposed approach. The lack of continued progress with increasing samples
@@ -517,57 +526,12 @@ trajectories both methods have effectively learned as much as they can from the 
 from which the training data was sampled.
 
 The training time versus number of training samples is shown in Figure 
-\ref{fig:cartpole_train_time} for the cartpole swingup task. While the proposed approach 
+\ref{fig:cartpole_train_time} for the cartpole swing up task. While the proposed approach 
 naturally takes longer since it includes much more information per sample (adding 
 $N_x + N_u + 1$ rows for every sample), the complexity is approximately linear and the 
 solve times are on the order of seconds for simple systems.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Lifted versus Projected MPC}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% \begin{figure}
-%   \centering
-%   \begin{subfigure}[b]{0.50\textwidth}
-%     \includegraphics[width=\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
-%     \caption{Number of training trajectories requires to beat the nominal MPC controller.
-%     The criteria is the L2 norm of the state from the goal state after 4 seconds.
-%     The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
-%     (17 states), whereas the ``Projected'' MPC contollers project the Jacobians of the 
-%     bilinear system back into the original state space.
-%     \todo{make this into a table instead?}
-%     }
-%     \label{fig:cartpole_lqr_samples}
-%   \end{subfigure}
-%   \hfill
-%   \begin{subfigure}[b]{0.48\textwidth}
-%     \centering
-%     \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
-%     \caption{LQR stabilization error over increasing equilibrium offset}
-%     \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
-%   \end{subfigure}
-% \end{figure}
-% \begin{wraptable}{r}{5.0cm}
-% \begin{tabular}{ccc}\\
-% \toprule  
-% MPC       & eDMD & jDMD \\
-% \midrule
-% Lifted    & 17   &          15 \\
-% Projected & 18   &  \textbf{2} \\
-% \bottomrule
-% \end{tabular}
-% \caption{Training trajectories required to beat nominal MPC}
-% \label{tab:mpc_comp}
-% \end{wraptable} 
-
-Table \ref{fig:cartpole_lqr_samples} also highlights the sample efficiency of the proposed 
-method, while also comparing to the more typical approach of applying the MPC policy in the 
-lifted state space. As shown, the proposed method of applying linear MPC to the projected 
-linearization is much more sample efficient than trying to apply it in the lifted state 
-space. This approach is also advantegeous because it reduces the solve time of the linear 
-MPC policy, is more numerically robust (we found the lifted MPC policies tended to suffer 
-from numerical issues when using Riccati recursion to solve for long time horizons), and 
-it is straightforward to apply additional constraints to the original state variables.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Generalization}
@@ -621,6 +585,53 @@ equilibrium points, despite the fact that the underlying dynamics are invariant 
 equilibrium position. Our proposed approach, however, easily learns this from the derivative
 information provided by the nominal model.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Lifted versus Projected MPC}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{wraptable}{r}{5.0cm}
+\begin{tabular}{ccc}\\
+\toprule  
+MPC       & eDMD & jDMD \\
+\midrule
+Lifted    & 17   &          15 \\
+Projected & 18   &  \textbf{2} \\
+\bottomrule
+\end{tabular}
+\caption{Training trajectories required to beat nominal MPC}
+\label{tab:mpc_comp}
+\end{wraptable} 
+% \begin{figure}
+%   \centering
+%   \begin{subfigure}[b]{0.50\textwidth}
+%     \includegraphics[width=\textwidth, height=4cm]{cartpole_lqr_samples.tikz}
+%     \caption{Number of training trajectories requires to beat the nominal MPC controller.
+%     The criteria is the L2 norm of the state from the goal state after 4 seconds.
+%     The ``Lifted'' MPC controllers compute the MPC solution in the lifted state space 
+%     (17 states), whereas the ``Projected'' MPC controllers project the Jacobians of the 
+%     bilinear system back into the original state space.
+%     \todo{make this into a table instead?}
+%     }
+%     \label{fig:cartpole_lqr_samples}
+%   \end{subfigure}
+%   \hfill
+%   \begin{subfigure}[b]{0.48\textwidth}
+%     \centering
+%     \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz}
+%     \caption{LQR stabilization error over increasing equilibrium offset}
+%     \label{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}
+%   \end{subfigure}
+% \end{figure}
+
+Table \ref{tab:mpc_comp} also highlights the sample efficiency of the proposed method, while
+also comparing to the more typical approach of applying the MPC policy in the lifted state
+space \cite{Korda2018,Folkestad2021,Narasingam2022}.  As shown, the proposed method of
+applying linear MPC to the projected linearization is much more sample efficient than trying
+to apply it in the lifted state space. This approach is also advantageous because it reduces
+the solve time of the linear MPC policy, is more numerically robust (we found the lifted MPC
+policies tended to suffer from numerical issues when using Riccati recursion to solve for
+long time horizons), and it is straightforward to apply additional constraints to the
+original state variables.
+
 \subsection{Sensitivity to Model Mismatch}
 \begin{figure}
   \centering
@@ -638,7 +649,7 @@ information provided by the nominal model.
 While we've introduced a significant mount of model mismatch in all of the examples so far, 
 a natural argument against model-based methods is that they're only as good as your model is
 at capturing the salient dynamics of the system. We investigated the effect of increasing
-model mismatch by incrementally increasing the Coloumb friction coefficient between the cart
+model mismatch by incrementally increasing the Coulomb friction coefficient between the cart
 and the floor for the cartpole stabilization task. The results are shown in Figure 
 \ref{fig:cartpole_friction_mismatch}. As expected, the number of training trajectories 
 required to find a good stabilizing controller increases for the proposed approach, as long 
@@ -670,16 +681,16 @@ confidence of the model and the quantity (and quality) of training data.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusion and Future Work} \label{sec:conclusion}
 We have presented a simple but powerful extension to eDMD, a model-based method for learning
-a bilinear representation of arbitrary dynamical systems, that incoporates derivative 
+a bilinear representation of arbitrary dynamical systems, that incorporates derivative 
 information from an analytical mode. When combined with a simple linear
 MPC policy that projects the learned dynamics back into the original state space, we have 
-shown that the resulting pipline can dramatically increase sample efficiency, often 
+shown that the resulting pipeline can dramatically increase sample efficiency, often 
 improving over a nominal MPC policy with just a few sample trajectories. Substantial areas 
 for future work remain: most notably testing the proposed pipeline on hardware. Additional 
 directions include lifelong learning or adaptive control applications, residual dynamics 
 learning, as well as the development of specialized numerical methods for solving nonlinear 
 optimal control problems using the learned bilinear dynamics.
 
-\bibliography{references.bib}
+\bibliography{Koopman.bib}
 
 \end{document}
