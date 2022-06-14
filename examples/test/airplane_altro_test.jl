@@ -35,7 +35,7 @@ dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 ##
 tf = 2.0
 dt = 0.05
-prob = AirplaneProblem(;tf, dt)
+prob = AirplaneProblem(;tf, dt, Qv=10, Qw=5, dp=[-1.5,-2,2])
 u_trim = copy(TO.controls(prob)[1])
 X = states(prob)
 Altro.cost(prob)
@@ -46,7 +46,37 @@ X_ref = Vector.(states(solver))
 U_ref = push!(Vector.(controls(solver)), u_trim)
 T_ref = TO.gettimes(solver)
 norm(X_ref[end][7:end])
-jldsave(joinpath(Problems.DATADIR, "plane_data.jld2"); X_ref, U_ref, T_ref, u_trim)
+# jldsave(joinpath(Problems.DATADIR, "plane_data.jld2"); X_ref, U_ref, T_ref, u_trim)
+
+
+## Simulate with OSQP controller
+# res = load(joinpath(Problems.DATADIR, "plane_data.jld2"))
+# X_ref = res["X_ref"]
+# U_ref = res["U_ref"]
+# T_ref = res["T_ref"]
+# u_trim = res["u_trim"] 
+# dt = T_ref[2] 
+
+n,m = 12,4
+Nt = 21
+Qk = Diagonal([fill(1e0, 3); fill(1e1, 3); fill(1e-1, 3); fill(2e-1, 3)])
+Rk = Diagonal(fill(1e-3,4))
+Qf = Diagonal([fill(1e-2, 3); fill(1e0, 3); fill(1e1, 3); fill(1e1, 3)]) * 10
+t_mpc = (Nt-1) * dt
+xmax = [fill(0.5,3); fill(1.0, 3); fill(0.5, 3); fill(10.0, 3)]
+xmin = -xmax
+umin = fill(0.0, 4) - u_trim
+umax = fill(255.0, 4) - u_trim
+mpc = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+    xmin,xmax,umin,umax
+)
+
+t_sim = T_ref[end]
+X_mpc,_,T_mpc = simulatewithcontroller(dmodel_real, mpc, X_ref[1], t_sim, dt)
+
+visualize!(vis, model_real, t_sim, X_mpc)
+plotstates(T_ref, X_ref, inds=[1,3,6,7], label=["x" "z" "pitch" "vx"], legend=:outerright)
+plotstates!(T_mpc, X_mpc, inds=[1,3,6,7], s=:dash, c=[1 2 3 4], lw=2)
 
 ## Simulate open-loop with real dynamics
 X_real, = simulate(dmodel_real, U_ref, X_ref[1], tf, dt)
@@ -60,38 +90,6 @@ usat(u) = clamp.(u, 0, 255)
 X_sim,U_sim,T_sim = simulatewithcontroller(dmodel_real, tvlqr, X_ref[1], tf, dt, umod=usat)
 visualize!(vis, model_real, tf, X_sim)
 norm(X_sim[end][7:end])
-
-## Simulate with OSQP controller
-res = load(joinpath(Problems.DATADIR, "plane_data.jld2"))
-X_ref = res["X_ref"]
-U_ref = res["U_ref"]
-T_ref = res["T_ref"]
-u_trim = res["u_trim"] 
-dt = T_ref[2] 
-
-n,m = 12,4
-Nt = 21
-Qk = Diagonal([fill(1e1, 3); fill(1e1, 3); fill(1e-1, 3); fill(1e-1, 3)])
-Rk = Diagonal(fill(1e-3,4))
-Qf = 10 * copy(Qk)
-t_mpc = (Nt-1) * dt
-xmax = [fill(0.5,3); fill(1.0, 3); fill(1.0, 3); fill(10.0, 3)]
-xmin = -xmax
-umin = fill(0.0, 4) - u_trim
-umax = fill(255.0, 4) - u_trim
-mpc = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
-    xmin,xmax,umin,umax
-)
-
-##
-t_sim = T_ref[end]
-X_mpc,_,T_mpc = simulatewithcontroller(dmodel_real, mpc, X_ref[1], t_sim, dt)
-
-plotstates(T_ref, X_ref, inds=[1,3,6,7], label=["x" "z" "pitch" "vx"], legend=:outerright)
-plotstates!(T_mpc, X_mpc, inds=[1,3,6,7], s=:dash, c=[1 2 3 4], lw=2)
-
-visualize!(vis, model_real, t_sim, X_ref)
-visualize!(vis, model_real, t_sim, X_mpc)
 
 ##
 #

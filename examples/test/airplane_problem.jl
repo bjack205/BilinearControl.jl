@@ -1,4 +1,4 @@
-function AirplaneProblem(;dt=0.05, tf=2.0)
+function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv)
     # Discretization
     model = Problems.SimulatedAirplane()
     model = Problems.NominalAirplane()
@@ -15,8 +15,11 @@ function AirplaneProblem(;dt=0.05, tf=2.0)
     xf[1] = 5.0
     xf[7] = 0.0
 
+    # Shift initial position
+    x0[1:3] .+= dp
+
     # Objective
-    Qf = Diagonal([fill(1.0, 3); fill(1.0, 3); fill(10.0, 3); fill(1.0, 3)])
+    Qf = Diagonal([fill(1.0, 3); fill(1.0, 3); fill(Qv, 3); fill(Qw, 3)])
     Q  = Diagonal([fill(1e-2, 3); fill(1e-2, 3); fill(1e-1, 3); fill(1e-1, 3)])
     R = Diagonal(fill(1e-3,4))
     obj = TO.LQRObjective(Q,R,Qf,xf,N, uf=u_trim)

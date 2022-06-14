@@ -79,6 +79,9 @@ function getcontrol(mpc::LinearMPC, x, t)
     xmax,xmin = mpc.xmax, mpc.xmin
     umax,umin = mpc.umax, mpc.umin
 
+    if norm(x) > 1e4
+        error("Large state detected")
+    end
     dx = x - mpc.Xref[k]
     dX,dU,_,solved = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
     if !solved
