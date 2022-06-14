@@ -37,6 +37,7 @@ include("edmd_utils.jl")
 include("eigenfunctions.jl")
 include("edmd_model.jl")
 include("regression.jl")
+include("mpc.jl")
 
 
 end

@@ -158,6 +158,14 @@ function TVLQRController(model::RD.DiscreteDynamics, Q, R, Xref, Uref, times)
     TVLQRController(A, B, Q, R, Xref, Uref, times)
 end
 
+function TVLQRController(model::RD.DiscreteDynamics, Qk::Diagonal, Rk::Diagonal, Qf::Diagonal, xref, uref, time)
+    N = length(time)
+    Q = [copy(Qk) for k = 1:N-1]
+    push!(Q,Qf)
+    R = [copy(Rk) for k = 1:N]
+    println("hi")
+    TVLQRController(model,Q,R,xref,uref,time)
+end
 function TVLQRController(A, B, Q, R, xref, uref, time)
     K, _ = tvlqr(A,B,Q,R)
     TVLQRController(K, xref, uref, time)
@@ -402,17 +410,7 @@ function getcontrol(mpc::TrackingMPC, x, t)
     k = get_k(mpc, t) 
     Nt = mpchorizon(mpc)
     inds = k-1 .+ (1:Nt)
-    Xr = getreference(mpc.Xref, inds)
-    Ur = getreference(mpc.Uref, inds)
-    Ar = getreference(mpc.A, inds)
-    Br = getreference(mpc.B, inds)
-    fr = getreference(mpc.f, inds)
-    # Qr = getreference(mpc.Q, inds)
-    Qr = mpc.Q
-    Rr = getreference(mpc.R, inds)
-    qr = getreference(mpc.q, inds)
-    rr = getreference(mpc.r, inds)
-    x0 = x - Xr[1]
+    Q = 
     X,U,λ = solve_lqr(Qr, Rr, qr, rr, Ar, Br, fr, x0)
     mpc.X .= X
     # mpc.U .= U
@@ -632,7 +630,7 @@ end
 
 function simulatewithcontroller(sig::RD.FunctionSignature, 
                                 model::RD.DiscreteDynamics, ctrl::AbstractController, x0, 
-                                tf, dt; printrate=false)
+                                tf, dt; printrate=false, umod=identity)
     times = range(0, tf, step=dt)
     m = RD.control_dim(model)
     N = length(times)
@@ -645,7 +643,7 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
         # dt = times[k+1] - times[k]
         try
             u = getcontrol(ctrl, X[k], t)
-            U[k] .= u
+            U[k] .= umod(u)
             RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
         catch e
             break
