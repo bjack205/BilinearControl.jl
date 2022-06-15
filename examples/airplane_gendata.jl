@@ -90,9 +90,9 @@ function gen_airplane_data()
     X_mpc = mapreduce(x->getindex(x,1), hcat, mpc_trajectories)
     U_mpc = mapreduce(x->getindex(x,2), hcat, mpc_trajectories)
     X_train = X_mpc[:,1:num_train]
-    U_train = X_mpc[:,1:num_train]
+    U_train = U_mpc[:,1:num_train]
     X_test = X_mpc[:,num_test .+ (1:num_test)]
-    U_test = X_mpc[:,num_test .+ (1:num_test)]
+    U_test = U_mpc[:,num_test .+ (1:num_test)]
 
     jldsave(AIRPLANE_DATAFILE; 
         X_train, U_train, X_test, U_test, X_ref, U_ref, T_ref,

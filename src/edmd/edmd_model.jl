@@ -23,6 +23,10 @@ struct EDMDModel <: RD.DiscreteDynamics
     end
 end
 
+function getmodeldata(model::EDMDModel)
+    Dict(:A=>model.A, :B=>model.B, :C=>model.C, :g=>model.g, :dt=>model.dt, :name=>model.name)
+end
+
 # function EDMDModel(A::AbstractMatrix, B::AbstractMatrix, C::Vector{<:AbstractMatrix}, g::AbstractMatrix, 
 #     kf::Function, dt::AbstractFloat, name::AbstractString)
 # n = size(A,2)

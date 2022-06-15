@@ -30,6 +30,7 @@ using SparseArrays
 using LazyArrays
 using ForwardDiff, FiniteDiff
 using Statistics
+using ProgressMeter
 import RobotDynamics
 import RobotDynamics as RD
 
