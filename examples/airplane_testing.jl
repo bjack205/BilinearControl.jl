@@ -57,7 +57,7 @@ EDMD.fiterror(model_jDMD, X_train, U_train)
 EDMD.fiterror(model_eDMD, X_test, U_test)
 EDMD.fiterror(model_jDMD, X_test, U_test)
 
-# MPC Parameters
+## MPC Parameters
 Nt = 21
 Qk = Diagonal([fill(1e0, 3); fill(1e1, 3); fill(1e-1, 3); fill(2e-1, 3)])
 Rk = Diagonal(fill(1e-3,4))
