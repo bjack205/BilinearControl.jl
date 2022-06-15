@@ -12,5 +12,7 @@ function airplane_kf(x)
     β = atan(v[2],v[1])  # side slip
     vbody = R'v
     speed = vbody'vbody
-    [1; x; vec(R); vbody; speed; sin.(p); α; β; α^2; β^2; α^3; β^3; p × v; p × w; EDMD.chebyshev(x, order=[3,3])]
+    [1; x; vec(R); vbody; speed; sin.(p); α; β; α^2; β^2; α^3; β^3; p × v; p × w; 
+        w × w; 
+        EDMD.chebyshev(x, order=[3,4])]
 end

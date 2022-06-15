@@ -17,9 +17,8 @@ using JLD2
 using Plots
 using ProgressMeter
 using Statistics
+using Random
 
-const AIRPLANE_DATAFILE = joinpath(Problems.DATADIR, "airplane_trajectory_data.jld2")
-const AIRPLANE_MODELFILE = joinpath(Problems.DATADIR, "airplane_trained_models.jld2")
 include("airplane_constants.jl")
 
 ## Get models
@@ -93,7 +92,19 @@ plotstates!(T_ref,X_nom,inds=[1,3,4,7], label="", s=:solid, lw=:1, c=[1 2 3 4])
 plotstates!(T_ref,X_eDMD,inds=[1,3,4,7], label="", s=:dash, lw=:2, c=[1 2 3 4])
 plotstates!(T_ref,X_jDMD,inds=[1,3,4,7], label="", s=:dot, lw=:2, c=[1 2 3 4])
 
-##
+## Run Test
+airplane_data = load(AIRPLANE_DATAFILE)
+X_test = airplane_data["X_test"]
+U_test = airplane_data["U_test"]
+num_train = size(X_train,2)
+num_test =  size(X_test,2)
+
+X_ref0 = airplane_data["X_ref"][:,num_train+1:end]
+U_ref0 = airplane_data["U_ref"][:,num_train+1:end]
+T_ref = airplane_data["T_ref"]
+dt = T_ref[2]
+t_ref = T_ref[end]
+
 err_nom = zeros(num_test) 
 err_eDMD = zeros(num_test) 
 err_jDMD = zeros(num_test) 
