@@ -210,6 +210,13 @@ function visualize!(vis, model::RD.AbstractModel, x::AbstractVector)
     visualize!(vis, r, q)
 end
 
+function waypoints!(vis, model::RD.AbstractModel,  X, setmodel, inds)
+    for i in inds
+        setmodel(vis["waypoints/point$i"])
+        visualize!(vis["waypoints/point$i"], model, X[i])
+    end
+end
+
 visualize!(vis, r::AbstractVector, q::AbstractVector) = settransform!(vis["robot"], compose(Translation(r), LinearMap(UnitQuaternion(q[1], q[2], q[3], q[4]))))
 visualize!(vis, r::AbstractVector, q::Rotation{3}) = settransform!(vis["robot"], compose(Translation(r), LinearMap(q)))
 

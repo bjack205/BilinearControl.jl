@@ -11,6 +11,7 @@ using COSMO
 using JLD2
 using ForwardDiff, FiniteDiff
 using BilinearControl.EDMD
+using Polynomials
 
 const RD = RobotDynamics
 const TO = TrajectoryOptimization

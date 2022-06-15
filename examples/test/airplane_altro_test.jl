@@ -1,4 +1,4 @@
-using Pkg; Pkg.activate(joinpath(@__DIR__));
+using Pkg; Pkg.activate(joinpath(@__DIR__, ".."));
 Pkg.instantiate();
 using BilinearControl
 using BilinearControl.Problems
@@ -16,7 +16,7 @@ using BilinearControl: Problems
 using JLD2
 using Plots
 
-include("airplane_problem.jl")
+include("../airplane_problem.jl")
 
 ## Visualizer
 model = Problems.NominalAirplane()
