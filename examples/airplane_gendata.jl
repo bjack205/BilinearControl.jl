@@ -21,7 +21,7 @@ using Random
 include("airplane_problem.jl")
 include("airplane_constants.jl")
 
-function gen_airplane_data()
+function gen_airplane_data(;num_train=30, num_test=10)
     ## Define nominal and true models
     model_nom = Problems.NominalAirplane()
     model_real = Problems.SimulatedAirplane()
@@ -34,8 +34,6 @@ function gen_airplane_data()
     tf = 2.0
     dt = 0.05
     dp_window = [1.0,3,2.]
-    num_train = 30 
-    num_test = 10 
     pf = [5,0,1.5]  # final position
 
     # MPC Parameters

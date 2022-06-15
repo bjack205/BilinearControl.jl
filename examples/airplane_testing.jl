@@ -37,7 +37,7 @@ T_ref = airplane_data["T_ref"]
 dt = T_ref[2]
 t_ref = T_ref[end]
 
-# Learned models
+## Learned models
 airplane_models = load(AIRPLANE_MODELFILE)
 model_eDMD = EDMDModel(airplane_models["eDMD"])
 model_jDMD = EDMDModel(airplane_models["jDMD"])
