@@ -1,6 +1,6 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Number of Training Trajectories}, ylabel={Average Tracking Error}]
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Number of training trajectories}, ylabel={Tracking Error}, legend style={{at={(0.97,0.65)},anchor=east}}]
     \addplot+[no marks, very thick, color={black}]
         coordinates {
             (2,0.0956525264756359)
@@ -19,7 +19,7 @@
     \addplot+[no marks, very thick, color={orange}]
         coordinates {
 
-            (5,0.08126356215907314)
+
             (10,0.04666775751209192)
             (15,0.01244102108737883)
             (20,0.006489755435842388)

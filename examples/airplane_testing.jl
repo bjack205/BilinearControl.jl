@@ -21,6 +21,14 @@ using Random
 
 include("airplane_constants.jl")
 
+## Visualizer
+model = Problems.NominalAirplane()
+include(joinpath(Problems.VISDIR, "visualization.jl"))
+vis = Visualizer()
+delete!(vis)
+set_airplane!(vis, model)
+open(vis)
+
 ## Get models
 airplane_data = load(AIRPLANE_DATAFILE)
 X_train = airplane_data["X_train"]
@@ -68,7 +76,7 @@ xmin = -xmax
 umin = fill(0.0, 4) - u_trim
 umax = fill(255.0, 4) - u_trim
 
-##
+## Visualize one of the test trajectories
 i = 5
 X_ref = X_ref0[:,i]
 U_ref = U_ref0[:,i]
@@ -92,8 +100,14 @@ plotstates!(T_ref,X_nom,inds=[1,3,4,7], label="", s=:solid, lw=:1, c=[1 2 3 4])
 plotstates!(T_ref,X_eDMD,inds=[1,3,4,7], label="", s=:dash, lw=:2, c=[1 2 3 4])
 plotstates!(T_ref,X_jDMD,inds=[1,3,4,7], label="", s=:dot, lw=:2, c=[1 2 3 4])
 
+visualize!(vis, model_nom, t_ref, X_ref)
 visualize!(vis, model_nom, t_ref, X_jDMD)
 visualize!(vis, model_nom, t_ref, X_ref)
+
+X_ref
+delete!(vis)
+waypoints!(vis, model_nom, X_ref, vis->set_airplane!(vis, model_nom), [1,5,10,15,20,25,30,35,40,51])
+
 
 ## Run Test
 airplane_data = load(AIRPLANE_DATAFILE)
