@@ -518,7 +518,7 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     B_train = map(J->J[:,n0+1:end], jacobians)
 
     ## Convert states to lifted Koopman states
-    # Y_train = map(kf, X_train)
+    Y_train = map(kf, X_train)
 
     ## Calculate Jacobian of Koopman transform
     F_train = map(cinds_jac) do cind 
@@ -535,7 +535,7 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     ## Build Least Squares Problem
     verbose && println("Generating least squares data")
     W,s = BilinearControl.EDMD.build_edmd_data(
-        Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB, verbose)
+        Y_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB, verbose)
 
     n = length(Z_train[1])
 
