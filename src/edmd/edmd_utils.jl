@@ -158,6 +158,14 @@ function TVLQRController(model::RD.DiscreteDynamics, Q, R, Xref, Uref, times)
     TVLQRController(A, B, Q, R, Xref, Uref, times)
 end
 
+function TVLQRController(model::RD.DiscreteDynamics, Qk::Diagonal, Rk::Diagonal, Qf::Diagonal, xref, uref, time)
+    N = length(time)
+    Q = [copy(Qk) for k = 1:N-1]
+    push!(Q,Qf)
+    R = [copy(Rk) for k = 1:N]
+    println("hi")
+    TVLQRController(model,Q,R,xref,uref,time)
+end
 function TVLQRController(A, B, Q, R, xref, uref, time)
     K, _ = tvlqr(A,B,Q,R)
     TVLQRController(K, xref, uref, time)
@@ -228,15 +236,26 @@ struct TrackingMPC{T,L} <: AbstractController
     X::Vector{Vector{T}}
     U::Vector{Vector{T}}
     λ::Vector{Vector{T}}
+    Pqp::SparseMatrixCSC{T,Int}
+    Aqp::SparseMatrixCSC{T,Int}
+    lqp::Vector{T}
+    uqp::Vector{T}
+    osqp::OSQP.Model
     Nt::Vector{Int}  # horizon length
     state_error::Function
+    opts::Dict{String,Any}
 end
 
 mpchorizon(mpc::TrackingMPC) = mpc.Nt[1]
+setmpchorizon(mpc::TrackingMPC, N) = mpc.Nt[1] = N
 
 function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref),
         state_error=(x,x0)->(x-x0)
     ) where {L<:RD.DiscreteDynamics}
+    @assert size(Rk,1) == length(Uref[1])
+    if length(Uref) != length(Xref)
+        error("State and control reference trajectories must be the same length (must provide a terminal control)")
+    end
     N = length(Xref)
     n = length(Xref[1])
     m = length(Uref[1])
@@ -260,8 +279,20 @@ function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref),
     X = [zeros(n) for k in 1:Nt]
     U = [zeros(m) for k in 1:Nt]
     λ = [zeros(n) for k in 1:Nt]
+
+    Np = N*n + (N-1)*m
+    Nd = N*n
+    Pqp = spzeros(Np,Np)
+    Aqp = spzeros(Nd,Np)
+    lqp = zeros(Nd)
+    uqp = zeros(Nd)
+    osqp = OSQP.Model()
+    opts = Dict{String,Any}()
+
     TrackingMPC(
-        Xref, Uref, Tref, model, A, B, f, Q, R, q, r, K, d, P, p, X, U, λ, [Nt], state_error
+        Xref, Uref, Tref, model, A, B, f, Q, R, q, r, K, d, P, p, X, U, λ, 
+        Pqp,Aqp,lqp,uqp,osqp,
+        [Nt], state_error,opts
     )
 end
 
@@ -333,10 +364,75 @@ end
 
 gettime(mpc::TrackingMPC) = mpc.Tref
 
+function solve_lqr(Q,R,q,r,A,B,f,x0)
+    n,m = size(B[1])
+    Nt = length(q)
+    K = [zeros(m,n) for k = 1:Nt-1]
+    d = [zeros(m) for k = 1:Nt-1] 
+    P = [zeros(n,n) for k = 1:Nt]
+    p = [zeros(n) for k = 1:Nt]
+    X = [zeros(n) for k = 1:Nt]
+    U = [zeros(m) for k = 1:Nt-1] 
+    λ = [zeros(n) for k = 1:Nt]
+
+    P[Nt] .= Q[Nt]
+    p[Nt] .= q[Nt]
+    for j in reverse(1:(Nt - 1))
+        P′ = P[j + 1]
+        Ak = A[j]
+        Bk = B[j]
+        fk = f[j]
+
+        Qx = q[j] + Ak' * (P′*fk + p[j + 1])
+        Qu = r[j] + Bk' * (P′*fk + p[j + 1])
+        Qxx = Q[j] + Ak'P′ * Ak
+        Quu = R[j] + Bk'P′ * Bk
+        Qux = Bk'P′ * Ak
+
+        cholQ = cholesky(Symmetric(Quu))
+        K[j] = -(cholQ \ Qux)
+        d[j] = -(cholQ \ Qu)
+
+        P[j] .= Qxx .+ K[j]'Quu * K[j] .+ K[j]'Qux .+ Qux'K[j]
+        p[j] = Qx .+ K[j]'Quu * d[j] .+ K[j]'Qu .+ Qux'd[j]
+    end
+    X[1] .= x0
+    for j = 1:Nt-1
+        λ[j] = P[j]*X[j] .+ p[j]
+        U[j] = K[j]*X[j] + d[j]
+        X[j+1] = A[j]*X[j] .+ B[j]*U[j] .+ f[j]
+    end
+    λ[Nt] = P[Nt]*X[Nt] .+ p[Nt]
+    return X,U,λ
+end
+
 function getcontrol(mpc::TrackingMPC, x, t)
     k = get_k(mpc, t) 
-    solve!(mpc, x, k)
-    return mpc.U[1] + mpc.Uref[k]
+    Nt = mpchorizon(mpc)
+    inds = k-1 .+ (1:Nt)
+    Q = 
+    X,U,λ = solve_lqr(Qr, Rr, qr, rr, Ar, Br, fr, x0)
+    mpc.X .= X
+    # mpc.U .= U
+    mpc.λ .= λ
+    return U[1] + Ur[1]
+    # solve!(mpc, x, k)
+    # return mpc.U[1] + mpc.Uref[k]
+end
+
+function gettrajectory(mpc::TrackingMPC, t)
+    Nt = mpchorizon(mpc) 
+    N = length(mpc.Xref)
+    k = get_k(mpc, t) 
+    X = map(1:Nt) do i
+        j = min(k + i - 1, N)
+        mpc.Xref[j] + mpc.X[i]
+    end
+    U = map(1:Nt) do i
+        j = min(k + i - 1, N)
+        mpc.Uref[j] + mpc.U[i]
+    end
+    X,U
 end
 
 struct BilinearMPC{L} <: AbstractController
@@ -534,7 +630,7 @@ end
 
 function simulatewithcontroller(sig::RD.FunctionSignature, 
                                 model::RD.DiscreteDynamics, ctrl::AbstractController, x0, 
-                                tf, dt; printrate=false)
+                                tf, dt; printrate=false, umod=identity)
     times = range(0, tf, step=dt)
     m = RD.control_dim(model)
     N = length(times)
@@ -547,7 +643,7 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
         # dt = times[k+1] - times[k]
         try
             u = getcontrol(ctrl, X[k], t)
-            U[k] .= u
+            U[k] .= umod(u)
             RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
         catch e
             break

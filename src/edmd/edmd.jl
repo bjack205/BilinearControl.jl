@@ -30,6 +30,7 @@ using SparseArrays
 using LazyArrays
 using ForwardDiff, FiniteDiff
 using Statistics
+using ProgressMeter
 import RobotDynamics
 import RobotDynamics as RD
 
@@ -37,6 +38,7 @@ include("edmd_utils.jl")
 include("eigenfunctions.jl")
 include("edmd_model.jl")
 include("regression.jl")
+include("mpc.jl")
 
 
 end
