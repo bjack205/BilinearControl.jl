@@ -1,5 +1,6 @@
+
 function rls_qr(b::AbstractVector{<:AbstractFloat}, A::SparseMatrixCSC{Float64, Int64};
-    batchsize=Int(floor(size(A)[1]/10)), Q=0.0, verbose=false)
+    batchsize=Int(floor(size(A)[1]/10)), Q=0.0, verbose=false, showprog=false)
 
     m, n = size(A)
 
@@ -33,6 +34,7 @@ function rls_qr(b::AbstractVector{<:AbstractFloat}, A::SparseMatrixCSC{Float64, 
     rhs = A_i'*b_i
 
     # now at each batch we are going to
+    prog = Progress(batches, enabled=showprog)
     for i = 0:batches-1
 
         verbose && print("\u1b[1F")
@@ -51,6 +53,7 @@ function rls_qr(b::AbstractVector{<:AbstractFloat}, A::SparseMatrixCSC{Float64, 
         
         # add to the right hand side
         rhs += A_i'*b_i
+        next!(prog)
 
     end
 
@@ -257,7 +260,7 @@ end
 function linear_regression(Y::AbstractVector{<:AbstractFloat}, 
                            X::AbstractMatrix{<:AbstractFloat}; 
                            gamma::Float64=0.0, lambda::Float64=0.0,
-                           algorithm=:qr)
+                           algorithm=:qr, showprog=false)
     
     (T, K) = (size(X, 1), size(X, 2))
     # @show T,K
@@ -282,7 +285,7 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
         b = F \ [Y; zeros(K)]
         return b
     elseif algorithm == :qr_rls
-        b = rls_qr(Y, X; Q=λ)
+        b = rls_qr(Y, X; Q=λ, showprog)
     elseif algorithm == :convex
         Q = X'X / T
         c = X'Y / T                   #c'b = Y'X*b
@@ -439,11 +442,17 @@ function build_edmd_data(X,U, A,B,F,G; cinds_jac=CartesianIndices(U), α=0.5, ve
     end
     @assert size(Bhat) == (p,Pj*m)
 
-    W = ApplyArray(vcat,
-        (1-α) * ApplyArray(kron, Z', sparse(I,n,n)),
-        α * ApplyArray(kron, Ahat', G),
-        α * ApplyArray(kron, Bhat', G),
-    ) 
+    # W = ApplyArray(vcat,
+    #     (1-α) * ApplyArray(kron, Z', sparse(I,n,n)),
+    #     α * ApplyArray(kron, Ahat', G),
+    #     α * ApplyArray(kron, Bhat', G),
+    # ) 
+    verbose && println("Forming sparse coefficient matrix...")
+    W = vcat(
+        (1-α) * kron(sparse(Z'), sparse(I,n,n)),
+        α * kron(vcat(Ahat', Bhat'), G)
+    )
+    verbose && println("Matrix formed!")
     s = vcat((1-α) * vec(Xn), α * vec(Amat), α * vec(Bmat))
     W,s
 end
@@ -516,7 +525,7 @@ end
 Run the eDMD algorithm on the training data. Returns an EDMDModel.
 """
 function run_eDMD(X_train, U_train, dt, function_list, order_list; reg=1e-6, name="edmd_model",
-        alg=:qr
+        alg=:qr, kwargs...
     )
     Z_train, Zu_train, kf = build_eigenfunctions(X_train, U_train, function_list, order_list);
 
@@ -524,7 +533,8 @@ function run_eDMD(X_train, U_train, dt, function_list, order_list; reg=1e-6, nam
         ["na", "na"]; 
         edmd_weights=[reg], 
         mapping_weights=[0.0],
-        algorithm=alg
+        algorithm=alg,
+        kwargs...
     )
     EDMDModel(A, B, C, g, kf, dt, name)
 end
@@ -549,7 +559,8 @@ Run the jDMD algorithm on the training data, using the provided model to regular
 Jacobians of the learned model.
 """
 function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.DiscreteDynamics; 
-        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0, verbose=false
+        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0, showprog=false, verbose=false,
+        alg=:qr_rls
     )
     n0 = length(X_train[1])
     m = length(U_train[1])
@@ -579,7 +590,7 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     B_train = map(J->J[:,n0+1:end], jacobians)
 
     ## Convert states to lifted Koopman states
-    # Y_train = map(kf, X_train)
+    Y_train = map(kf, X_train)
 
     verbose && println("Calculating Jacobians...")
 
@@ -591,13 +602,16 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
 
     ## Create a sparse version of the G Jacobian
     G = spdiagm(n0,n,1=>ones(n0)) 
-    @assert function_list[1] == "state"
+    if function_list isa AbstractVector
+        @assert function_list[1] == "state"
+    end
 
     verbose && println("Building LLS problem...")
 
     ## Build Least Squares Problem
+    verbose && println("Generating least squares data")
     W,s = BilinearControl.EDMD.build_edmd_data(
-        Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB)
+        Y_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB, verbose)
 
     n = length(Z_train[1])
 
@@ -605,12 +619,15 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
 
     ## Create sparse LLS matrix
     #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
-    Wsparse = sparse(W)
+    # verbose && println("Forming sparse matrix...")
+    # Wsparse = sparse(W)
 
     verbose && println("Solving with RLS-QR...")
 
     ## Solve with RLS
-    x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
+    verbose && println("Solving least-squares problem")
+    # x_rls = BilinearControl.EDMD.rls_qr(s, W; Q=reg, showprog)
+    x_rls = linear_regression(s, W; algorithm=alg, lambda=reg, showprog)
     E = reshape(x_rls,n,:)
 
     verbose && println("Splitting data...")

@@ -222,7 +222,7 @@ end
 
 function build_eigenfunctions(X::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
                               U::VecOrMat{<:AbstractVector{<:AbstractFloat}}, 
-                              kf::Function)
+                              kf::Function, order=[])
 
     Z = map(kf, X)
     Zu = map(zip(CartesianIndices(U), U)) do (cind,u)

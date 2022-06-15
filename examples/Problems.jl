@@ -35,6 +35,7 @@ include(joinpath(model_dir, "cartpole_model.jl"))
 include(joinpath(model_dir, "quadrotor_model.jl"))
 include(joinpath(model_dir, "rex_full_quadrotor_model.jl"))
 include(joinpath(model_dir, "rex_planar_quadrotor_model.jl"))
+include(joinpath(model_dir, "airplane_model.jl"))
 # include(joinpath(model_dir, "edmd_model.jl"))
 # include("learned_models/edmd_utils.jl")
 
