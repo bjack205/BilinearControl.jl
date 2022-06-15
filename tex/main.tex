@@ -479,6 +479,7 @@ add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
   \includegraphics[width=\textwidth]{perch_cropped.png}
   \caption{Airplane perching trajectory, a high angle-of-attack maneuver that minimizes 
     velocity at the goal position}
+  \label{fig:perch}
 \end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -497,12 +498,9 @@ collect data in the region of the state space relevant to the task. A set of fix
 trajectories were collected, each at a sample rate of 20 Hz. The bilinear eDMD model was
 trained using the same approach introduced by Folkestad and Burdick \cite{Folkestad2021}.
 All continuous dynamics were discretized with an explicit
-fourth-order Runge Kutta integrator. The code for the experiments is located at
-\todo{include after review}.  
-
-We organize the following results section by topic, including
-examples from both the canonical cartpole system, as well as a planar quadrotor model
-derived from experimental data on hardware platforms in our lab.
+fourth-order Runge Kutta integrator. 
+We organize the following results section by topic, we briefly describe the three simulated
+models used to produce the results in the paragraphs below.
 
 The \textit{true} cartpole model included a $\tanh$ model of Coulomb friction between
 the cart and the floor, viscous damping at both joints, and a control dead band that was not
@@ -515,12 +513,22 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\, T_4(x)\, 
 All reference trajectories for the swing up task were generated using ALTRO 
 \cite{Howell2019,Jackson2021}.
 
-For the planar quadrotor, the \textit{true} model included aerodynamic drag terms not
-included in the \textit{nominal} model, as well as parametric error of about 5\% on the
-system properties (e.g. mass, rotor arm length, etc.). The model was trained using a 
-nonlinear mapping of $\phi(x) = [\, 1,\,
-x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
-\R^{25}$. 
+\todo{update quadotor description} For the planar quadrotor, the \textit{true} model
+included aerodynamic drag terms not included in the \textit{nominal} model, as well as
+parametric error of about 5\% on the system properties (e.g. mass, rotor arm length, etc.).
+The model was trained using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, \sin(x),\,
+\cos(x),\, \sin(2x),\, T_2(x),\, ] \in \R^{25}$. 
+
+Our most high-fidelity model is an airplane model with lift and drag coefficients fit from
+rigorous wind-tunnel testing \cite{Manchester2017}. The coefficients are valid for high
+angle-of-attach maneuvers. We produce a high-angle-of-attack (up to $40^\circ$) manuever by
+solving for ``perching'' trajectories with ALTRO that encourage minimal velocity subject to
+a constraint on the final position (see Figure \ref{fig:perch}). These trajectories are
+tracked using a QP-based linear MPC solver, with bounds on the state and control deviations
+at each time step. The nominal model used a simple flat-plate wing model with linear lift
+and quadratic drag coefficient models.
+
+The code for the experiments is located at \todo{include after review}.  
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -553,13 +561,12 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
 \end{figure}
 
 We highlight the sample efficiency of the proposed algorithm in Figure 
-\ref{fig:sample_efficiency}. For both the cartpole swing up and the quadrotor trajectory
+\ref{fig:sample_efficiency}. For both the cartpole swing up and the airplane perch trajectory 
 tracking tasks, the proposed method achieves better tracking than the nominal MPC controller
-after just a few training trajectories. In both cases, the classic eDMD approach never
-achieves the same level of performance as the proposed approach. We note the lack of
-continued progress with increasing samples is likely due to a lack of sufficient variety in
-the training data: after 30-40 training trajectories both methods have effectively learned
-as much as they can from the distribution from which the training data was sampled. 
+with just two sample trajectories, and achieves uniformly better than eDMD on both 
+trajectory tracking tasks. To achieve comparable performance on the perching task, eDMD 
+requires about 4x the number of samples (20 vs 5) compared to the proposed approach.
+\todo{add lines for ``lifted'' MPC approach?}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -644,18 +651,33 @@ long time horizons), and it is straightforward to apply additional constraints t
 original state variables.
 
 \subsection{Sensitivity to Model Mismatch}
-\begin{figure}
+% \begin{figure}
+%   \centering
+%   \includegraphics[width=1.0\textwidth, height=5.5cm]{cartpole_friction_mismatch.tikz}
+%   \caption{Effect of increasing model mismatch. Displays the number of training trajectories
+%   required to consistently stabilize the cartpole system, given an increasing friction 
+%   coefficient, which the nominal model does not include at all. An entry of 0 signifies 
+%   that a stabilizing controller wasn't found with less than 100 training trajectories.
+%   The nominal MPC controller failed to stabilize once the friction coefficient went above 
+%   0.1.
+%   }
+%   \label{fig:cartpole_friction_mismatch}
+% \end{figure}
+\begin{table}
   \centering
-  \includegraphics[width=1.0\textwidth, height=5.5cm]{cartpole_friction_mismatch.tikz}
-  \caption{Effect of increasing model mismatch. Displays the number of training trajectories
-  required to consistently stabilize the cartpole system, given an increasing friction 
-  coefficient, which the nominal model does not include at all. An entry of 0 signifies 
-  that a stabilizing controller wasn't found with less than 100 training trajectories.
-  The nominal MPC controller failed to stabilize once the friction coefficient went above 
-  0.1.
+  \begin{tabular}{cccccccc}
+  \toprule 
+  Friction ($\mu$) & 0.0 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\
+  \midrule 
+  Nominal & \cmark & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark \\
+  eDMD & 3 & 19 & 6 & 14 & \xmark & \xmark & \xmark \\
+  jDMD & 2 & 2 & 2 & 2 & 3 & 7 & 12 \\
+  \end{tabular}
+  % \include(../images/tables/friction_comp.tex)
+  \caption{Training trajectories required to stabilize the cartpole with the given friction
+    coefficient
   }
-  \label{fig:cartpole_friction_mismatch}
-\end{figure}
+\end{table}
 
 While we've introduced a significant mount of model mismatch in all of the examples so far, 
 a natural argument against model-based methods is that they're only as good as your model is
