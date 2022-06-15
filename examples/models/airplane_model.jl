@@ -216,18 +216,8 @@ function yak_dynamics(p::YakPlane, x::StaticVector, u::StaticVector, t=0)
     [rdot; qdot; vdot; wdot]
 end
 
-@generated function RD.dynamics!(model::YakPlane{R}, xdot, x, u) where R
-    if R <: UnitQuaternion
-        Nx = 14
-    else
-        Nx = 12
-    end
-    quote
-        xstatic = SVector{$Nx}(x)
-        ustatic = SVector{4}(u)
-        xdot .= dynamics(model, x, u)
-        return nothing
-    end
+function RobotDynamics.dynamics!(model::YakPlane, xdot, x, u, t)
+    xdot .= yak_dynamics(model, SVector{12}(x), SVector{4}(u), t) 
 end
 
 "Angle of attack"

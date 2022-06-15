@@ -46,14 +46,14 @@ function LinearMPC(model, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref),
     q = [zeros(n) for k = 1:Nt]
     r = [zeros(m) for k = 1:Nt-1]
     push!(Q,Qf)
-    f = map(1:N) do k
+    f = map(1:N-1) do k
         dt = k < N ? Tref[k+1] - Tref[k] : Tref[k] - Tref[k-1] 
         xn = k < N ? copy(Xref[k+1]) : copy(Xref[k])
         Vector(RD.discrete_dynamics(model, Xref[k], Uref[k], Tref[k], dt) - xn)
     end
     X = [zeros(n) for k = 1:Nt]
     U = [zeros(m) for k = 1:Nt]
-    LinearMPC(Xref,Uref,Tref, A,B,f, Q,R,q,r, Nt, xmax,xmin, umax,umin, X,U, [0])
+    LinearMPC(Xref,Uref,collect(Tref), A,B,f, Q,R,q,r, Nt, xmax,xmin, umax,umin, X,U, [0])
 end
 
 gettime(ctrl::LinearMPC) = ctrl.Tref

@@ -1,6 +1,6 @@
-function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv)
+function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv, pf=[5,0,1.5])
     # Discretization
-    model = Problems.SimulatedAirplane()
+    # model = Problems.SimulatedAirplane()
     model = Problems.NominalAirplane()
     N = round(Int, tf/dt) + 1
     dt = tf / (N-1)
@@ -12,7 +12,7 @@ function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv)
 
     # Final condition
     xf = copy(x0)
-    xf[1] = 5.0
+    xf[1:3] .= pf
     xf[7] = 0.0
 
     # Shift initial position
