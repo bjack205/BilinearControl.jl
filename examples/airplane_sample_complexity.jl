@@ -113,9 +113,10 @@ num_train = [2; 5:5:50]
 results = @showprogress map(num_train) do N
     test_airplane(train_airplane(N)...)
 end
-results
+jldsave(AIRPLANE_RESULTS; results)
 
 ##
+results = load(AIRPLANE_RESULTS)["results"]
 airplane_data = load(AIRPLANE_DATAFILE)
 num_test =  size(airplane_data["X_test"],2)
 
@@ -134,7 +135,7 @@ sr_nom  = get_success_rate(results, :nominal)
 sr_eDMD = get_success_rate(results, :eDMD) 
 sr_jDMD = get_success_rate(results, :jDMD) 
 
-@pgf Axis(
+p_err = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
@@ -146,18 +147,20 @@ sr_jDMD = get_success_rate(results, :jDMD)
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, err_jDMD)),
     Legend(["Nominal MPC", "eDMD", "jDMD"])
 )
+pgfsave(joinpath(Problems.FIGDIR, "airplane_error_by_num_train.tikz"), p_err, 
+    include_preamble=false)
 
-plot(num_train, err_nom, label="nominal", c="black", 
-    yscale=:log10, xlabel="training trajectories", 
-    ylabel="average tracking error"
+p_sr = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Number of Training Trajectories",
+        ylabel = "Success Rate",
+    },
+    PlotInc({lineopts..., color=color_nominal}, Coordinates(num_train, sr_nom)),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(num_train, sr_eDMD)),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, sr_jDMD)),
+    Legend(["Nominal MPC", "eDMD", "jDMD"])
 )
-plot!(num_train, err_eDMD, label="eDMD", c=:orange)
-plot!(num_train, err_jDMD, label="jDMD", c=:cyan)
-
-plot(num_train, sr_nom, label="nominal", c="black", 
-    yscale=:linear, xlabel="training trajectories", 
-    ylabel="success rate"
-)
-plot!(num_train, sr_eDMD, label="eDMD", c=:orange)
-plot!(num_train, sr_jDMD, label="eDMD", c=:cyan)
-
+pgfsave(joinpath(Problems.FIGDIR, "airplane_success_by_num_train.tikz"), p_sr, 
+    include_preamble=false)
