@@ -16,6 +16,10 @@ const quad_motor_bm = -0.367697
 const quad_arm_len = 0.28
 const quad_min_throttle = 1148.0
 const quad_max_throttle = 1832.0
+const QUAD_CROSS_SECTIONAL_AREA_X = 0.25
+const QUAD_CROSS_SECTIONAL_AREA_Y = 0.25
+const QUAD_CROSS_SECTIONAL_AREA_Z = 0.5
+
 
 RD.@autodiff struct RexQuadrotor <: RD.RigidBody{MRP}
     mass::Float64
@@ -27,6 +31,7 @@ RD.@autodiff struct RexQuadrotor <: RD.RigidBody{MRP}
     km::Float64
     bf::Float64
     bm::Float64
+    cd::Vector{Float64}
 end
 
 RD.control_dim(::RexQuadrotor) = 4
@@ -39,10 +44,20 @@ function RexQuadrotor(;
         kf=quad_motor_kf,
         km=quad_motor_km,
         bf=quad_motor_bf,
-        bm=quad_motor_bm
+        bm=quad_motor_bm,
+        cd=[0.0, 0.0, 0.0]
     )
-    RexQuadrotor(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm)
+    RexQuadrotor(mass,J,inv(J),gravity,motor_dist,kf,km,bf,bm,cd)
 end
+
+NominalRexQuadrotor() = RexQuadrotor()
+SimulatedRexQuadrotor() = RexQuadrotor(; mass=1.05*quad_mass,
+                                                J=SMatrix{3,3,Float64,9}([0.0165 0 0; 0 0.0165 0; 0 0 0.0234]),
+                                                kf=1.05*quad_motor_kf,
+                                                km=1.05*quad_motor_km,
+                                                bf=0.95*quad_motor_bf,
+                                                bm=0.95*quad_motor_bm,
+                                                cd=[0.3, 0.3, 0.3])
 
 # %%
 function trim_controls(model::RexQuadrotor)
@@ -77,6 +92,12 @@ function RD.forces(model::RexQuadrotor, x, u)
     q = Rotations.MRP(x[4], x[5], x[6])
     kf = model.kf
     bf = model.bf
+    cd = model.cd
+
+    # add aero drag where 1.27 is air density (kg/m^3)
+
+    df = -sign.(x[4:6]).*0.5.*1.27.*(x[4:6].^2).*
+        cd.*[QUAD_CROSS_SECTIONAL_AREA_X, QUAD_CROSS_SECTIONAL_AREA_Y, QUAD_CROSS_SECTIONAL_AREA_Z]
 
     Kf = [0.0  0   0   0;
           0.0  0   0   0;
@@ -84,7 +105,7 @@ function RD.forces(model::RexQuadrotor, x, u)
     Bf = [0; 0; 4*bf];
     g = [0; 0; -9.81 * quad_mass]
 
-    force = Kf * u + Bf + q' * g
+    force = Kf * u + Bf + df + q' * g
     return force
 end
 

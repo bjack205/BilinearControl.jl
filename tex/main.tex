@@ -765,6 +765,20 @@ data through the use of modern differentiable physics engines \cite{Howell2022,T
 residual dynamics learning, as well as the development of specialized numerical methods for
 solving nonlinear optimal control problems using the learned bilinear dynamics.
 
+\begin{figure}
+	\centering
+	\includegraphics[width=1.0\textwidth, height=5.5cm]{quadrotor_mpc_zigzag_tracking_trajectories.tikz}
+	\caption{Effect of increasing model mismatch. Displays the number of training trajectories
+		required to consistently stabilize the cartpole system, given an increasing friction 
+		coefficient, which the nominal model does not include at all. An entry of 0 signifies 
+		that a stabilizing controller wasn't found with less than 100 training trajectories.
+		The nominal MPC controller failed to stabilize once the friction coefficient went above 
+		0.1.
+	}
+	\label{fig:cartpole_friction_mismatch}
+\end{figure}
+
+
 \bibliography{Koopman.bib}
 
 \end{document}
