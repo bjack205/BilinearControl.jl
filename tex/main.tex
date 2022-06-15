@@ -134,12 +134,14 @@ In summary, our contributions are:
 The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
 give some background on the application of Koopman operator theory to controlled 
 dynamical systems and review some related works. Section \ref{sec:jdmd} describes
-the proposed algorithm for combining data-driven and model-based approaches, along with 
-the numerical method for solving the resulting large and sparse linear least-squares 
-problems. Section \ref{sec:results} provides extensive numerical analysis of the 
-proposed algorithm, applied to a simulated cartpole and planar quadrotor model, both 
-subject to significant model mismatch. In Section \ref{sec:limitations} we discuss the 
-limitations of the method, and finish with some concluding thoughts in Section 
+the proposed algorithm for combining data-driven and model-based approaches, while 
+\ref{sec:projected_mpc} proposed an efficient technique for controlling these learned models
+online. In Section \ref{sec:rls} we outline an memory-efficient technique for solving the 
+large, sparse linear least-squares problems that arise when applying the proposed adaption 
+to eDMD. Lastly, Section \ref{sec:results} provides numerical analysis of the 
+proposed algorithm, applied to a simulated cartpole, quadrotor model, and a small foam 
+airplane, all subject to significant model mismatch. In Section \ref{sec:limitations} we 
+discuss the limitations of the method, and finish with some concluding thoughts in Section 
 \ref{sec:conclusion}.
 
 \section{Background and Related Work} \label{sec:Preliminaries/Background}
@@ -414,6 +416,30 @@ learned ``live'' while the robot gathers data by moving through it's environment
 % \eqref{eq:bilinear_dynamics} by solving this large, sparse linear least-squares 
 % problem.
 
+\section{Projected Bilinear MPC} \label{sec:projected_mpc}
+Here we propose a simple approach to model-predictive control for the bilinear systems 
+learned using either classic eDMD or the proposed jDMD approach. The key idea is to use the 
+projected Jacobians $\bar{A}$ and $\bar{B}$ in \eqref{eq:projected_jacobians}, effectively 
+reducing the problem back to the original state dimension instead of the larger, lifted one.
+When tracking a reference trajectory as we do in the all of the following examples, this 
+can be done by solving the following convex Quadratic Program (QP):
+% \begin{mini}[2]
+%   {x_{1:N}, u_{1:N}}{\half x_N^T Q_N x_N + \frac \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k}{}{}
+% \end{mini}
+\begin{mini}
+  {x_{1:N}, u_{1:N-1}}{\half x_N^T Q_N x_N + \half \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k }{}{}
+  \addConstraint{x_{k+1} = \bar{A}_k x_k + \bar{B}_k u_k + d_k}{}
+  \addConstraint{x_1 = x_\text{init}}
+\end{mini}
+where here we define $x$ and $u$ to be the ``delta''  from the reference trajectory 
+$\bar{x}_{1:N}$, $\bar{u}_{1:N-1}$. The affine dynamics term 
+$d_k = f(\bar{x}_k, \bar{u}_k) - \bar{x}_{k+1}$ allows for dynamically infeasible reference
+trajectories. The projected Jacobians can be efficiently calculated from the bilinear 
+dynamics either offline or online, and since the problem dimension is the same size as the 
+linear MPC problem for the original dynamics, it is no more expensive to compute. This
+formulation also makes it trivial to enforce additional control or path constraints, and 
+avoids the need to regularize or otherwise constrain the lifted states.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Efficient Recursive Least Squares} \label{sec:rls}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -481,6 +507,7 @@ add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
     velocity at the goal position}
   \label{fig:perch}
 \end{figure}
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Results
@@ -640,15 +667,19 @@ information provided by the nominal model.
   \label{tab:mpc_comp}
 \end{wraptable} 
       
-Table \ref{tab:mpc_comp} also highlights the sample efficiency of the proposed method, while
-also comparing to the more typical approach of applying the MPC policy in the lifted state
-space \cite{Korda2018,Folkestad2021,Narasingam2022}.  As shown, the proposed method of
-applying linear MPC to the projected linearization is much more sample efficient than trying
-to apply it in the lifted state space. This approach is also advantageous because it reduces
-the solve time of the linear MPC policy, is more numerically robust (we found the lifted MPC
-policies tended to suffer from numerical issues when using Riccati recursion to solve for
-long time horizons), and it is straightforward to apply additional constraints to the
-original state variables.
+We performed a simple experiment to highlight the value of the proposed ``projected'' MPC,
+outlined in \label{sec:projected_mpc}. We trained eDMD and jDMD models with an increasing 
+number of training trajectories, and recorded the first sample size at which the ``lifted''
+and ``projected'' MPC controllers consistently stabilized the system (i.e. stabilized 95\%
+of the test initial conditions for the cartpole system for that sample size and subsequent 
+ones). The results are summarized in Table \ref{tab:mpc_comp}. The results qualitatively 
+show what we quantitatively observed while training and testing these various examples:
+the projected MPC approach usually required far fewer samples to ``train'' and usually had 
+better performance than it's ``lifted'' counterpart that used the bilinear ``lifted'' 
+dynamics. This was especially pronounced when combined with the proposed jDMD approach, 
+which makes sense given that the approach explicitly encourages these Jacobians to match 
+the analytical ones, so quickly converge to reasonable values with just a few training 
+examples.
 
 \subsection{Sensitivity to Model Mismatch}
 % \begin{figure}
@@ -663,23 +694,6 @@ original state variables.
 %   }
 %   \label{fig:cartpole_friction_mismatch}
 % \end{figure}
-\begin{table}
-  \centering
-  \begin{tabular}{cccccccc}
-  \toprule 
-  Friction ($\mu$) & 0.0 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\
-  \midrule 
-  Nominal & \cmark & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark \\
-  eDMD & 3 & 19 & 6 & 14 & \xmark & \xmark & \xmark \\
-  jDMD & 2 & 2 & 2 & 2 & 3 & 7 & 12 \\
-  \end{tabular}
-  % \include(../images/tables/friction_comp.tex)
-  \caption{Training trajectories required to stabilize the cartpole with the given friction
-    coefficient
-  }
-  \label{tab:friction_comp}
-\end{table}
-
 While we've introduced a significant mount of model mismatch in all of the examples so far,
 a natural argument against model-based methods is that they're only as good as your model is
 at capturing the salient dynamics of the system.  We investigated the effect of increasing
@@ -696,6 +710,23 @@ that the nominal MPC controller failed to stabilize the system above friction va
 so again, we demonstrate that we can improve MPC performance substantially with just a few
 training samples by combining analytical gradient information and data sampled from the true
 dynamics.
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{cccccccc}
+  \toprule 
+  Friction ($\mu$) & 0.0 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\
+  \midrule 
+  Nominal & \cmark & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark \\
+  eDMD & 3 & 19 & 6 & 14 & \xmark & \xmark & \xmark \\
+  jDMD & 2 & 2 & 2 & 2 & 3 & 7 & 12 \\
+  \end{tabular}
+  % \include(../images/tables/friction_comp.tex)
+  \caption{Training trajectories required to stabilize the cartpole with the given friction
+    coefficient
+  }
+  \label{tab:friction_comp}
+\end{table}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
