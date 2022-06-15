@@ -85,7 +85,7 @@ function getcontrol(mpc::LinearMPC, x, t)
     dx = x - mpc.Xref[k]
     dX,dU,_,solved = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
     if !solved
-        @warn "OSQP solve failed"
+        # @warn "OSQP solve failed"
         mpc.num_fails[1] += 1
         i = mpc.num_fails[1] + 1  # 0-to-1 based index shift
         return mpc.U[i] + mpc.Uref[k]

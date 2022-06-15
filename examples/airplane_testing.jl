@@ -15,6 +15,8 @@ import RobotDynamics as RD
 using BilinearControl: Problems
 using JLD2
 using Plots
+using ProgressMeter
+using Statistics
 
 const AIRPLANE_DATAFILE = joinpath(Problems.DATADIR, "airplane_trajectory_data.jld2")
 const AIRPLANE_MODELFILE = joinpath(Problems.DATADIR, "airplane_trained_models.jld2")
@@ -26,8 +28,11 @@ X_train = airplane_data["X_train"]
 U_train = airplane_data["U_train"]
 X_test = airplane_data["X_test"]
 U_test = airplane_data["U_test"]
-X_ref0 = airplane_data["X_ref"]
-U_ref0 = airplane_data["U_ref"]
+num_train = size(X_train,2)
+num_test =  size(X_test,2)
+
+X_ref0 = airplane_data["X_ref"][:,num_train+1:end]
+U_ref0 = airplane_data["U_ref"][:,num_train+1:end]
 T_ref = airplane_data["T_ref"]
 dt = T_ref[2]
 t_ref = T_ref[end]
@@ -64,14 +69,10 @@ xmin = -xmax
 umin = fill(0.0, 4) - u_trim
 umax = fill(255.0, 4) - u_trim
 
-num_train = size(X_train,2)
-
 ##
 i = 5
-X_mpc = X_test[:,i]
-U_mpc = U_test[:,i]
-X_ref = X_ref0[:,i+num_train]
-U_ref = U_ref0[:,i+num_train]
+X_ref = X_ref0[:,i]
+U_ref = U_ref0[:,i]
 
 mpc_nom = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
     xmin,xmax,umin,umax
@@ -91,3 +92,40 @@ plotstates(T_ref, X_ref,inds=[1,3,4,7], lw=3, label=["x" "z" "roll" "vx"], ylim=
 plotstates!(T_ref,X_nom,inds=[1,3,4,7], label="", s=:solid, lw=:1, c=[1 2 3 4])
 plotstates!(T_ref,X_eDMD,inds=[1,3,4,7], label="", s=:dash, lw=:2, c=[1 2 3 4])
 plotstates!(T_ref,X_jDMD,inds=[1,3,4,7], label="", s=:dot, lw=:2, c=[1 2 3 4])
+
+##
+err_nom = zeros(num_test) 
+err_eDMD = zeros(num_test) 
+err_jDMD = zeros(num_test) 
+prog = Progress(num_test)
+Threads.@threads for i = 1:num_test
+    X_ref = X_ref0[:,i]
+    U_ref = U_ref0[:,i]
+    N = length(X_ref)
+
+    mpc_nom = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+        xmin,xmax,umin,umax
+    )
+    mpc_eDMD = EDMD.LinearMPC(model_eDMD_projected, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+        xmin,xmax,umin,umax
+    )
+    mpc_jDMD = EDMD.LinearMPC(model_jDMD_projected, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+        xmin,xmax,umin,umax
+    )
+
+    X_nom,  = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_ref, dt)
+    X_eDMD, = simulatewithcontroller(dmodel_real, mpc_eDMD, X_ref[1], t_ref, dt)
+    X_jDMD, = simulatewithcontroller(dmodel_real, mpc_jDMD, X_ref[1], t_ref, dt)
+    err_nom[i] = norm(X_nom - X_ref) / N
+    err_eDMD[i] = norm(X_eDMD - X_ref) / N
+    err_jDMD[i] = norm(X_jDMD - X_ref) / N
+end
+
+did_track(x) = x<1e4
+sr_nom = count(did_track, err_nom) / num_test
+sr_eDMD = count(did_track, err_eDMD) / num_test
+sr_jDMD = count(did_track, err_jDMD) / num_test
+
+ae_nom = mean(filter(did_track, err_nom))
+ae_eDMD = mean(filter(did_track, err_eDMD))
+ae_jDMD = mean(filter(did_track, err_jDMD))
