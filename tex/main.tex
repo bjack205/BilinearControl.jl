@@ -426,8 +426,12 @@ We assume $F$ is a large, sparse matrix and that solving it directly using a QR 
 decomposition requires too much memory for a single computer. While solving \eqref{opt:lls}
 using an iterative method such as LSMR \cite{Fong2011} or LSQR \cite{Paige1982} is possible,
 we found these methods do not work well in practice for solving \eqref{opt:jdmd} since the 
-matrices tend to be ill-conditioned. Recursive methods for solving these problems are able to process the rows of the matrices sequentially to build QR decomposition of the full matrix, but also tend to be ill-conditioned \cite{strobach1990,sayed2009,ghirnikar1990}. We propose an alternative recursive method based off of 
-numerical techniques that, to our knowledge, aren't well known to the learning community. We solve \eqref{opt:lls} by dividing up the rows of $F$ into batches:
+matrices tend to be ill-conditioned. Recursive methods for solving these problems are able
+to process the rows of the matrices sequentially to build QR decomposition of the full
+matrix, but also tend to be ill-conditioned \cite{Strobach1990,Sayed2009,Ghirnikar1990}. We
+propose an alternative recursive method based off of numerical techniques that, to our
+knowledge, aren't well known to the learning community. We solve \eqref{opt:lls} by dividing
+up the rows of $F$ into batches:
 \begin{align} \label{eq:F_sum}
   F^T F = F_1^T F_1 + F_2^T F_2 + \ldots + F_N^T F_N.
 \end{align}
