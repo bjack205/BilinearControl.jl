@@ -474,6 +474,12 @@ add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
 %     \State \textbf{output} \,$x \leftarrow U^{-1}U^{-T}b$ \Comment{forward and backwards substitution to solve for $x$}
 %   \end{algorithmic}
 % \end{algorithm}
+\begin{figure}
+  \centering
+  \includegraphics[width=\textwidth]{perch_cropped.png}
+  \caption{Airplane perching trajectory, a high angle-of-attack maneuver that minimizes 
+    velocity at the goal position}
+\end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Results
@@ -530,9 +536,10 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_test_error.tikz}
-    \caption{Planar Quadrotor}
-    \label{fig:planar_quad_mpc_test_error}
+    % \includegraphics[width=\textwidth, height=5cm]{rex_planar_quadrotor_mpc_test_error.tikz}
+    \includegraphics[width=\textwidth,height=5cm]{airplane_error_by_num_train.tikz}
+    \caption{Airplane}
+    % \label{fig:planar_quad_mpc_test_error}
     % \includegraphics[width=\textwidth, height=5cm]{cartpole_mpc_train_time.tikz}
     % \caption{Training time for cartpole models as a function of training samples, using a 
     % preliminary implementation of the algorithm described in Section \ref{sec:rls}. The 
@@ -540,7 +547,7 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x),\, ] \in
     % \label{fig:cartpole_train_time}
   \end{subfigure}
   \caption{MPC tracking error vs training trajectories for both the cartpole (left) and
-  planar quadrotor (right). Tracking error is defined as the average L2 error over all the
+  airplane (right). Tracking error is defined as the average L2 error over all the
   test trajectories between the reference and simulated trajectories.}
   \label{fig:sample_efficiency}
 \end{figure}
