@@ -92,6 +92,9 @@ plotstates!(T_ref,X_nom,inds=[1,3,4,7], label="", s=:solid, lw=:1, c=[1 2 3 4])
 plotstates!(T_ref,X_eDMD,inds=[1,3,4,7], label="", s=:dash, lw=:2, c=[1 2 3 4])
 plotstates!(T_ref,X_jDMD,inds=[1,3,4,7], label="", s=:dot, lw=:2, c=[1 2 3 4])
 
+visualize!(vis, model_nom, t_ref, X_jDMD)
+visualize!(vis, model_nom, t_ref, X_ref)
+
 ## Run Test
 airplane_data = load(AIRPLANE_DATAFILE)
 X_test = airplane_data["X_test"]

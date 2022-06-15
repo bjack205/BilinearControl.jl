@@ -59,7 +59,7 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
         Usim = Vector{Float64}[]
         for i = 1:max_attempts
             dp = rand(dp_sampler)
-            prob = AirplaneProblem(;tf, dt, Qv=10, Qw=5, dp, pf)
+            prob = AirplaneProblem(;tf, dt, Qv=15, Qw=5, dp, pf)
             solver = ALTROSolver(prob, verbose=0, show_summary=false)
             solve!(solver)
 

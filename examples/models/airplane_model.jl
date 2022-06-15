@@ -84,7 +84,7 @@ RD.control_dim(::YakPlane) = 4
 YakPlane{C}(;kwargs...) where C = YakPlane{C,Float64}(;kwargs...)
 
 SimulatedAirplane() = YakPlane{ExperimentalAeroCoefficients}()
-NominalAirplane() = YakPlane{LinearAeroCoefficients}()
+NominalAirplane() = YakPlane{LinearAeroCoefficients}(m=0.075*1.2, b=0.45*0.95)
 
 trim_controls(model::YakPlane) = @SVector [41.6666, 106, 74.6519, 106]
 
@@ -284,6 +284,7 @@ end
 function Cl_wing(p::YakPlane{LinearAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
     cl = 2pi*a  # flat plate
+    cl = 6a
     # cl = -27.52*a^3 - .6353*a^2 + 6.089*a;
 end
 
