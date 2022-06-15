@@ -490,7 +490,8 @@ Run the jDMD algorithm on the training data, using the provided model to regular
 Jacobians of the learned model.
 """
 function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.DiscreteDynamics; 
-        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0, showprog=false, verbose=false
+        reg=1e-6, name="jdmd_model", α=0.5, learnB=true, β=1.0, showprog=false, verbose=false,
+        alg=:qr_rls
     )
     n0 = length(X_train[1])
     m = length(U_train[1])
@@ -546,7 +547,8 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
 
     ## Solve with RLS
     verbose && println("Solving least-squares problem")
-    x_rls = BilinearControl.EDMD.rls_qr(s, W; Q=reg, showprog)
+    # x_rls = BilinearControl.EDMD.rls_qr(s, W; Q=reg, showprog)
+    x_rls = linear_regression(s, W; algorithm=alg, lambda=reg, showprog)
     E = reshape(x_rls,n,:)
 
     ## Extract out bilinear dynamics
