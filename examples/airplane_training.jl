@@ -32,7 +32,7 @@ t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, airplane_kf,
     alg=:qr_rls, showprog=true
 )
 t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, airplane_kf, nothing, 
-    dmodel_nom; showprog=true, verbose=true
+    dmodel_nom; showprog=true, verbose=true, reg=1e-6
 )
 jldsave(AIRPLANE_MODELFILE; 
     eDMD=EDMD.getmodeldata(model_eDMD), 

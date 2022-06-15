@@ -97,6 +97,8 @@ plotstates!(T_ref,X_jDMD,inds=[1,3,4,7], label="", s=:dot, lw=:2, c=[1 2 3 4])
 err_nom = zeros(num_test) 
 err_eDMD = zeros(num_test) 
 err_jDMD = zeros(num_test) 
+model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
 prog = Progress(num_test)
 Threads.@threads for i = 1:num_test
     X_ref = X_ref0[:,i]
@@ -119,8 +121,10 @@ Threads.@threads for i = 1:num_test
     err_nom[i] = norm(X_nom - X_ref) / N
     err_eDMD[i] = norm(X_eDMD - X_ref) / N
     err_jDMD[i] = norm(X_jDMD - X_ref) / N
+    next!(prog)
 end
 
+##
 did_track(x) = x<1e4
 sr_nom = count(did_track, err_nom) / num_test
 sr_eDMD = count(did_track, err_eDMD) / num_test

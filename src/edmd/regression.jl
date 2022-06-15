@@ -373,11 +373,17 @@ function build_edmd_data(X,U, A,B,F,G; cinds_jac=CartesianIndices(U), α=0.5, ve
     end
     @assert size(Bhat) == (p,Pj*m)
 
-    W = ApplyArray(vcat,
-        (1-α) * ApplyArray(kron, Z', sparse(I,n,n)),
-        α * ApplyArray(kron, Ahat', G),
-        α * ApplyArray(kron, Bhat', G),
-    ) 
+    # W = ApplyArray(vcat,
+    #     (1-α) * ApplyArray(kron, Z', sparse(I,n,n)),
+    #     α * ApplyArray(kron, Ahat', G),
+    #     α * ApplyArray(kron, Bhat', G),
+    # ) 
+    verbose && println("Forming sparse coefficient matrix...")
+    W = vcat(
+        (1-α) * kron(sparse(Z'), sparse(I,n,n)),
+        α * kron(vcat(Ahat', Bhat'), G)
+    )
+    verbose && println("Matrix formed!")
     s = vcat((1-α) * vec(Xn), α * vec(Amat), α * vec(Bmat))
     W,s
 end
@@ -529,18 +535,18 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
     ## Build Least Squares Problem
     verbose && println("Generating least squares data")
     W,s = BilinearControl.EDMD.build_edmd_data(
-        Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB)
+        Z_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB, verbose)
 
     n = length(Z_train[1])
 
     ## Create sparse LLS matrix
     #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
-    verbose && println("Forming sparse matrix...")
-    Wsparse = sparse(W)
+    # verbose && println("Forming sparse matrix...")
+    # Wsparse = sparse(W)
 
     ## Solve with RLS
     verbose && println("Solving least-squares problem")
-    x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg, showprog)
+    x_rls = BilinearControl.EDMD.rls_qr(s, W; Q=reg, showprog)
     E = reshape(x_rls,n,:)
 
     ## Extract out bilinear dynamics
