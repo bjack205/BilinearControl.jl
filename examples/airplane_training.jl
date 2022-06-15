@@ -21,7 +21,7 @@ include("airplane_constants.jl")
 ##
 airplane_data = load(AIRPLANE_DATAFILE)
 good_cols = findall(x->isfinite(norm(x)), eachcol(airplane_data["X_train"]))
-num_train = 30 
+num_train = 2
 X_train = airplane_data["X_train"][:,good_cols[1:num_train]]
 U_train = airplane_data["U_train"][:,good_cols[1:num_train]]
 T_ref = airplane_data["T_ref"]

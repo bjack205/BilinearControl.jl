@@ -139,7 +139,7 @@ Threads.@threads for i = 1:num_test
 end
 
 ##
-did_track(x) = x<1e4
+did_track(x) = x<1e1
 sr_nom = count(did_track, err_nom) / num_test
 sr_eDMD = count(did_track, err_eDMD) / num_test
 sr_jDMD = count(did_track, err_jDMD) / num_test

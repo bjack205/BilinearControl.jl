@@ -20,3 +20,9 @@ t_ref = T_ref[end]
 X_train[end,:]
 
 visualize!(vis, model_real, t_ref, X_train[:,7])
+
+p = plot(xlabel="time (s)", ylabel="angle of attack")
+for i = 1:num_train
+    plot!(p, T_ref, map(rad2deg ∘ Problems.angleofattack, X_train[:,i]), label="")
+end
+p
