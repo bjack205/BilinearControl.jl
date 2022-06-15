@@ -19,7 +19,7 @@ using Distributions
 using Random
 
 include("airplane_problem.jl")
-const AIRPLANE_DATAFILE = joinpath(Problems.DATADIR, "airplane_trajectory_data.jld2")
+include("airplane_constants.jl")
 
 function gen_airplane_data()
     ## Define nominal and true models
@@ -73,8 +73,6 @@ function gen_airplane_data()
         T = Vector(range(0,tf,step=dt))
         Vector.(X), Vector.(U)
     end
-    X_ref = mapreduce(x->getindex(x,1), hcat, reference_trajectories[1:num_train])
-    U_ref = mapreduce(x->getindex(x,2), hcat, reference_trajectories[1:num_train])
     T_ref = range(0,tf,step=dt)
 
     println("Running MPC controller")
@@ -93,6 +91,8 @@ function gen_airplane_data()
     U_train = U_mpc[:,1:num_train]
     X_test = X_mpc[:,num_test .+ (1:num_test)]
     U_test = U_mpc[:,num_test .+ (1:num_test)]
+    X_ref = mapreduce(x->getindex(x,1), hcat, reference_trajectories)
+    U_ref = mapreduce(x->getindex(x,2), hcat, reference_trajectories)
 
     jldsave(AIRPLANE_DATAFILE; 
         X_train, U_train, X_test, U_test, X_ref, U_ref, T_ref,
