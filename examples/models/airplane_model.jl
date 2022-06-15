@@ -220,6 +220,13 @@ function RobotDynamics.dynamics!(model::YakPlane, xdot, x, u, t)
     xdot .= yak_dynamics(model, SVector{12}(x), SVector{4}(u), t) 
 end
 
+function angleofattack(x)
+    p = MRP(x[4], x[6], x[6])
+    v = SA[x[7],x[8],x[9]]
+    vbody = p'v
+    return alpha(vbody)
+end
+
 "Angle of attack"
 @inline alpha(v) = atan(v[3],v[1])
 
@@ -280,6 +287,8 @@ Good to about ±20°
 function Cl_wing(p::YakPlane{ExperimentalAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
     cl = -27.52*a^3 - .6353*a^2 + 6.089*a;
+    Cl_coef = reverse(SA[-9.781885297556400; 38.779513049043175; -52.388499489940138; 19.266141214863080; 15.435976905745736; -13.127972418509980; -1.155316115022734; 3.634063117174400; -0.000000000000001])
+    Polynomial(Cl_coef)(a)
 end
 function Cl_wing(p::YakPlane{LinearAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
@@ -303,6 +312,8 @@ Good to about ±20°
 function Cd_wing(p::YakPlane{ExperimentalAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)
     cd = 2.08*a^2 + .0612;
+    Cd_coef = reverse(SA[5.006504698588220; -15.506103756150457; 11.861112337513331; 5.809973499615182; -8.905261747777024; -0.745202453390095; 3.835222476977072; 0.003598511005068; 0.064645268865914])
+    Polynomial(Cd_coef)(a)
 end
 function Cd_wing(p::YakPlane{LinearAeroCoefficients}, a)
     a = clamp(a, -0.5*pi, 0.5*pi)

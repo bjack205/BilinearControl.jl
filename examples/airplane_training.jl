@@ -21,7 +21,7 @@ include("airplane_constants.jl")
 ##
 airplane_data = load(AIRPLANE_DATAFILE)
 good_cols = findall(x->isfinite(norm(x)), eachcol(airplane_data["X_train"]))
-num_train = 30 
+num_train = 2
 X_train = airplane_data["X_train"][:,good_cols[1:num_train]]
 U_train = airplane_data["U_train"][:,good_cols[1:num_train]]
 T_ref = airplane_data["T_ref"]
@@ -29,8 +29,8 @@ T_ref = airplane_data["T_ref"]
 dt = T_ref[2]
 t_ref = T_ref[end]
 
-
 dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(Problems.NominalAirplane())
+
 ##
 t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, airplane_kf, nothing; 
     alg=:qr, showprog=true, reg=1e-6
@@ -45,7 +45,3 @@ jldsave(AIRPLANE_MODELFILE;
     jDMD=EDMD.getmodeldata(model_jDMD),
     t_train_eDMD, t_train_jDMD, kf=airplane_kf
 )
-
-x,u = rand(dmodel_nom)
-RD.discrete_dynamics(model_eDMD_projected, x, u, 0.0, dt)
-RD.discrete_dynamics(model_jDMD_projected, x, u, 0.0, dt)

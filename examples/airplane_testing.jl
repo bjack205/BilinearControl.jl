@@ -57,7 +57,7 @@ EDMD.fiterror(model_jDMD, X_train, U_train)
 EDMD.fiterror(model_eDMD, X_test, U_test)
 EDMD.fiterror(model_jDMD, X_test, U_test)
 
-# MPC Parameters
+## MPC Parameters
 Nt = 21
 Qk = Diagonal([fill(1e0, 3); fill(1e1, 3); fill(1e-1, 3); fill(2e-1, 3)])
 Rk = Diagonal(fill(1e-3,4))
@@ -139,7 +139,7 @@ Threads.@threads for i = 1:num_test
 end
 
 ##
-did_track(x) = x<1e4
+did_track(x) = x<1e1
 sr_nom = count(did_track, err_nom) / num_test
 sr_eDMD = count(did_track, err_eDMD) / num_test
 sr_jDMD = count(did_track, err_jDMD) / num_test

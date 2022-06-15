@@ -52,9 +52,9 @@ visualize!(vis, model_real, t_sim, X_real)
 
 # Compare Lift and Drag Coeffs
 using Plots
-function compare_function(f; xlim=(-pi/2,pi/2))
-    plot(x->f(model_real, x); c=1, lw=2, xlim, label="true")
-    plot!(x->f(model_nom, x); c=1, lw=2, xlim, label="nominal", s=:dash)
+function compare_function(f; xlim=(-20,75))
+    plot(x->f(model_real, deg2rad(x)); c=1, lw=2, xlim, label="true")
+    plot!(x->f(model_nom, deg2rad(x)); c=1, lw=2, xlim, label="nominal", s=:dash)
 end
 compare_function(Problems.Cd_wing)
 compare_function(Problems.Cl_wing)

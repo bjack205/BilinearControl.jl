@@ -1,5 +1,6 @@
 const AIRPLANE_DATAFILE = joinpath(Problems.DATADIR, "airplane_trajectory_data.jld2")
 const AIRPLANE_MODELFILE = joinpath(Problems.DATADIR, "airplane_trained_models.jld2")
+const AIRPLANE_RESULTS = joinpath(Problems.DATADIR, "airplane_results.jld2")
 
 function airplane_kf(x)
     p = x[1:3]
