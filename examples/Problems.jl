@@ -28,10 +28,11 @@ include(joinpath(model_dir, "dubins_model.jl"))
 include(joinpath(model_dir, "se3_models.jl"))
 include(joinpath(model_dir, "attitude_model.jl"))
 include(joinpath(model_dir, "se3_force_model.jl"))
-include(joinpath(model_dir, "quadrotor_model.jl"))
+include(joinpath(model_dir, "quadrotor_se23_model.jl"))
 include(joinpath(model_dir, "integrator_models.jl"))
 include(joinpath(model_dir, "swarm_model.jl"))
 include(joinpath(model_dir, "cartpole_model.jl"))
+include(joinpath(model_dir, "quadrotor_model.jl"))
 include(joinpath(model_dir, "rex_full_quadrotor_model.jl"))
 include(joinpath(model_dir, "rex_planar_quadrotor_model.jl"))
 # include(joinpath(model_dir, "edmd_model.jl"))
@@ -48,6 +49,7 @@ export
     SE3Kinematics,
     Se3ForceDynamics,
     QuadrotorSE23,
+    Quadrotor,
     QuadrotorRateLimited,
     FullAttitudeDynamics,
     ConsensusDynamics,

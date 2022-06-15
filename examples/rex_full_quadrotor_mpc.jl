@@ -28,10 +28,113 @@ const REX_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_full_quadroto
 ## Functions for generating data and training models
 #############################################
 
+function genQuadrotorProblem(;costfun=:Quadratic, normcon=false)
+
+    model = Problems.NominalRexQuadrotor()
+    n,m = RD.dims(model)
+
+    opts = SolverOptions(
+        penalty_scaling=100.,
+        penalty_initial=0.1,
+    )
+
+    # discretization
+    N = 101 # number of knot points
+    tf = 5.0
+    dt = tf/(N-1) # total time
+
+    # Initial condition
+    x0_pos = @SVector [0., -10., 0.]
+    x0 = RobotDynamics.build_state(model, x0_pos, MRP(0.0, 0.0, 0.0), zeros(3), zeros(3))
+
+    # cost
+    costfun == :QuatLQR ? sq = 0 : sq = 1
+    rm_quat = @SVector [1,2,3,4,5,6,8,9,10,11,12,13]
+    Q_diag = RobotDynamics.fill_state(model, 1e-5, 1e-5*sq, 1e-3, 1e-3)
+    Q = Diagonal(Q_diag)
+    R = Diagonal(@SVector fill(1e-4,m))
+    q_nom = MRP(0.0, 0.0, 0.0)
+    v_nom, ω_nom = zeros(3), zeros(3)
+    x_nom = RobotDynamics.build_state(model, zeros(3), q_nom, v_nom, ω_nom)
+
+    if costfun == :QuatLQR
+        cost_nom = TO.QuatLQRCost(Q*dt, R*dt, x_nom, w=0.0)
+    elseif costfun == :ErrorQuad
+        cost_nom = TO.ErrorQuadratic(model, Diagonal(Q_diag[rm_quat])*dt, R*dt, x_nom)
+    else
+        cost_nom = TO.LQRCost(Q*dt, R*dt, x_nom)
+    end
+
+    # waypoints
+    wpts = [(@SVector [10.,0.,0.]),
+            (@SVector [-10.,0.,0.]),
+            (@SVector [0.,10.,0.])]
+            
+    times = [33., 66., 101.]
+    Qw_diag = RobotDynamics.fill_state(model, 1e3,1*sq,1,1)
+    Qf_diag = RobotDynamics.fill_state(model, 10., 100*sq, 10, 10)
+    xf = RobotDynamics.build_state(model, wpts[end], MRP(0.0, 0.0, 0.0), zeros(3), zeros(3))
+
+    costs = map(1:length(wpts)) do i
+        r = wpts[i]
+        xg = RobotDynamics.build_state(model, r, q_nom, v_nom, ω_nom)
+        if times[i] == N
+            Q = Diagonal(Qf_diag)
+            w = 40.0
+        else
+            Q = Diagonal(1e-3*Qw_diag) * dt
+            w = 0.1
+        end
+        if costfun == :QuatLQR
+            TO.QuatLQRCost(Q, R*dt, xg, w=w)
+        elseif costfun == :ErrorQuad
+            Qd = diag(Q)
+            TO.ErrorQuadratic(model, Diagonal(Qd[rm_quat]), R, xg)
+        else
+            TO.LQRCost(Q, R, xg)
+        end
+    end
+
+    costs_all = map(1:N) do k
+        i = findfirst(x->(x ≥ k), times)
+        if k ∈ times
+            costs[i]
+        else
+            cost_nom
+        end
+    end
+
+    obj = TO.Objective(costs_all)
+
+    # Initialization
+    u0 = @SVector fill(0.5*9.81/4, m)
+    U_hover = [copy(u0) for k = 1:N-1] # initial hovering control trajectory
+
+    # Constraints
+    conSet = TO.ConstraintList(n,m,N)
+    if normcon
+        if use_rot == :slack
+            add_constraint!(conSet, QuatSlackConstraint(), 1:N-1)
+        else
+            add_constraint!(conSet, QuatNormConstraint(), 1:N-1)
+            u0 = [u0; (@SVector [1.])]
+        end
+    end
+    bnd = TO.BoundConstraint(n,m, u_min=0.0, u_max=12.0)
+    TO.add_constraint!(conSet, bnd, 1:N-1)
+
+    # Problem
+    prob = TO.Problem(model, obj, x0, tf, xf=xf, constraints=conSet)
+    TO.initial_controls!(prob, U_hover)
+    TO.rollout!(prob)
+
+    return prob, opts
+end
 
 function generate_zigzag_traj()
 
-    solver = ALTROSolver(Altro.Problems.Quadrotor(:zigzag, MRP{Float64})..., projected_newton=false)
+    solver = ALTROSolver(genQuadrotorProblem()..., projected_newton=false)
+    # solver = ALTROSolver(Altro.Problems.Quadrotor(:zigzag)..., projected_newton=false)
     solver = Altro.solve!(solver)
     X = Vector.(TO.states(solver))
     U = Vector.(TO.controls(solver))
@@ -77,14 +180,18 @@ function nominal_trajectory(x0,N,dt)
     
     # TODO: Design a trajectory that linearly interpolates from x0 to the origin
     
-    pos_0 = x0[1:6]
+    pos_0 = x0[1:3]
+    mrp_0 = x0[4:6]
     
-    pos_ref = reshape(LinRange(pos_0, zeros(6), N), N, 1)
-    vel_ref = vcat([(pos_ref[2] - pos_ref[1]) ./ dt for k = 1:N-1], [zeros(6)])
-    
+    pos_ref = reshape(LinRange(pos_0, zeros(3), N), N, 1)
+    mrp_ref = reshape(LinRange(mrp_0, zeros(3), N), N, 1)
+    angle_ref = map((x) -> Vector(Rotations.params(RotXYZ(MRP(x[1], x[2], x[3])))), mrp_ref)
+
+    vel_pos_ref = vcat([(pos_ref[2] - pos_ref[1]) ./ dt for k = 1:N-1], [zeros(3)])
+    vel_attitude_ref = vcat([(angle_ref[2] - angle_ref[1]) ./ dt for k = 1:N-1], [zeros(3)])
     for i = 1:N
         
-        Xref[i] = vcat(pos_ref[i], vel_ref[i])
+        Xref[i] = vcat(pos_ref[i], mrp_ref[i], vel_pos_ref[i], vel_attitude_ref[i])
     
     end
     
@@ -96,7 +203,7 @@ function generate_quadrotor_data()
     ## Define the Models
     #############################################
 
-    ## Define Nominal Simulated REx Quadrotor Model
+    #Define Nominal Simulated REx Quadrotor Model
     model_nom = Problems.NominalRexQuadrotor()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
@@ -114,7 +221,7 @@ function generate_quadrotor_data()
     ## LQR Training and Testing Data 
     #############################################
 
-    ## Stabilization trajectories 
+    # Stabilization trajectories 
     Random.seed!(1)
     num_train_lqr = 30
     num_test_lqr = 20
@@ -132,9 +239,9 @@ function generate_quadrotor_data()
         Uniform(-1.0,1.0),
         Uniform(-1.0,1.0),
         Uniform(-1.0,1.0),
-        Uniform(0,0.2),
-        Uniform(0,0.2),
-        Uniform(0,0.2),
+        Uniform(-0.2,0.2),
+        Uniform(-0.2,0.2),
+        Uniform(-0.2,0.2),
         Uniform(-0.5,0.5),
         Uniform(-0.5,0.5),
         Uniform(-0.5,0.5),
@@ -148,9 +255,9 @@ function generate_quadrotor_data()
         Uniform(-1.0*perc,1.0*perc),
         Uniform(-1.0*perc,1.0*perc),
         Uniform(-1.0*perc,1.0*perc),
-        Uniform(0,0.2*perc),
-        Uniform(0,0.2*perc),
-        Uniform(0,0.2*perc),
+        Uniform(-0.2*perc,0.2*perc),
+        Uniform(-0.2*perc,0.2*perc),
+        Uniform(-0.2*perc,0.2*perc),
         Uniform(-0.5*perc,0.5*perc),
         Uniform(-0.5*perc,0.5*perc),
         Uniform(-0.5*perc,0.5*perc),
@@ -181,9 +288,9 @@ function generate_quadrotor_data()
         Uniform(-5.0,5.0),
         Uniform(-5.0,5.0),
         Uniform(-5.0,5.0),
-        Uniform(0,0.2),
-        Uniform(0,0.2),
-        Uniform(0,0.2),
+        Uniform(-0.2,0.2),
+        Uniform(-0.2,0.2),
+        Uniform(-0.2,0.2),
         Uniform(-0.5,0.5),
         Uniform(-0.5,0.5),
         Uniform(-0.5,0.5),
@@ -197,9 +304,9 @@ function generate_quadrotor_data()
         Uniform(-5.0*perc,5.0*perc),
         Uniform(-5.0*perc,5.0*perc),
         Uniform(-5.0*perc,5.0*perc),
-        Uniform(0,0.2*perc),
-        Uniform(0,0.2*perc),
-        Uniform(0,0.2*perc),
+        Uniform(-0.2*perc,0.2*perc),
+        Uniform(-0.2*perc,0.2*perc),
+        Uniform(-0.2*perc,0.2*perc),
         Uniform(-0.5*perc,0.5*perc),
         Uniform(-0.5*perc,0.5*perc),
         Uniform(-0.5*perc,0.5*perc),
@@ -213,7 +320,8 @@ function generate_quadrotor_data()
 
     Random.seed!(1)
 
-    Qmpc = Diagonal(fill(1.0, 12))
+    Qmpc = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0,
+        1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4])
     Rmpc = Diagonal(fill(1e-4, 4))
     Qfmpc = 100*Qmpc
 
@@ -239,14 +347,21 @@ function generate_quadrotor_data()
 
     # i = 5
     # T_ref = range(0,tf,step=dt)
-    # X_ref = nominal_trajectory(initial_conditions_mpc_train[i],N,dt,final_conditions_mpc_train[i])
+    # X_ref = nominal_trajectory(initial_conditions_mpc_train[i],N_tf,dt)
 
     # plotstates(T_ref, X_ref, inds=1:3, xlabel="time (s)", ylabel="states",
-    #             label=["x (ref)" "y (ref)" "θ (ref)"], legend=:right, lw=2,
+    #             label=["x (ref)" "y (ref)" "z (ref)"], legend=:right, lw=2,
     #             linestyle=:dot, color=[1 2 3])
     # plotstates!(T_ref, X_train_mpc[:, i], inds=1:3, xlabel="time (s)", ylabel="states",
-    #             label=["x (mpc)" "θ (mpc)"], legend=:right, lw=2,
+    #             label=["x (nom MPC)" "y (nom MPC)" "z (nom MPC)"], legend=:right, lw=2,
+    #             linestyle=:solid, color=[1 2 3])
+
+    # plotstates(T_ref, X_ref, inds=4:6, xlabel="time (s)", ylabel="states",
+    #             label=["MRP-x (ref)" "MRP-y (ref)" "MRP-z (ref)"], legend=:right, lw=2,
     #             linestyle=:dot, color=[1 2 3])
+    # plotstates!(T_ref, X_train_mpc[:, i], inds=4:6, xlabel="time (s)", ylabel="states",
+    #             label=["MRP-x (nom MPC)" "MRP-y (nom MPC)" "MRP-z (nom MPC)"], legend=:right, lw=2,
+    #             linestyle=:solid, color=[1 2 3])
 
     # Generate test data
 
@@ -273,17 +388,24 @@ function generate_quadrotor_data()
         U_nom_mpc[:,i] = U_nom
     end
 
-    # i = 1
-    # T_sim = range(0,t_sim,step=dt)
+    # i = 2
     # T_ref = range(0,tf,step=dt)
-    # X_ref = nominal_trajectory(initial_conditions_mpc_test[i],N,dt,final_conditions_mpc_test[i])
+    # T_sim = range(0,t_sim,step=dt)
+    # X_ref = X_test_infeasible[:, i]
 
     # plotstates(T_ref, X_ref, inds=1:3, xlabel="time (s)", ylabel="states",
-    #             label=["x (ref)" "y (ref)" "θ (ref)"], legend=:right, lw=2,
+    #             label=["x (ref)" "y (ref)" "z (ref)"], legend=:right, lw=2,
     #             linestyle=:dot, color=[1 2 3])
-    # plotstates!(T_sim, X_test_nom_mpc[:, i], inds=1:3, xlabel="time (s)", ylabel="states",
-    #             label=["x (mpc)" "θ (mpc)"], legend=:right, lw=2,
+    # plotstates!(T_sim, X_nom_mpc[:, i], inds=1:3, xlabel="time (s)", ylabel="states",
+    #             label=["x (nom MPC)" "y (nom MPC)" "z (nom MPC)"], legend=:right, lw=2,
+    #             linestyle=:solid, color=[1 2 3])
+
+    # plotstates(T_ref, X_ref, inds=4:6, xlabel="time (s)", ylabel="states",
+    #             label=["MRP-x (ref)" "MRP-y (ref)" "MRP-z (ref)"], legend=:right, lw=2,
     #             linestyle=:dot, color=[1 2 3])
+    # plotstates!(T_sim, X_nom_mpc[:, i], inds=4:6, xlabel="time (s)", ylabel="states",
+    #             label=["MRP-x (nom MPC)" "MRP-y (nom MPC)" "MRP-z (nom MPC)"], legend=:right, lw=2,
+    #             linestyle=:solid, color=[1 2 3])
 
     ## Save generated training and test data
     jldsave(joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"); 
@@ -376,10 +498,10 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
     N_sim = length(T_sim)
     N_ref = length(T_ref)
 
-    Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-    1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4])
+    Qmpc = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0,
+        1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4])
     Rmpc = Diagonal(fill(1e-4, 4))
-    Qfmpc = Diagonal(fill(1e2, 12))
+    Qfmpc = 100*Qmpc
 
     N_test = size(X_nom_mpc,2)
     test_results = map(1:N_test) do i
@@ -422,13 +544,13 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
         t_train_eDMD, t_train_jDMD, num_lqr, num_mpc, nsamples=length(X_train), 
         eDMD_data, jDMD_data, G, kf, dt)
 end
-
+            
 #############################################
 ## Train models for MPC Tracking
 #############################################
 
 generate_quadrotor_data()
-res = train_quadrotor_models(30, 0, α=0.5, β=1.0, learnB=true, reg=1e-6)
+res = train_quadrotor_models(10, 30, α=0.5, β=1.0, learnB=true, reg=1e-6)
 @show res.jDMD_err_avg
 @show res.eDMD_err_avg
 
@@ -501,10 +623,21 @@ push!(U_ref, U_ref[end])
 x0 = X_ref[1]
 Nt = 41
 
-Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+plotstates(T_ref, X_ref, inds=1:2, xlabel="time (s)", ylabel="states",
+            label=["x (ref)" "y (ref)" "z (ref)"], legend=:right, lw=2,
+            linestyle=:dot, color=[1 2 3])
+
+plotstates(T_ref, X_ref, inds=4:6, xlabel="time (s)", ylabel="states",
+            label=["MRP-x (ref)" "MRP-y (ref)" "MRP-z (ref)"], legend=:right, lw=2,
+            linestyle=:dot, color=[1 2 3])
+plotstates!(T_ref, X_train_mpc[:, i], inds=4:6, xlabel="time (s)", ylabel="states",
+            label=["MRP-x (nom MPC)" "MRP-y (nom MPC)" "MRP-z (nom MPC)"], legend=:right, lw=2,
+            linestyle=:solid, color=[1 2 3])
+
+Qmpc = Diagonal([10.0, 10.0, 1e-4, 1.0, 1.0, 1.0,
     1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4])
 Rmpc = Diagonal(fill(1e-4, 4))
-Qfmpc = Diagonal(fill(1e2, 12))
+Qfmpc = 100*Qmpc
 
 mpc_nom = TrackingMPC(dmodel_nom, 
     X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
@@ -556,15 +689,15 @@ p_tracking = @pgf Axis(
         xlabel = "X position (m)",
         ylabel = "Y position (m)",
         legend_pos = "north west",
-        xmin = -10,
-        ymin = -10,
-        xmax = 10,
-        ymax = 15,
+        # xmin = -10,
+        # ymin = -10,
+        # xmax = 10,
+        # ymax = 15,
     },
     PlotInc({lineopts..., color="teal"}, Coordinates(x_ref, y_ref)),
-    PlotInc({lineopts..., color="black"}, Coordinates(x_nom, y_nom)),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(x_eDMD, y_eDMD)),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(x_jDMD, y_jDMD)),
+    # PlotInc({lineopts..., color="black"}, Coordinates(x_nom, y_nom)),
+    # PlotInc({lineopts..., color=color_eDMD}, Coordinates(x_eDMD, y_eDMD)),
+    # PlotInc({lineopts..., color=color_jDMD}, Coordinates(x_jDMD, y_jDMD)),
     Legend(["Reference", "Nominal MPC", "eDMD", "jDMD"])
 )
 # pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_zigzag_tracking_trajectories.tikz"), p_tracking, include_preamble=false)

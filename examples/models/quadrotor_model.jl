@@ -1,204 +1,177 @@
 
-Base.@kwdef struct QuadrotorSE23 <: RD.ContinuousDynamics
-    mass::Float64 = 2.0
-    gravity::Float64 = 9.81
+"""
+    Quadrotor{R}
+
+A standard quadrotor model, with simple aerodynamic forces. The orientation is represent by
+a general rotation `R`. The body z-axis point is vertical, so positive controls cause acceleration
+in the positive z direction.
+
+# Constructor
+    Quadrotor(; kwargs...)
+    Quadrotor{R}(; kwargs...)
+
+where `R <: Rotation{3}` and defaults to `UnitQuaternion{Float64}` if omitted. The keyword arguments are
+* `mass` - mass of the quadrotor, in kg (default = 0.5)
+* `J` - inertia of the quadrotor, in kg⋅m² (default = `Diagonal([0.0023, 0.0023, 0.004])`)
+* `gravity` - gravity vector, in kg/m² (default = [0,0,-9.81])
+* `motor_dist` - distane between the motors, in m (default = 0.1750)
+* `km` - motor torque constant (default = 0.0245)
+* `kf` - motor force constant (default = 1.0)
+"""
+
+RD.@autodiff struct Quadrotor{R} <: RD.RigidBody{R}
+    mass::Float64
+    J::SMatrix{3,3,Float64,9}
+    Jinv::SMatrix{3,3,Float64,9}
+    gravity::SVector{3,Float64}
+    motor_dist::Float64
+    kf::Float64
+    km::Float64
+    bodyframe::Bool  # velocity in body frame?
+    ned::Bool
+    cross_A_x::Float64
+    cross_A_y::Float64
+    cross_A_z::Float64
+    cd::SVector{3, Float64}
+end
+RD.control_dim(::Quadrotor) = 4
+
+function Quadrotor{R}(;
+        mass=0.5,
+        J=Diagonal(@SVector [0.0023, 0.0023, 0.004]),
+        gravity=SVector(0,0,-9.81),
+        motor_dist=0.1750,
+        kf=1.0,
+        km=0.0245,
+        bodyframe=false,
+        ned=false,
+        cross_A_x=0.25,
+        cross_A_y=0.25,
+        cross_A_z=0.5,
+        cd=@SVector [0.0, 0.0, 0.0]
+    ) where R
+    @assert issymmetric(J)
+    Quadrotor{R}(mass,J,inv(J),gravity,motor_dist,kf,km,bodyframe,ned,
+                cross_A_x, cross_A_y, cross_A_z, cd)
 end
 
-RD.state_dim(::QuadrotorSE23) = 15
-RD.control_dim(::QuadrotorSE23) = 4
+(::Type{Quadrotor})(;kwargs...) = Quadrotor{MRP{Float64}}(;kwargs...)
 
-BilinearControl.Problems.translation(::QuadrotorSE23, x) = SVector{3}(x[1], x[2], x[3])
-BilinearControl.Problems.orientation(::QuadrotorSE23, x) = RotMatrix{3}(x[4:12]...)
+@inline RobotDynamics.velocity_frame(model::Quadrotor) = model.bodyframe ? :body : :world
 
+NominalQuadrotor() = Quadrotor{MRP{Float64}}()
+SimulatedQuadrotor() = Quadrotor{MRP{Float64}}(; mass=0.75,
+                                J=SMatrix{3,3,Float64,9}([0.0026 0.0003 0.0;
+                                                        0.0003 0.0026 0.0;
+                                                        0.0 0.0 0.005]),
+                                motor_dist=0.2,
+                                kf=0.95,
+                                km=0.026,
+                                cross_A_x = 0.3,
+                                cross_A_y = 0.3,
+                                cross_A_z = 0.65,
+                                cd=@SVector [0.4, 0.4, 0.4])
 
-function Base.rand(::QuadrotorSE23)
-    x = [
-            @SVector randn(3);
-            vec(qrot(normalize(@SVector randn(4))));
-            @SVector randn(3)
-    ]
-    u = push((@SVector randn(3)), rand())
-    x,u
+function trim_controls(model::Quadrotor)
+    Vector(fill(-model.gravity[3]*model.mass/4.0, size(model)[2]))
 end
 
-function RD.dynamics(model::QuadrotorSE23, x, u)
-    mass = model.mass
-    g = model.gravity 
-    R = SA[
-        x[4] x[7] x[10]
-        x[5] x[8] x[11]
-        x[6] x[9] x[12]
-    ]
-    v = SA[x[13], x[14], x[15]]
-    ω = SA[u[1], u[2], u[3]]
-    Fbody = [0, 0, u[4]]
-
-    rdot = v;
-    Rdot = R * Rotations.skew(ω)
-    vdot = R*Fbody ./ mass - [0,0,g]
-    return [rdot; vec(Rdot); vdot]
-end
-
-function RD.jacobian!(model::QuadrotorSE23, J, xdot, x, u)
-    R = SA[
-        x[4] x[7] x[10]
-        x[5] x[8] x[11]
-        x[6] x[9] x[12]
-    ]
-    for i = 1:3
-        J[i,12+i] = 1.0
-
-        J[6+i,9+i] = +1.0 * u[1]
-        J[9+i,6+i] = -1.0 * u[1]
-        J[3+i,9+i] = -1.0 * u[2]
-        J[9+i,3+i] = +1.0 * u[2]
-        J[3+i,6+i] = +1.0 * u[3]
-        J[6+i,3+i] = -1.0 * u[3]
-        J[12+i,9+i] = 1/model.mass * u[4]
-
-        J[3+i,17] = -R[i,3]
-        J[3+i,18] = +R[i,2]
-        J[6+i,16] = +R[i,3]
-        J[6+i,18] = -R[i,1]
-        J[9+i,16] = -R[i,2]
-        J[9+i,17] = +R[i,1]
-        
-        J[12+i,19] = R[i,3] / model.mass 
-    end
-end
-
-function BilinearControl.getA(::QuadrotorSE23)
-    A = zeros(15,15)
-    for i = 1:3
-        A[i,12+i] = 1.0
-    end
-    A
-end
-
-BilinearControl.getB(::QuadrotorSE23) = zeros(15,4)
-
-function BilinearControl.getC(model::QuadrotorSE23)
+function RD.forces(model::Quadrotor, x, u)
+    q = RD.orientation(model, x)
+    kf = model.kf
+    g = model.gravity
     m = model.mass
-    C = [zeros(15,15) for i = 1:4]
-    for i = 1:3
-        C[1][6+i,9+i] = +1.0
-        C[1][9+i,6+i] = -1.0
-        C[2][3+i,9+i] = -1.0
-        C[2][9+i,3+i] = +1.0
-        C[3][3+i,6+i] = +1.0
-        C[3][6+i,3+i] = -1.0
-        C[4][12+i,9+i] = 1/m
+    cd = model.cd
+    cross_A_x = model.cross_A_x
+    cross_A_y = model.cross_A_y
+    cross_A_z = model.cross_A_z
+
+    w1 = u[1]
+    w2 = u[2]
+    w3 = u[3]
+    w4 = u[4]
+
+    F1 = max(0,kf*w1);
+    F2 = max(0,kf*w2);
+    F3 = max(0,kf*w3);
+    F4 = max(0,kf*w4);
+    F = @SVector [0., 0., F1+F2+F3+F4] #total rotor force in body frame
+    if model.ned
+        F = SA[0,0,-F[3]]
+        g = -g
     end
-    C
+
+    # add aero drag where 1.27 is air density (kg/m^3)
+    df = -sign.(x[4:6]).*0.5.*1.27.*(x[4:6].^2).*
+        cd.*[cross_A_x, cross_A_y, cross_A_z]
+
+    f = m*g + q*F + df # forces in world frame
+    return f
 end
 
-function BilinearControl.getD(model::QuadrotorSE23)
-    g = model.gravity 
-    d = zeros(15)
-    d[end] = -g
-    d
+function RD.moments(model::Quadrotor, x, u)
+
+    kf, km = model.kf, model.km
+    L = model.motor_dist
+
+    w1 = u[1]
+    w2 = u[2]
+    w3 = u[3]
+    w4 = u[4]
+
+    F1 = max(0,kf*w1);
+    F2 = max(0,kf*w2);
+    F3 = max(0,kf*w3);
+    F4 = max(0,kf*w4);
+
+    M1 = km*w1;
+    M2 = km*w2;
+    M3 = km*w3;
+    M4 = km*w4;
+    tau = @SVector [L*(F2-F4), L*(F3-F1), (M1-M2+M3-M4)] #total rotor torque in body frame
+    if model.ned
+        tau = SA[tau[1], -tau[2], -tau[3]]
+    end
+    return tau
 end
 
-Base.@kwdef struct QuadrotorRateLimited <: RD.DiscreteDynamics
-    mass::Float64 = 2.0
-    gravity::Float64 = 9.81
+function RD.wrenches(model::Quadrotor, x, u)
+    F = RD.forces(model, x, u)
+    M = RD.moments(model, x, u)
+    return [F; M]
+
+    q = RD.orientation(model, x)
+    C = forceMatrix(model)
+    mass, g = model.mass, model.gravity
+
+    # Calculate force and moments
+    w = max.(u, 0)  # keep forces positive
+    fM = forceMatrix(model)*w
+    f = fM[1]
+    M = @SVector [fM[2], fM[3], fM[4]]
+    e3 = @SVector [0,0,1]
+    F = mass*g - q*(f*e3)
+    return F,M
 end
 
-RD.state_dim(::QuadrotorRateLimited) = 18
-RD.control_dim(::QuadrotorRateLimited) = 4
-
-BilinearControl.Problems.translation(::QuadrotorRateLimited, x) = SVector{3}(x[1], x[2], x[3])
-BilinearControl.Problems.orientation(::QuadrotorRateLimited, x) = RotMatrix{3}(x[4:12]...)
-
-function Base.rand(::QuadrotorRateLimited)
-    x = [
-            @SVector randn(3);
-            vec(qrot(normalize(@SVector randn(4))));
-            @SVector randn(6)
+function forceMatrix(model::Quadrotor)
+    kf, km = model.kf, model.km
+    L = model.motor_dist
+    @SMatrix [
+        kf   kf   kf   kf;
+        0    L*kf 0   -L*kf;
+       -L*kf 0    L*kf 0;
+        km  -km   km  -km;
     ]
-    u = push((@SVector randn(3)), rand())
-    x,u
 end
 
-# function RD.dynamics(model::QuadrotorRateLimited, x, u)
-function RD.dynamics_error(model::QuadrotorRateLimited, z2::RD.KnotPoint, z1::RD.KnotPoint)
-    x1 = RD.state(z1)
-    x2 = RD.state(z2)
-    u1 = RD.control(z1)
-    u2 = RD.control(z2)
 
-    xm = (x1 + x2) / 2
-    h = RD.timestep(z1)
-    xdot0 = let x = xm, u = u1
-        mass = model.mass
-        g = model.gravity 
-        R = SA[
-            x[4] x[7] x[10]
-            x[5] x[8] x[11]
-            x[6] x[9] x[12]
-        ]
-        v = SA[x[13], x[14], x[15]]
-        ω = SA[u[1], u[2], u[3]]
-        Fbody = [0, 0, u[4]]
+RobotDynamics.inertia(model::Quadrotor) = model.J
+RobotDynamics.inertia_inv(model::Quadrotor) = model.Jinv
+RobotDynamics.mass(model::Quadrotor) = model.mass
 
-        rdot = v;
-        Rdot = R * Rotations.skew(ω)
-        vdot = R*Fbody ./ mass - [0,0,g]
-        [rdot; vec(Rdot); vdot]
-    end
-    dx0 = x1[1:15] - x2[1:15]
-    α2 = SA[x2[16], x2[17], x2[18]]
-    ω1 = SA[u1[1], u1[2], u1[3]]
-    ω2 = SA[u2[1], u2[2], u2[3]]
-    [h*xdot0 + dx0; h*α2 + ω1 - ω2]
-end
-
-function BilinearControl.getA(::QuadrotorRateLimited, h)
-    n = 18 
-    A = zeros(n, 2n)
-    for i = 1:3
-        A[i,12+i] = h/2
-        A[i,n+12+i] = h/2
-        A[15+i,n+15+i] = h 
-    end
-    for i = 1:15
-        A[i,i] = 1.0
-        A[i,n+i] = -1.0
-    end
-    A
-end
-
-function BilinearControl.getB(::QuadrotorRateLimited, h)
-    n,m = 18,4
-    B = zeros(n,2m)
-    for i = 1:3
-        B[15+i,i] = 1.0
-        B[15+i,m+i] = -1.0
-    end
-    B
-end
-
-function BilinearControl.getC(model::QuadrotorRateLimited, h)
-    n,m = 18,4
-    C = [zeros(n,2n) for i = 1:2m]
-    mass = model.mass
-    for i = 1:3
-        for j in (0,1)
-            C[1][6+i,9+i+j*n] = +h*0.5
-            C[1][9+i,6+i+j*n] = -h*0.5
-            C[2][3+i,9+i+j*n] = -h*0.5
-            C[2][9+i,3+i+j*n] = +h*0.5
-            C[3][3+i,6+i+j*n] = +h*0.5
-            C[3][6+i,3+i+j*n] = -h*0.5
-            C[4][12+i,9+i+j*n] = h/2mass
-        end
-    end
-    C
-end
-
-function BilinearControl.getD(model::QuadrotorRateLimited, h)
-    g = model.gravity 
-    d = zeros(18)
-    d[15] = -g*h
-    d
+function Base.zeros(model::Quadrotor{R}) where R
+    x = RobotDynamics.build_state(model, zero(RBState))
+    u = @SVector fill(-model.mass*model.gravity[end]/4, 4)
+    return x,u
 end

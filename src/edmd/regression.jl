@@ -605,12 +605,12 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
 
     ## Create sparse LLS matrix
     #   TODO: avoid forming this matrix explicitly (i.e. use LazyArrays)
-    @time Wsparse = sparse(W)
+    Wsparse = sparse(W)
 
     verbose && println("Solving with RLS-QR...")
 
     ## Solve with RLS
-    @time x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
+    x_rls = BilinearControl.EDMD.rls_qr(Vector(s), Wsparse; Q=reg)
     E = reshape(x_rls,n,:)
 
     verbose && println("Splitting data...")
