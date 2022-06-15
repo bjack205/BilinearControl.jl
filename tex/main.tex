@@ -677,20 +677,25 @@ original state variables.
   \caption{Training trajectories required to stabilize the cartpole with the given friction
     coefficient
   }
+  \label{tab:friction_comp}
 \end{table}
 
-While we've introduced a significant mount of model mismatch in all of the examples so far, 
+While we've introduced a significant mount of model mismatch in all of the examples so far,
 a natural argument against model-based methods is that they're only as good as your model is
-at capturing the salient dynamics of the system. We investigated the effect of increasing
+at capturing the salient dynamics of the system.  We investigated the effect of increasing
 model mismatch by incrementally increasing the Coulomb friction coefficient between the cart
-and the floor for the cartpole stabilization task. The results are shown in Figure 
-\ref{fig:cartpole_friction_mismatch}. As expected, the number of training trajectories 
-required to find a good stabilizing controller increases for the proposed approach, as long 
-as we set the $\alpha$ value low enough, which intuitively corresponds to a decreased 
-confidence in the nominal model. The samples required by eDMD varied widely, and was unable 
-to find a good enough model above friction values of 0.4. While this could likely be
-remedied by adjusting the nonlinear mapping $\phi$, the proposed approach works well with
-the given bases.
+and the floor for the cartpole stabilization task (recall the nominal model assumed zero
+friction). The results are shown in Figure \ref{tab:friction_comp}. As expected, the number
+of training trajectories required to find a good stabilizing controller increases for the
+proposed approach. We achieved the results above by setting $\alpha = 0.01$, corresponding 
+to a decreased confidence in our model, thereby placing greater weight on the experimental 
+data. The standard eDMD approach always required more samples, and was unable to find a good
+enough model above friction values of 0.4. While this could likely be remedied by adjusting
+the nonlinear mapping $\phi$, the proposed approach works well with the given bases.  Note
+that the nominal MPC controller failed to stabilize the system above friction values of 0.1,
+so again, we demonstrate that we can improve MPC performance substantially with just a few
+training samples by combining analytical gradient information and data sampled from the true
+dynamics.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
