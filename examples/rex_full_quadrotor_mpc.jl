@@ -26,6 +26,7 @@ using Colors
 using MeshCat
 
 include("constants.jl")
+const QUADROTOR_NUMTRAJ_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_num_traj_sweep_results.jld2")
 const QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_results.jld2")
 const QUADROTOR_MODELS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_models.jld2")
 
@@ -33,118 +34,16 @@ const QUADROTOR_MODELS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc
 ## Functions
 #############################################
 
-function genQuadrotorProblem(;costfun=:Quadratic, normcon=false)
-
-    model = Problems.NominalQuadrotor()
-    n,m = RD.dims(model)
-
-    opts = SolverOptions(
-        penalty_scaling=100.,
-        penalty_initial=0.1,
-    )
-
-    # discretization
-    N = 101 # number of knot points
-    tf = 5.0
-    dt = tf/(N-1) # total time
-
-    # Initial condition
-    x0_pos = @SVector [0., -10., 1.]
-    x0 = RobotDynamics.build_state(model, x0_pos, MRP(0.0, 0.0, 0.0), zeros(3), zeros(3))
-
-    # cost
-    costfun == :QuatLQR ? sq = 0 : sq = 1
-    rm_quat = @SVector [1,2,3,4,5,6,8,9,10,11,12]
-    Q_diag = RobotDynamics.fill_state(model, 1e-5, 1e-5*sq, 1e-3, 1e-3)
-    Q = Diagonal(Q_diag)
-    R = Diagonal(@SVector fill(1e-4,m))
-    q_nom = MRP(0.0, 0.0, 0.0)
-    v_nom, ω_nom = zeros(3), zeros(3)
-    x_nom = RobotDynamics.build_state(model, zeros(3), q_nom, v_nom, ω_nom)
-
-    if costfun == :QuatLQR
-        cost_nom = TO.QuatLQRCost(Q*dt, R*dt, x_nom, w=0.0)
-    elseif costfun == :ErrorQuad
-        cost_nom = TO.ErrorQuadratic(model, Diagonal(Q_diag[rm_quat])*dt, R*dt, x_nom)
-    else
-        cost_nom = TO.LQRCost(Q*dt, R*dt, x_nom)
-    end
-
-    # waypoints
-    wpts = [(@SVector [10.,0.,1.]),
-            (@SVector [-10.,0.,1.]),
-            (@SVector [0.,10.,1.])]
-            
-    times = [33., 66., 101.]
-    Qw_diag = RobotDynamics.fill_state(model, 1e3,1*sq,1,1)
-    Qf_diag = RobotDynamics.fill_state(model, 10., 100*sq, 10, 10)
-    xf = RobotDynamics.build_state(model, wpts[end], MRP(0.0, 0.0, 0.0), zeros(3), zeros(3))
-
-    costs = map(1:length(wpts)) do i
-        r = wpts[i]
-        xg = RobotDynamics.build_state(model, r, q_nom, v_nom, ω_nom)
-        if times[i] == N
-            Q = Diagonal(Qf_diag)
-            w = 40.0
-        else
-            Q = Diagonal(1e-3*Qw_diag) * dt
-            w = 0.1
-        end
-        if costfun == :QuatLQR
-            TO.QuatLQRCost(Q, R*dt, xg, w=w)
-        elseif costfun == :ErrorQuad
-            Qd = diag(Q)
-            TO.ErrorQuadratic(model, Diagonal(Qd[rm_quat]), R, xg)
-        else
-            TO.LQRCost(Q, R, xg)
-        end
-    end
-
-    costs_all = map(1:N) do k
-        i = findfirst(x->(x ≥ k), times)
-        if k ∈ times
-            costs[i]
-        else
-            cost_nom
-        end
-    end
-
-    obj = TO.Objective(costs_all)
-
-    # Initialization
-    u0 = @SVector fill(0.5*9.81/4, m)
-    U_hover = [copy(u0) for k = 1:N-1] # initial hovering control trajectory
-
-    # Constraints
-    conSet = TO.ConstraintList(n,m,N)
-    if normcon
-        if use_rot == :slack
-            add_constraint!(conSet, QuatSlackConstraint(), 1:N-1)
-        else
-            add_constraint!(conSet, QuatNormConstraint(), 1:N-1)
-            u0 = [u0; (@SVector [1.])]
-        end
-    end
-    bnd = TO.BoundConstraint(n,m, u_min=0.0, u_max=12.0)
-    TO.add_constraint!(conSet, bnd, 1:N-1)
-
-    # Problem
-    prob = TO.Problem(model, obj, x0, tf, xf=xf, constraints=conSet)
-    TO.initial_controls!(prob, U_hover)
-    TO.rollout!(prob)
-
-    return prob, opts
-end
-
-function generate_zigzag_traj()
-
-    # solver = ALTROSolver(genQuadrotorProblem()..., projected_newton=false)
-    solver = ALTROSolver(Altro.Problems.Quadrotor(:zigzag, MRP{Float64})..., projected_newton=false)
-    solver = Altro.solve!(solver)
-    X = Vector.(TO.states(solver))
-    U = Vector.(TO.controls(solver))
-
-    return X, U
+function full_quadrotor_kf(x)
+    p = x[1:3]
+    q = x[4:6]
+    mrp = MRP(x[4], x[5], x[6])
+    R = Matrix(mrp)
+    v = x[7:9]
+    w = x[10:12]
+    vbody = R'v
+    speed = vbody'vbody
+    [1; x; EDMD.chebyshev(x, order=[2,2]); sin.(p); cos.(p); vbody; speed; p × v; p × w; w × w]
 end
 
 function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
@@ -166,7 +65,7 @@ function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
         X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
         U_ref = [copy(Problems.trim_controls(model)) for k = 1:N_tf]
 
-        mpc = TrackingMPC(bilinear_model, 
+        mpc = TrackingMPC_no_OSQP(bilinear_model, 
             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
         X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
 
@@ -180,7 +79,42 @@ function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
     return err_avg
 end
 
-function nominal_trajectory(x0,N,dt)
+function test_initial_conditions_offset(model, bilinear_model, xg, ics, tf, t_sim, dt)
+
+    dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+
+    N_tf = round(Int, tf/dt) + 1    
+    N_sim = round(Int, t_sim/dt) + 1 
+    Nt = 20
+    T_ref = range(0,tf,step=dt)
+
+    Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    Rmpc = Diagonal(fill(1e-3, 4))
+    Qfmpc = Qmpc*100
+
+    results = map(ics) do x0
+
+        x0 += xg
+        X_ref = nominal_trajectory(x0,N_tf,dt; xf=xg[1:3]) 
+        X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
+        U_ref = [copy(Problems.trim_controls(model)) for k = 1:N_tf]
+
+        mpc = TrackingMPC_no_OSQP(bilinear_model, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
+        X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
+
+        err = norm(X_sim - X_ref_full) / N_sim
+
+        (; err)
+    end
+
+    err_avg  = mean(filter(isfinite, map(x->x.err, results)))
+
+    return err_avg
+end
+
+function nominal_trajectory(x0,N,dt; xf=zeros(3))
     Xref = [fill(NaN, length(x0)) for k = 1:N]
     
     # TODO: Design a trajectory that linearly interpolates from x0 to the origin
@@ -188,7 +122,7 @@ function nominal_trajectory(x0,N,dt)
     pos_0 = x0[1:3]
     mrp_0 = x0[4:6]
     
-    pos_ref = reshape(LinRange(pos_0, zeros(3), N), N, 1)
+    pos_ref = reshape(LinRange(pos_0, xf, N), N, 1)
     mrp_ref = reshape(LinRange(mrp_0, zeros(3), N), N, 1)
     angle_ref = map((x) -> Vector(Rotations.params(RotXYZ(MRP(x[1], x[2], x[3])))), mrp_ref)
 
@@ -230,7 +164,7 @@ function generate_quadrotor_data()
     # Stabilization trajectories 
     Random.seed!(1)
     num_train_lqr = 50
-    num_test_lqr = 20
+    num_test_lqr = 50
 
     # Generate a stabilizing LQR controller
     Qlqr = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
@@ -354,7 +288,7 @@ function generate_quadrotor_data()
         U = [copy(Problems.trim_controls(model_real)) for k = 1:N_tf]
         T = range(0,tf,step=dt)
 
-        mpc = TrackingMPC(dmodel_nom, X, U, Vector(T), Qmpc, Rmpc, Qfmpc; Nt=Nt)
+        mpc = TrackingMPC_no_OSQP(dmodel_nom, X, U, Vector(T), Qmpc, Rmpc, Qfmpc; Nt=Nt)
         X_sim,U_sim,T_sim = simulatewithcontroller(dmodel_real, mpc, X[1], t_sim, T[2])
         
         if maximum(X_sim[end]-X[end]) < maximum(100*x0)
@@ -405,7 +339,7 @@ function generate_quadrotor_data()
         U = [copy(Problems.trim_controls(model_real)) for k = 1:N_tf]
         T = range(0,tf,step=dt)
         
-        mpc_nom = TrackingMPC(dmodel_nom, X, U, Vector(T), Qmpc, Rmpc, Qfmpc; Nt=Nt)
+        mpc_nom = TrackingMPC_no_OSQP(dmodel_nom, X, U, Vector(T), Qmpc, Rmpc, Qfmpc; Nt=Nt)
         X_nom,U_nom,T_nom = simulatewithcontroller(dmodel_real, mpc_nom, X[1], t_sim, T[2])
 
         X_test_infeasible[:,i] = X
@@ -484,28 +418,44 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
     #############################################
 
     # Define basis functions
-    eigfuns = ["state", "monomial"]
-    eigorders = [[0],[2, 2]];
+    # eigfuns = ["state", "monomial"]
+    # eigorders = [[0],[2, 2]];
+
+    # println("Training eDMD model...")
+    # t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders,
+    #     reg=1e-1, name="planar_quadrotor_eDMD")
+
+    # println("Training jDMD model...")
+    # t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom,
+    #     reg=reg, name="planar_quadrotor_jDMD"; α, β, learnB, verbose=true)
 
     println("Training eDMD model...")
-    t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders,
-        reg=1e-1, name="planar_quadrotor_eDMD")
+    t_train_eDMD = @elapsed model_eDMD = run_eDMD(X_train, U_train, dt, full_quadrotor_kf, nothing; 
+        alg=:qr, showprog=true, reg=reg
+    )
 
     println("Training jDMD model...")
-    t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom,
-        reg=reg, name="planar_quadrotor_jDMD"; α, β, learnB, verbose=true)
+    t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, full_quadrotor_kf, nothing,
+        dmodel_nom; showprog=true, verbose=true, reg=reg, alg=:qr_rls, α=0.5
+    )
 
     eDMD_data = Dict(
-        :A=>model_eDMD.A, :B=>model_eDMD.B, :C=>model_eDMD.C, :g=>model_eDMD.g, :t_train=>t_train_eDMD, :kf=>model_eDMD.kf
+        :A=>model_eDMD.A, :B=>model_eDMD.B, :C=>model_eDMD.C, :g=>model_eDMD.g, :t_train=>t_train_eDMD, :kf=>full_quadrotor_kf
     )
     jDMD_data = Dict(
-        :A=>model_jDMD.A, :B=>model_jDMD.B, :C=>model_jDMD.C, :g=>model_jDMD.g, :t_train=>t_train_jDMD, :kf=>model_jDMD.kf
+        :A=>model_jDMD.A, :B=>model_jDMD.B, :C=>model_jDMD.C, :g=>model_jDMD.g, :t_train=>t_train_jDMD, :kf=>full_quadrotor_kf
     )
 
     res = (; eDMD_data, jDMD_data, dt)
     return res
 end
-            
+
+#############################################
+## Generate quadrotor data if need to
+#############################################
+
+generate_quadrotor_data()
+
 #############################################
 ## Train models for MPC Tracking
 #############################################
@@ -513,17 +463,16 @@ end
 num_lqr = 10
 num_mpc = 20
 
-# generate_quadrotor_data()
-# res = train_quadrotor_models(num_lqr, num_mpc, α=0.5, β=1.0, learnB=true, reg=1e-6)
+res = train_quadrotor_models(num_lqr, num_mpc, α=0.5, β=1.0, learnB=true, reg=1e-6)
 
-# eDMD_data = res.eDMD_data
-# jDMD_data = res.jDMD_data
-# kf = jDMD_data[:kf]
-# G = jDMD_data[:g]
-# dt = res.dt
+eDMD_data = res.eDMD_data
+jDMD_data = res.jDMD_data
+kf = jDMD_data[:kf]
+G = jDMD_data[:g]
+dt = res.dt
 
-# model_info = (; eDMD_data, jDMD_data, G, kf, dt)
-# jldsave(QUADROTOR_MODELS_FILE; model_info)
+model_info = (; eDMD_data, jDMD_data, G, kf, dt)
+jldsave(QUADROTOR_MODELS_FILE; model_info)
 
 #############################################
 ## Make eDMD models for MPC Tracking
@@ -605,13 +554,13 @@ test_results = map(1:N_test) do i
     push!(U_ref, ue)
 
     X_ref_full = [X_ref; [copy(xe) for i = 1:N_sim - N_ref]]
-    mpc_nom = TrackingMPC(dmodel_nom, 
+    mpc_nom = TrackingMPC_no_OSQP(dmodel_nom, 
         X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
     )
-    mpc_eDMD = TrackingMPC(model_eDMD_projected, 
+    mpc_eDMD = TrackingMPC_no_OSQP(model_eDMD_projected, 
         X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
     )
-    mpc_jDMD = TrackingMPC(model_jDMD_projected, 
+    mpc_jDMD = TrackingMPC_no_OSQP(model_jDMD_projected, 
         X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
     )
     X_mpc_nom, U_mpc_nom, T_mpc = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_sim, dt)
@@ -645,19 +594,95 @@ T_mpc = map(x->x.T_mpc, test_results)
 G = model_jDMD.g
 kf = model_jDMD.kf
 
-res = (;X_ref, X_mpc_nom, X_mpc_eDMD, X_mpc_jDMD, T_mpc, nom_err_avg,
+MPC_test_results = (;X_ref, X_mpc_nom, X_mpc_eDMD, X_mpc_jDMD, T_mpc, nom_err_avg,
     nom_errs, eDMD_errs, jDMD_errs, nom_success, eDMD_err_avg,
     eDMD_success, jDMD_err_avg, jDMD_success)
 
-@show res.eDMD_err_avg
-@show res.jDMD_err_avg
-jldsave(QUADROTOR_RESULTS_FILE; res)
+@show MPC_test_results.nom_err_avg
+@show MPC_test_results.eDMD_err_avg
+@show MPC_test_results.jDMD_err_avg
+
+#############################################
+## Tracking performance vs equilibrium change
+#############################################
+
+distances = 0:0.1:2.0
+equilibrium_results = map(distances) do dist
+
+    println("equilibrium offset = $dist")
+
+    if dist == 0
+        xe_test = [zeros(12)]
+    else
+        xe_sampler = Product([
+            Uniform(-dist, +dist),
+            Uniform(-dist, +dist),
+            Uniform(-dist, +dist),
+        ])
+        xe_test = [vcat(rand(xe_sampler), zeros(9)) for i = 1:10]
+    end
+
+    perc = 0.2
+    x0_sampler = Product([
+        Uniform(-5.0,5.0),
+        Uniform(-5.0,5.0),
+        Uniform(-5.0,5.0),
+        Uniform(-deg2rad(20),deg2rad(20)),
+        Uniform(-deg2rad(20),deg2rad(20)),
+        Uniform(-deg2rad(20),deg2rad(20)),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.25*perc,0.25*perc),
+        Uniform(-0.25*perc,0.25*perc),
+        Uniform(-0.25*perc,0.25*perc)
+    ])
+    
+    x0_test = [rand(x0_sampler) for i = 1:10]
+
+    xe_results = map(xe_test) do xe
+
+        nom_projected_x0s = mean(test_initial_conditions_offset(model_real, dmodel_nom, xe, x0_test, tf, t_sim, dt))
+        error_eDMD_projected_x0s = mean(test_initial_conditions_offset(model_real, model_eDMD_projected, xe, x0_test, tf, t_sim, dt))
+        error_jDMD_projected_x0s = mean(test_initial_conditions_offset(model_real, model_jDMD_projected, xe, x0_test, tf, t_sim, dt))
+
+        if nom_projected_x0s > 1e3
+            nom_projected_x0s = NaN
+        end
+        if error_eDMD_projected_x0s > 1e3
+            error_eDMD_projected_x0s = NaN
+        end
+        if error_jDMD_projected_x0s > 1e3
+            error_jDMD_projected_x0s = NaN
+        end
+        (; nom_projected_x0s, error_eDMD_projected_x0s, error_jDMD_projected_x0s)
+    end
+
+    err_nom_MPC = mean(filter(isfinite, map(x->x.nom_projected_x0s, xe_results)))
+    error_eDMD_projected = mean(filter(isfinite, map(x->x.error_eDMD_projected_x0s, xe_results)))
+    error_jDMD_projected = mean(filter(isfinite, map(x->x.error_jDMD_projected_x0s, xe_results)))
+
+    nom_success = count(isfinite, map(x->x.nom_projected_x0s, xe_results))
+    eDMD_success = count(isfinite, map(x->x.error_eDMD_projected_x0s, xe_results))
+    jDMD_success = count(isfinite, map(x->x.error_jDMD_projected_x0s, xe_results))
+
+    println(err_nom_MPC)
+
+    (;err_nom_MPC, error_eDMD_projected, error_jDMD_projected, nom_success, eDMD_success, jDMD_success)
+
+end
+
+#############################################
+## Save results
+#############################################
+
+jldsave(QUADROTOR_RESULTS_FILE; MPC_test_results, equilibrium_results)
 
 #############################################
 ## Load results and models
 #############################################
 
-res = load(QUADROTOR_RESULTS_FILE)["res"]
+MPC_test_results = load(QUADROTOR_RESULTS_FILE)["MPC_test_results"]
 mpc_lqr_traj = load(joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
 
 tf = mpc_lqr_traj["tf"]
@@ -673,98 +698,13 @@ println("")
 println("Test Summary:")
 println("  Model  |  Success Rate ")
 println("---------|-------------------")
-println(" nom MPC |  ", res[:nom_success])
-println("  eDMD   |  ", res[:eDMD_success])
-println("  jDMD   |  ", res[:jDMD_success])
+println(" nom MPC |  ", MPC_test_results[:nom_success])
+println("  eDMD   |  ", MPC_test_results[:eDMD_success])
+println("  jDMD   |  ", MPC_test_results[:jDMD_success])
 println("")
 println("Test Summary:")
 println("  Model  |  Avg Tracking Err ")
 println("---------|-------------------")
-println(" nom MPC |  ", res[:nom_err_avg])
-println("  eDMD   |  ", res[:eDMD_err_avg])
-println("  jDMD   |  ", res[:jDMD_err_avg])
-
-#############################################
-## Try Tracking Zigzag pattern
-#############################################
-
-# dt = 0.05
-# tf = 5.0
-# t_sim = tf
-
-# xe = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-# ue = Problems.trim_controls(model_real)
-# X_ref, U_ref = generate_zigzag_traj()
-# T_ref = range(0,tf,step=dt)
-# T_sim = range(0,tf,step=dt)
-# push!(U_ref, U_ref[end])
-# x0 = X_ref[1]
-# Nt = 20
-
-# Qmpc = Diagonal([10, 10, 10, 10, 10, 10,
-#     1, 1, 1, 1, 1, 1.0])
-# Rmpc = Diagonal(fill(1e-3, 4))
-# Qfmpc = Qmpc*100
-
-# mpc_nom = TrackingMPC(dmodel_nom, 
-#     X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
-# )
-# mpc_eDMD_projected = TrackingMPC(model_eDMD_projected, 
-#     X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
-# )
-# mpc_jDMD_projected = TrackingMPC(model_jDMD_projected, 
-#     X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
-# )
-
-# X_nom,= simulatewithcontroller(dmodel_real, mpc_nom, x0, t_sim, dt)
-# X_eDMD,= simulatewithcontroller(dmodel_real, mpc_eDMD_projected, x0, t_sim, dt)
-# X_jDMD,= simulatewithcontroller(dmodel_real, mpc_jDMD_projected, x0, t_sim, dt)
-
-# jldsave(joinpath(Problems.DATADIR, "quadrotor_mpc_zigzag_tracking_results.jld2"); X_nom, X_eDMD, X_jDMD, X_ref, T_ref, T_sim)
-
-# #############################################
-# ## Plot results
-# #############################################
-
-# results = load(joinpath(Problems.DATADIR, "quadrotor_mpc_zigzag_tracking_results.jld2"))
-# X_nom = results["X_nom"]
-# X_eDMD = results["X_eDMD"]
-# X_jDMD = results["X_jDMD"]
-# X_ref = results["X_ref"]
-# T_ref = results["T_ref"]
-# T_sim = results["T_sim"]
-
-# N_ref = length(T_ref)
-# N_sim = length(T_sim)
-
-# x_ref = map((x) -> x[1], X_ref)
-# y_ref = map((x) -> x[2], X_ref)
-
-# x_nom = map((x) -> x[1], X_nom)
-# y_nom = map((x) -> x[2], X_nom)
-
-# x_eDMD = map((x) -> x[1], X_eDMD)
-# y_eDMD = map((x) -> x[2], X_eDMD)
-
-# x_jDMD = map((x) -> x[1], X_jDMD)
-# y_jDMD = map((x) -> x[2], X_jDMD)
-
-# p_tracking = @pgf Axis(
-#     {
-#         xmajorgrids,
-#         ymajorgrids,
-#         xlabel = "X position (m)",
-#         ylabel = "Y position (m)",
-#         legend_pos = "north west",
-#         # xmin = -10,
-#         # xmax = 10,
-#         # ymin = -10,
-#         # ymax = 10,
-#     },
-#     PlotInc({lineopts..., color="teal"}, Coordinates(x_ref, y_ref)),
-#     # PlotInc({lineopts..., color="black"}, Coordinates(x_nom, y_nom)),
-#     # PlotInc({lineopts..., color=color_eDMD}, Coordinates(x_eDMD, y_eDMD)),
-#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(x_jDMD[1:12], y_jDMD[1:12])),
-#     Legend(["Reference", "Nominal MPC", "eDMD", "jDMD"])
-# )
-# # pgfsave(joinpath(Problems.FIGDIR, "quadrotor_mpc_zigzag_tracking_trajectories.tikz"), p_tracking, include_preamble=false)
+println(" nom MPC |  ", MPC_test_results[:nom_err_avg])
+println("  eDMD   |  ", MPC_test_results[:eDMD_err_avg])
+println("  jDMD   |  ", MPC_test_results[:jDMD_err_avg])

@@ -113,26 +113,31 @@ end
 ## Load Results
 #############################################
 
-res = load(QUADROTOR_RESULTS_FILE)["res"]
+MPC_test_results = load(QUADROTOR_RESULTS_FILE)["MPC_test_results"]
 mpc_lqr_traj = load(joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
 
 tf = mpc_lqr_traj["tf"]
 dt = mpc_lqr_traj["dt"]
 
-ref_trajectories = res[:X_ref]
-nom_MPC_trajectories = res[:X_mpc_nom]
-eDMD_MPC_trajectories = res[:X_mpc_eDMD]
-jDMD_MPC_trajectories = res[:X_mpc_jDMD]
+ref_trajectories = MPC_test_results[:X_ref]
+nom_MPC_trajectories = MPC_test_results[:X_mpc_nom]
+eDMD_MPC_trajectories = MPC_test_results[:X_mpc_eDMD]
+jDMD_MPC_trajectories = MPC_test_results[:X_mpc_jDMD]
 
-nom_errs  = res[:nom_errs]
-eDMD_errs = res[:eDMD_errs]
-jDMD_errs = res[:jDMD_errs]
+nom_errs  = MPC_test_results[:nom_errs]
+eDMD_errs = MPC_test_results[:eDMD_errs]
+jDMD_errs = MPC_test_results[:jDMD_errs]
 
-T_mpc_vecs = res[:T_mpc]
+T_mpc_vecs = MPC_test_results[:T_mpc]
 
 #############################################
 ## Visualize a trajectory
 #############################################
+
+model = Problems.RexQuadrotor()
+vis = Visualizer()
+delete!(vis)
+render(vis)
 
 # Some cool trajectories: 3, 8, 16, 22, 33
 i = 3
@@ -148,9 +153,9 @@ println("")
 println("Traj #$i Summary:")
 println("  Model  |  Tracking Error ")
 println("---------|-------------------")
-println(" nom MPC |  ", res[:nom_errs][i])
-println("  eDMD   |  ", res[:eDMD_errs][i])
-println("  jDMD   |  ", res[:jDMD_errs][i])
+println(" nom MPC |  ", MPC_test_results[:nom_errs][i])
+println("  eDMD   |  ", MPC_test_results[:eDMD_errs][i])
+println("  jDMD   |  ", MPC_test_results[:jDMD_errs][i])
 println("")
 
 #############################################
@@ -232,3 +237,47 @@ traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(255,173,0)")
 
 set_quadrotor!(vis["jDMD_quad"]["$i"], model, color=colorant"rgb(70,70,70)")
 visualize!(vis["jDMD_quad"]["$i"], model, T_mpc[end], jDMD_MPC)
+
+#############################################
+## Plot tracking performance vs equilibrium change
+#############################################
+
+equilibrium_results = load(QUADROTOR_RESULTS_FILE)["equilibrium_results"]
+
+fields = keys(equilibrium_results[1])
+res_equilibrium = Dict(Pair.(fields, map(x->getfield.(equilibrium_results, x), fields)))
+
+p_equilibrium_err = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Equilibirum offset",
+        ylabel = "Tracking error",
+        legend_pos = "north west",
+        ymax = 3,
+        
+    },
+    PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:err_nom_MPC])),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
+
+    Legend(["nominal MPC", "eDMD", "jDMD"])
+)
+pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_error_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
+
+p_equilibrium_err = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Equilibirum offset",
+        ylabel = "Tracking error",
+        legend_pos = "north west",
+        ymax = 10,
+        
+    },
+    PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:err_nom_MPC])),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
+
+    Legend(["nominal MPC", "eDMD", "jDMD"])
+)

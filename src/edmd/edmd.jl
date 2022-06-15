@@ -17,7 +17,7 @@ export
     simulatewithcontroller,
     simulate
 
-export EDMDModel, LQRController, TrackingMPC
+export EDMDModel, LQRController, TrackingMPC, TrackingMPC_no_OSQP
 
 export run_eDMD, run_jDMD
 
