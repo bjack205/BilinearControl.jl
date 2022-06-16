@@ -690,21 +690,22 @@ with full attitude dynamics. As seen in Figure \ref{fig:rex_full_quadrotor_initi
 reference trajectories have a wide scope in sampling despite being sparse in nature. As shown in
 Table \ref{tab:mpc_comp}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
 successfully reach the equilibrium. Meanwhile, eDMD has significantly worse performance in tracking and succeeding
-in stabilizing about the goal state.  Despite the aggressive starting position, jDMD is still able to successfully
+in stabilizing about the goal state.  Despite the aggressive starting state, jDMD is still able to successfully
 account for the attitude dynamics, reach the goal state, and stabilize, as seen in Figure \ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
 
 \begin{figure}[t] \centering
 	\begin{subfigure}[t]{0.49\textwidth}
 		\centering
 		\includegraphics[width=\textwidth,height=5cm]{full_quadrotor_test_linear_trajectories.png}
-		\caption{Sampled point-to-point trajectories and initial conditions for test tracking MPC of 6-DOF quadrotor.}
+		\caption{Generated point-to-point trajectories and initial conditions for testing tracking MPC of 6-DOF quadrotor.}
 		\label{fig:rex_full_quadrotor_initial_conditions}
 	\end{subfigure}
 	\hfill
 	\begin{subfigure}[t]{0.49\textwidth}
 		\raggedright
 		\includegraphics[width=\textwidth, height=5cm]{jdmd_full_quad_pointtopoint_with_waypoints.png}
-		\caption{Generated MPC tracking trajectories for nominal MPC (\color{blue} blue\color{black}), eDMD (\color{red} red\color{black}), and jDMD (\color{orange} orange\color{black}) for an example reference.}
+		\caption{Generated MPC trajectories for nominal MPC (black), eDMD (\color{orange} orange\color{black}), and jDMD (\color{cyan} cyan\color{black})
+    for tracking infeasible, point-to-point trajectory (\color{red} red\color{black}).}
 		\label{fig:jdmd_full_quad_pointtopoint_with_waypoints}
 		% \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
 		% \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
@@ -752,18 +753,7 @@ the analytical ones, so quickly converge to reasonable values with just a few tr
 examples.
 
 \subsection{Sensitivity to Model Mismatch}
-% \begin{figure}
-%   \centering
-%   \includegraphics[width=1.0\textwidth, height=5.5cm]{cartpole_friction_mismatch.tikz}
-%   \caption{Effect of increasing model mismatch. Displays the number of training trajectories
-%   required to consistently stabilize the cartpole system, given an increasing friction 
-%   coefficient, which the nominal model does not include at all. An entry of 0 signifies 
-%   that a stabilizing controller wasn't found with less than 100 training trajectories.
-%   The nominal MPC controller failed to stabilize once the friction coefficient went above 
-%   0.1.
-%   }
-%   \label{fig:cartpole_friction_mismatch}
-% \end{figure}
+
 While we've introduced a significant mount of model mismatch in all of the examples so far,
 a natural argument against model-based methods is that they're only as good as your model is
 at capturing the salient dynamics of the system.  We investigated the effect of increasing
@@ -831,20 +821,6 @@ include lifelong learning or adaptive control applications, combining simulated 
 data through the use of modern differentiable physics engines \cite{Howell2022,Todorov2012}
 residual dynamics learning, as well as the development of specialized numerical methods for
 solving nonlinear optimal control problems using the learned bilinear dynamics.
-
-\begin{figure}
-	\centering
-	\includegraphics[width=1.0\textwidth, height=5.5cm]{quadrotor_mpc_zigzag_tracking_trajectories.tikz}
-	\caption{Effect of increasing model mismatch. Displays the number of training trajectories
-		required to consistently stabilize the cartpole system, given an increasing friction 
-		coefficient, which the nominal model does not include at all. An entry of 0 signifies 
-		that a stabilizing controller wasn't found with less than 100 training trajectories.
-		The nominal MPC controller failed to stabilize once the friction coefficient went above 
-		0.1.
-	}
-	\label{fig:cartpole_friction_mismatch}
-\end{figure}
-
 
 \bibliography{Koopman.bib}
 
