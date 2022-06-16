@@ -73,7 +73,7 @@ Carnegie Mellon University \\
 
 In recent years, both model-based optimal-control \cite{Farshidian2017,Kuindersma2014,Bjelonic2021,Subosits2019} and data-driven reinforcement-learning methods \cite{Karnchanachari2020,Hoeller2020,Li2021} have demonstrated impressive successes on complex, nonlinear robotic systems. However, both of approaches suffer from inherent drawbacks: Data-driven methods often require extremely large amounts of data and fail to generalize outside of the domain or task on which they were trained. On the other hand, model-based methods require an accurate model of the system to achieve good performance. In many cases, high-fidelity models can be too difficult to construct from first principles or too computationally expensive to be of practical use. However, low-order approximate models that can be evaluated cheaply at the expense of controller performance are often available. With this in mind, we seek a middle ground between model-based and data-driven approaches in this work.
 
-We propose a method for learning bilinear Koopman models \todo{cite stuff} of nonlinear
+We propose a method for learning bilinear Koopman models of nonlinear
 dynamical systems for use in model-predictive control that leverages information from an
 approximate prior dynamics model of the system in the training process.  Our new algorithm
 builds on extended Dynamic Mode Decomposition (EDMD), which learns Koopman models from
@@ -168,10 +168,6 @@ $\phi$ is constructed in such a way that this inverse mapping is linear:
 
 \subsection{Extended Dynamic Mode Decomposition} \label{sec:edmd}
 
-\todo{This section is too terse. A little more detail in the text about what's going on
-would help, e.g. ``data matrices consisting of all control inputs and lifted states...''
-Explain a little more in words and lean a little less on people parsing all of the math.}
-
 A lifted bilinear system of the form \eqref{eq:bilinear_dynamics} can be learned from $P$
 samples of the system dynamics $(x_j^+,x_j,u_j)$ using Extended Dynamic Mode Decomposition
 (EDMD) \cite{Williams2015,Folkestad2021}. We concatenate all of the model coefficient
@@ -225,8 +221,6 @@ model. These \textit{projected Jacobians} are calculated by differentiating thro
   x^+ = G \left( A \phi(x) + B u + \sum_{i=1}^m u_i C_i \phi(x) \right)  = \bar{f}(x,u).
 \end{equation}
 Differentiating \eqref{eq:projected_dynamics} with respect to $x$ and $u$ gives us
-\todo{This notation isn't super clear. Can we try using some different letters instead of
-hats on $A$ and $B$ below? Also is there a typo on the $\bar{A}$ below?}
 \begin{subequations} \label{eq:projected_jacobians}
   \begin{align}
     \bar{A}_j &= \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
@@ -436,7 +430,7 @@ an ``economy'' or ``Q-less'' $\operatorname{QR}$ decomposition
 since the $Q$ matrix is never needed.
 
 We also handle regularization of the normal equations, equivalent to adding Tikhonov
-regularization to the original least squares problem \todo{cite something}, during the base
+regularization to the original least squares problem, during the base
 case of our recursion. If we want to add an L2 regularization with weight $\lambda$, we
 calculate $U_1$ as:
 
@@ -490,7 +484,7 @@ controller solves the following convex Quadratic Program (QP):
   \addConstraint{x_1 = x_\text{init}}
 \end{mini}
 where here we define $x$ and $u$ to be the ``delta''  from the reference trajectory
-\todo{how about just writing $\Delta x$ and $\Delta u$ explicitly above?} $\bar{x}_{1:N}$,
+$\bar{x}_{1:N}$,
 $\bar{u}_{1:N-1}$. The affine dynamics term $d_k = f(\bar{x}_k, \bar{u}_k) - \bar{x}_{k+1}$
 allows for dynamically infeasible reference trajectories. The projected Jacobians can be
 efficiently calculated from the bilinear dynamics either offline or online, and since the
