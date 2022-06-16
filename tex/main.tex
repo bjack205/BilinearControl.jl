@@ -652,36 +652,27 @@ requires about 4x the number of samples (20 vs 5) compared to the proposed appro
   \label{fig:training_window}
 \end{figure}
 
-
-We demonstrate the generalizability of the proposed method to tasks outside of its training
-domain in Figure \ref{fig:training_window}. In both the planar quadrotor 
-stabilization (Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}) and 
-trajectory tracking (Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window})
-tasks, we trained the models by sampling uniformly from a given window of offsets, centered 
-about the origin. 
-To test the generalizability of the methods we increased the relative size of the window 
-from which the test data was sampled, e.g. if the initial lateral position was trained on 
+We demonstrate the generalizability of the proposed method on both the planar and 3D 
+quadrotor. In all tasks, the goal is to return to the origin, given an initial condition 
+sampled from some uniform distribution centered at the origin. To test the generalizability
+of the algorithms, we scale the size of the sampling ``window'' relative to the window on 
+which it was trained, 
+e.g. if the initial lateral position was trained on 
 data in the interval $[-1.5,+1.5]$, we sampled the test initial condition from the window 
-$[-\gamma 1.5, +\gamma 1.5]$. As shown in the results, while the performance of the proposed
-algorithm remains relatively constant even when $\gamma = 2.5$, whereas the classic eDMD 
-approach looses performance and fails to generalize at all for the stabilization task using 
-and LQR controller (like due to poor derivative information), and up to $\gamma = 2$ for the 
-tracking task using a linear MPC controller.
+$[-\gamma 1.5, +\gamma 1.5]$. The results for the planar quadrotor are shown in Figure 
+\ref{fig:rex_planar_quadrotor_mpc_error_by_training_window}. With a well-picked 
+regularization value, JDMD generalized past where the performance of EDMD suffers. 
+Additionally, in Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} we 
+show the effect of changing the equilibrium position away from the origin: while the true 
+dynamics should be invariant to this change, EDMD fails to learn this whereas JDMD does.
 
-In Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} we show the effect 
-of changing the equilibrium position for the planar quadrotor, but keeping the delta initial
-conditions within the training window. As shown, eDMD doesn't generalize to other
-equilibrium points, despite the fact that the underlying dynamics are invariant to the
-equilibrium position. Our proposed approach, however, easily learns this from the derivative
-information provided by the nominal model.
-
-\begin{wraptable}{l}{9.0cm}
+\begin{wraptable}{r}{7.0cm}
 	\vspace{-2\baselineskip}
 	\begin{tabular}{cccc}\\
 		\toprule  
-								& {\color{black} \textbf{Nominal MPC}} & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
+								& {\color{black} \textbf{Nominal}} & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
 		\midrule
-		Mean Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
+		Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
 		Success Rate 			& \textbf{82\%} & 18\%	& 80\% \\
 		\bottomrule
 	\end{tabular}
@@ -689,15 +680,47 @@ information provided by the nominal model.
 	\vspace{-1\baselineskip}
 	\label{tab:full_quad_tracking_mpc}
 \end{wraptable} 
+For the full quadrotor, given the goal of tracking a straight line back to the origin, we
+test 50 initial conditions, many of which are far from the goal, have large velocities, or
+are nearly inverted (see Figure \ref{fig:rex_full_quadrotor_initial_conditions}). 
+The results using an MPC controller are shown in Table \ref{tab:full_quad_tracking_mpc}, 
+demonstrating the excellent generalizability of the algorithm, given that the algorithm 
+was only trained on 30 initial conditions, sampled relatively sparsely given the size of the 
+sampling window. EDMD only successfully brings about 18\% of the samples to the origin, 
+while the majority of the time resulting in trajectories like those in Figure 
+\ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
 
-To demonstrate that this generalizability extends to more complex dynamics, we additionally 
-show the tracking capabilities of infeasible, point-to-point trajectories for the 6-DOF quadrotor
-with full attitude dynamics. As seen in Figure \ref{fig:rex_full_quadrotor_initial_conditions}, the generated
-reference trajectories have a wide scope in sampling despite being sparse in nature. As shown in
-Table \ref{tab:full_quad_tracking_mpc}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
-successfully reach the equilibrium. Meanwhile, eDMD has significantly worse performance in tracking and succeeding
-in stabilizing about the goal state.  Despite the aggressive starting state, jDMD is still able to successfully
-account for the attitude dynamics, reach the goal state, and stabilize, as seen in Figure \ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
+
+% We demonstrate the generalizability of the proposed method to tasks outside of its training
+% domain in Figure \ref{fig:training_window}. In both the planar quadrotor 
+% stabilization (Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}) and 
+% trajectory tracking (Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window})
+% tasks, we trained the models by sampling uniformly from a given window of offsets, centered 
+% about the origin. 
+% To test the generalizability of the methods we increased the relative size of the window 
+% from which the test data was sampled, e.g. if the initial lateral position was trained on 
+% data in the interval $[-1.5,+1.5]$, we sampled the test initial condition from the window 
+% $[-\gamma 1.5, +\gamma 1.5]$. As shown in the results, while the performance of the proposed
+% algorithm remains relatively constant even when $\gamma = 2.5$, whereas the classic eDMD 
+% approach looses performance and fails to generalize at all for the stabilization task using 
+% and LQR controller (like due to poor derivative information), and up to $\gamma = 2$ for the 
+% tracking task using a linear MPC controller.
+
+% In Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} we show the effect 
+% of changing the equilibrium position for the planar quadrotor, but keeping the delta initial
+% conditions within the training window. As shown, eDMD doesn't generalize to other
+% equilibrium points, despite the fact that the underlying dynamics are invariant to the
+% equilibrium position. Our proposed approach, however, easily learns this from the derivative
+% information provided by the nominal model.
+
+% To demonstrate that this generalizability extends to more complex dynamics, we additionally 
+% show the tracking capabilities of infeasible, point-to-point trajectories for the 6-DOF quadrotor
+% with full attitude dynamics. As seen in Figure \ref{fig:rex_full_quadrotor_initial_conditions}, the generated
+% reference trajectories have a wide scope in sampling despite being sparse in nature. As shown in
+% Table \ref{tab:full_quad_tracking_mpc}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
+% successfully reach the equilibrium. Meanwhile, eDMD has significantly worse performance in tracking and succeeding
+% in stabilizing about the goal state.  Despite the aggressive starting state, jDMD is still able to successfully
+% account for the attitude dynamics, reach the goal state, and stabilize, as seen in Figure \ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
 
 \begin{figure}[t] \centering
 	\begin{subfigure}[t]{0.49\textwidth}
