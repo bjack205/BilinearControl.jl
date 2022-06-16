@@ -464,25 +464,23 @@ avoids the need to regularize or otherwise constrain the lifted states.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Results} \label{sec:results}
+\section{Experimental Results} \label{sec:results}
 
-The following sections provide various numerical analyses of the proposed algorithm.  In
-lieu of an actual hardware experiment (left for future work), for each simulated system we
-specify two models: a \textit{nominal} model which is a simplified model approximating the
-\textit{true} model, which contains both parametric and non-parametric model error from
-the nominal model. This true model is used exclusively for simulating the system.
+This section presents the results of several simulation experiments to evaluate the performance of JDMD. 
+For each simulated system we specify two models: a \textit{nominal} model, which is simplified and contains both parametric and non-parametric model error, and a
+\textit{true} model, which is used exclusively for simulating the system and evaluating algorithm performance.
 
-All models were trained by simulating the ``true'' system with an arbitrary controller to 
+All models were trained by simulating the ``true'' system with a nominal controller to 
 collect data in the region of the state space relevant to the task. A set of fixed-length 
 trajectories were collected, each at a sample rate of 20 Hz. The bilinear eDMD model was
 trained using the same approach introduced by Folkestad and Burdick \cite{Folkestad2021}.
 All continuous dynamics were discretized with an explicit
-fourth-order Runge Kutta integrator. 
-We organize the following results section by topic, we briefly describe the three simulated
-models used to produce the results in the paragraphs below.
+fourth-order Runge Kutta integrator. Code for all experiments is available at \todo{removed for anonymous review}.  
 
-The \textit{true} cartpole model included a $\tanh$ model of Coulomb friction between
-the cart and the floor, viscous damping at both joints, and a control dead band that was not
+\subsection{Systems and Tasks}
+
+\textbf{Cartpole:} We perform a swing-up task on a cartpole system. The \textit{true} model includes Coulomb friction between
+the cart and the floor, viscous damping at both joints, and a deadband in the control input that were not
 included in the \textit{nominal} model. Additionally, the mass of the cart and pole model
 were altered by 20\% and 25\% with respect to the nominal model, respectively.  The
 following nonlinear mapping was used when learning the bilinear models: 
@@ -492,21 +490,15 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\, T_4(x)\, 
 All reference trajectories for the swing up task were generated using ALTRO 
 \cite{Howell2019,Jackson2021}.
 
-We also include 2 quadrotor systems: a 3-DOF, planar model and a 6-DOF, full quadrotor model. For both systems,
-the \textit{true} model includes aerodynamic drag terms not included in the \textit{nominal} model, as well as parametric error of about 5\% on the system properties (e.g. mass, rotor arm length, etc.). The planar model was trained using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x) ] \in \R^{25}$ while the full quadrotor model was train using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, T_2(x),\, \sin(p),\, \cos(p),\, R^{T}v,\ v^{T}RR^{T}v,\, p \times v,\, p \times \omega,\, \omega \times \omega ] \in \R^{44}$, where $p$ is the quadrotor's position, $v$ and $\omega$ are the translational and angular velocities respectively, and $R$ is the Rotation matrix. Reference trajectories were produced by nominal MPC tracking controllers attempting to track infeasible, point-to-point, linear trajectories with various initial conditions.
+\textbf{Quadrotor:} We attempt to track point-to-point linear reference trajectories from various initial conditions on both planar and full 3D quadrotor models. For both systems,
+the \textit{true} model includes aerodynamic drag terms not included in the \textit{nominal} model, as well as parametric error of roughly 5\% on the system parameters (e.g. mass, rotor arm length, etc.). The planar model was trained using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x) ] \in \R^{25}$ while the full quadrotor model was train using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, T_2(x),\, \sin(p),\, \cos(p),\, R^{T}v,\ v^{T}RR^{T}v,\, p \times v,\, p \times \omega,\, \omega \times \omega ] \in \R^{44}$, where $p$ is the quadrotor's position, $v$ and $\omega$ are the translational and angular velocities respectively, and $R$ is the rotation matrix.
 
-Our most high-fidelity model is an airplane model with lift and drag coefficients fit from
-rigorous wind-tunnel testing \cite{Manchester2017}. The coefficients are valid for high
-angle-of-attach maneuvers. We produce a high-angle-of-attack (up to $40^\circ$) manuever by
-solving for ``perching'' trajectories with ALTRO that encourage minimal velocity subject to
-a constraint on the final position (see Figure \ref{fig:perch}). These trajectories are
-tracked using a QP-based linear MPC solver, with bounds on the state and control deviations
-at each time step. The nominal model used a simple flat-plate wing model with linear lift
-and quadratic drag coefficient models. To train the bilinear models, we used a
-68-dimensional nonlinear mapping composed of dynamics terms such as the rotation matrix
+\textbf{Airplane:} We perform a post-stall perching maneuver on a high-fidelity model of an airplane constructed from wind-tunnel data \cite{Manchester2017}. A demonstration perching trajectory was produced using trajectory optimization (see Figure \ref{fig:perch}) and then tracked using MPC. The nominal model uses a simple flat-plate wing model with linear lift
+and quadratic drag coefficient approximations. The bilinear models use a
+68-dimensional nonlinear mapping $\phi$ including terms such as the rotation matrix
 (expressed in terms of a Modified Rodriguez Parameter), powers of the angle of attack and
 side slip angle, the body frame velocity, various cross products with the angular velocity,
-and some 3rd and 4th order Chebyshev polynomials.
+and some 3rd and 4th order Chebyshev polynomials \todo{of what?}.
 
 % nonlinear mapping: $\phi(x) = [1, x, \text{vec}(R), v_\text{body}, v_\text{body}^T
 % v_\text{body}, \sin(p), \alpha, \beta, \alpha^2, \beta^2, \alpha^3, \beta^3, p \times v, p
@@ -516,8 +508,6 @@ and some 3rd and 4th order Chebyshev polynomials.
 % $R \in \R^{3 \times 3}$ is the rotation matrix expressed in terms of $g$, $v_\text{body}$ is
 % the velocity in the body frame, $\alpha$ is the angle of attack, and $\beta$ is the side
 % slip angle.
-
-The code for the experiments is located at \todo{include after review}.  
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -760,7 +750,7 @@ confidence of the model and the quantity (and quality) of training data.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Conclusion 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Conclusion and Future Work} \label{sec:conclusion}
+\section{Conclusions and Future Work} \label{sec:conclusion}
 
 We have presented a simple but powerful extension to eDMD, a model-based method for learning
 a bilinear representation of arbitrary dynamical systems, that incorporates derivative
