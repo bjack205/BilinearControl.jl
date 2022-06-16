@@ -414,32 +414,33 @@ following unconstrained optimization problem:
 We assume $F$ is a large, sparse matrix and that solving it directly using a QR or Cholesky
 decomposition requires too much memory for a single computer. While solving \eqref{opt:lls}
 using an iterative method such as LSMR \cite{Fong2011} or LSQR \cite{Paige1982} is possible,
-we found these methods do not work well in practice for solving \eqref{opt:jdmd} since the 
-matrices tend to be ill-conditioned. Recursive methods for solving these problems are able
-to process the rows of the matrices sequentially to build QR decomposition of the full
-matrix, but also tend to be ill-conditioned \cite{Strobach1990,Sayed2009,Ghirnikar1990}. We
-propose an alternative recursive method based off of numerical techniques that, to our
-knowledge, aren't well known to the learning community. We solve \eqref{opt:lls} by dividing
-up the rows of $F$ into batches:
+we find that these methods do not work well in practice for solving \eqref{opt:jdmd} due to
+ill-conditioning.  Standard recursive methods for solving these problems are able to process
+the rows of the matrices sequentially to build a QR decomposition of the full matrix, but
+also tend to suffer from ill-conditioning \cite{Strobach1990,Sayed2009,Ghirnikar1990}.
+
+To overcome these issues, we propose an alternative recursive method based. We solve
+\eqref{opt:lls} by dividing up rows of $F$ into batches:
 \begin{align} \label{eq:F_sum}
   F^T F = F_1^T F_1 + F_2^T F_2 + \ldots + F_N^T F_N.
 \end{align}
-The main idea of this recursive method is to maintain an upper-triangular ``square root''
-factor $U_i$ of the first $i$ terms of the sum \eqref{eq:F_sum}. Given the factorization 
-$U_i$, we can calculate $U_{i+1}$ using the $\operatorname{QR}$ decomposition, as shown in
+The main idea is to maintain and update an upper-triangular Cholesky factor $U_i$ of the
+first $i$ terms of the sum \eqref{eq:F_sum}. Given $U_i$, we can calculate $U_{i+1}$ using
+the $\operatorname{QR}$ decomposition, as shown in
 \cite{Howell2019}:
 \begin{equation}
   U_{i+1} = \sqrt{U_i^TU_i + F_{i+1}^TF_{i+1}} = 
   \operatorname{QR_R}\bigg( \begin{bmatrix} {U_i} \\ {F_{i+1}} \end{bmatrix} \bigg),
 \end{equation}
 where $\operatorname{QR_R}$ returns the upper triangular matrix $R$ from the 
-$\operatorname{QR}$ decomposition. For a maximally-efficient implementation, this function 
-should be a ``Q-less'' $\operatorname{QR}$ decomposition, since the $Q$ matrix is never 
-needed.
+$\operatorname{QR}$ decomposition. For an efficient implementation, this function should be
+an ``economy'' or ``Q-less'' $\operatorname{QR}$ decomposition \cite{cite something (e.g.
+Van Loan)}, since the $Q$ matrix is never needed.
 
-We handle regularization of the normal equations, equivalent to adding L2 regularization to 
-the original least squares problem, during the base case of our recursion. If we want to 
-add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
+We also handle regularization of the normal equations, equivalent to adding Tikhonov
+regularization to the original least squares problem \todo{cite something}, during the base
+case of our recursion. If we want to add an L2 regularization with weight $\lambda$, we
+calculate $U_1$ as:
 
 \begin{equation}
   U_1 =  \operatorname{QR_R}\bigg( 
@@ -474,61 +475,84 @@ add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
   \label{fig:perch}
 \end{figure}
 
+\section{Projected Bilinear MPC} \label{sec:projected_mpc}
+
+We propose a simple approach to model-predictive control for the bilinear systems learned
+using either classic eDMD or the proposed JDMD approach. The key idea is to use the 
+projected Jacobians $\bar{A}$ and $\bar{B}$ in \eqref{eq:projected_jacobians}, effectively
+reducing the problem to a standard linear MPC problem in the original state space instead of
+the larger, lifted one.  In the all of the examples in the following section, our MPC
+controller solves the following convex Quadratic Program (QP):
+% \begin{mini}[2]
+%   {x_{1:N}, u_{1:N}}{\half x_N^T Q_N x_N + \frac \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k}{}{}
+% \end{mini}
+\begin{mini}
+  {x_{1:N}, u_{1:N-1}}{\half x_N^T Q_N x_N + \half \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k }{}{}
+  \addConstraint{x_{k+1} = \bar{A}_k x_k + \bar{B}_k u_k + d_k}{}
+  \addConstraint{x_1 = x_\text{init}}
+\end{mini}
+where here we define $x$ and $u$ to be the ``delta''  from the reference trajectory
+\todo{how about just writing $\Delta x$ and $\Delta u$ explicitly above?} $\bar{x}_{1:N}$,
+$\bar{u}_{1:N-1}$. The affine dynamics term $d_k = f(\bar{x}_k, \bar{u}_k) - \bar{x}_{k+1}$
+allows for dynamically infeasible reference trajectories. The projected Jacobians can be
+efficiently calculated from the bilinear dynamics either offline or online, and since the
+problem dimension is the same size as the linear MPC problem for the original dynamics, it
+is no more expensive to compute. This formulation also makes it trivial to enforce
+additional control or path constraints, and 
+avoids the need to regularize or otherwise constrain the lifted states.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Results} \label{sec:results}
+\section{Experimental Results} \label{sec:results}
 
-The following sections provide various numerical analyses of the proposed algorithm.  In
-lieu of an actual hardware experiment (left for future work), for each simulated system we
-specify two models: a \textit{nominal} model which is a simplified model approximating the
-\textit{true} model, which contains both parametric and non-parametric model error from
-the nominal model. This true model is used exclusively for simulating the system.
+This section presents the results of several simulation experiments to evaluate the
+performance of JDMD.  For each simulated system we specify two models: a \textit{nominal}
+model, which is simplified and contains both parametric and non-parametric model error, and
+a \textit{true} model, which is used exclusively for simulating the system and evaluating
+algorithm performance.
 
-All models were trained by simulating the true system with an arbitrary controller to 
+All models were trained by simulating the ``true'' system with a nominal controller to 
 collect data in the region of the state space relevant to the task. A set of fixed-length 
 trajectories were collected, each at a sample rate of 20-25 Hz. The bilinear EDMD model was
 trained using the same approach introduced by Folkestad and Burdick \cite{Folkestad2021}.
-All continuous dynamics were discretized with an explicit
-fourth-order Runge Kutta integrator. 
-We organize the following results section by topic, and briefly describe the three simulated
-models used to produce the results in the paragraphs below.
+All continuous dynamics were discretized with an explicit fourth-order Runge Kutta
+integrator. Code for all experiments is available at \todo{removed for anonymous review}.  
 
-The true cartpole model included a $\tanh$ model of Coulomb friction between
-the cart and the floor, viscous damping at both joints, and a control dead band that was not
-included in the nominal model. Additionally, the mass of the cart and pole model
-were altered by 20\% and 25\% with respect to the nominal model, respectively.  The
-following nonlinear mapping was used when learning the bilinear models: 
+\subsection{Systems and Tasks}
+
+\textbf{Cartpole:} We perform a swing-up task on a cartpole system. The \textit{true} model
+includes Coulomb friction between the cart and the floor, viscous damping at both joints,
+and a deadband in the control input that were not included in the \textit{nominal} model.
+Additionally, the mass of the cart and pole model were altered by 20\% and 25\% with respect
+to the nominal model, respectively.  The following nonlinear mapping was used when learning
+the bilinear models: 
 $\phi(x) = [\, 1,\,
 x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\, T_4(x)\, ] \in
 \R^{33}$, where $T_i(x)$ is a Chebyshev polynomial of the first kind of order $i$. 
 All reference trajectories for the swing up task were generated using ALTRO 
 \cite{Howell2019,Jackson2021}.
 
-We also include 2 quadrotor systems: a 3-DOF, planar model and a 6-DOF quadrotor model with
-experimentally-determined force and torque curves for the motors. For both systems, the
-true model includes aerodynamic drag terms not included in the nominal
-model, as well as parametric error of about 5\% on the system properties (e.g. mass, rotor
+\textbf{Quadrotor:} We attempt to track point-to-point linear reference trajectories from
+various initial conditions on both planar and full 3D quadrotor models. For both systems,
+the \textit{true} model includes aerodynamic drag terms not included in the \textit{nominal}
+model, as well as parametric error of roughly 5\% on the system parameters (e.g. mass, rotor
 arm length, etc.). The planar model was trained using a nonlinear mapping of $\phi(x) = [\,
 1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x) ] \in \R^{25}$ while the full quadrotor
 model was train using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, T_2(x),\, \sin(p),\,
 \cos(p),\, R^{T}v,\ v^{T}RR^{T}v,\, p \times v,\, p \times \omega,\, \omega \times \omega ]
 \in \R^{44}$, where $p$ is the quadrotor's position, $v$ and $\omega$ are the translational
-and angular velocities respectively, and $R$ is the Rotation matrix. Reference trajectories
-were produced by nominal MPC tracking controllers attempting to track infeasible,
-point-to-point, linear trajectories with various initial conditions.
+and angular velocities respectively, and $R$ is the rotation matrix.
 
-Our most high-fidelity model is an airplane model with lift and drag coefficients fit from
-rigorous wind-tunnel testing \cite{Manchester2017}. We produce a high-angle-of-attack (up to
-$40^\circ$) manuever by solving for ``perching'' trajectories with ALTRO that encourage
-minimal velocity subject to a constraint on the final position (see Figure \ref{fig:perch}).
-These trajectories are tracked using a QP-based linear MPC solver. The nominal model used a
-simple flat-plate wing model with linear lift and quadratic drag coefficient curves. To
-train the bilinear models, we used a 68-dimensional nonlinear mapping composed of dynamics
-terms such as the rotation matrix (expressed in terms of a Modified Rodriguez Parameter),
-powers of the angle of attack and side slip angle, the body frame velocity, various cross
-products with the angular velocity, and some 3rd and 4th order Chebyshev polynomials.
+\textbf{Airplane:} We perform a post-stall perching maneuver on a high-fidelity model of an
+airplane constructed from wind-tunnel data \cite{Manchester2017}. A demonstration perching
+trajectory was produced using trajectory optimization (see Figure \ref{fig:perch}) and then
+tracked using MPC. The nominal model uses a simple flat-plate wing model with linear lift
+and quadratic drag coefficient approximations. The bilinear models use a 68-dimensional
+nonlinear mapping $\phi$ including terms such as the rotation matrix (expressed in terms of
+a Modified Rodriguez Parameter), powers of the angle of attack and side slip angle, the body
+frame velocity, various cross products with the angular velocity, and some 3rd and 4th order
+Chebyshev polynomials \todo{of what?}.
 
 % nonlinear mapping: $\phi(x) = [1, x, \text{vec}(R), v_\text{body}, v_\text{body}^T
 % v_\text{body}, \sin(p), \alpha, \beta, \alpha^2, \beta^2, \alpha^3, \beta^3, p \times v, p
@@ -538,8 +562,6 @@ products with the angular velocity, and some 3rd and 4th order Chebyshev polynom
 % $R \in \R^{3 \times 3}$ is the rotation matrix expressed in terms of $g$, $v_\text{body}$ is
 % the velocity in the body frame, $\alpha$ is the angle of attack, and $\beta$ is the side
 % slip angle.
-
-The code for the experiments is located at \todo{include after review}.  
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
