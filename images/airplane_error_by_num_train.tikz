@@ -46,6 +46,6 @@
             (50,0.00455643872079049)
         }
         ;
-    \legend{{Nominal MPC},{eDMD},{jDMD}}
+    \legend{{Nominal MPC},{EDMD},{JDMD}}
 \end{axis}
 \end{tikzpicture}
