@@ -1,6 +1,6 @@
 \documentclass{article}
-% \usepackage{corl_2022} % Use this for the initial submission.
-\usepackage[final]{corl_2022} % Uncomment for the camera-ready ``final'' version.
+\usepackage{corl_2022} % Use this for the initial submission.
+% \usepackage[final]{corl_2022} % Uncomment for the camera-ready ``final'' version.
 \usepackage{times} % assumes new font selection scheme installed
 \usepackage{brian}
 \graphicspath{{../images/}}
@@ -142,9 +142,9 @@ The paper is organized as follows: in Section \ref{sec:Preliminaries/Background}
 give some background on the application of Koopman operator theory to controlled 
 dynamical systems and review some related works. Section \ref{sec:jdmd} describes
 the proposed algorithm for combining data-driven and model-based approaches, while 
-\ref{sec:projected_mpc} proposed an efficient technique for controlling these learned models
-online. In Section \ref{sec:rls} we outline an memory-efficient technique for solving the 
-large, sparse linear least-squares problems that arise when applying the proposed adaption 
+\ref{sec:projected_mpc} proposes an efficient technique for controlling these learned models
+online. In Section \ref{sec:rls} we outline a memory-efficient technique for solving the 
+large, sparse linear least-squares problems that arise when applying the proposed adaptation 
 to eDMD. Lastly, Section \ref{sec:results} provides numerical analysis of the 
 proposed algorithm, applied to a simulated cartpole, quadrotor model, and a small foam 
 airplane, all subject to significant model mismatch. In Section \ref{sec:limitations} we 
@@ -165,7 +165,7 @@ time-dynamical system whose underlying continuous dynamics are Lipchitz continuo
 \begin{equation} \label{eq:discrete_dynamics} 
   x^+ = f(x, u) 
 \end{equation} 
-where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector, $u_k \in \R^{N_u}$ is
+where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector, $u \in \R^{N_u}$ is
 the control vector, and $x^+$ is the state at the next time step. This discrete
 approximation can be obtained for any continuous-time, smooth dynamical system in many
 ways, including implicit and explicit Runge-Kutta methods, or by solving the Discrete
@@ -188,7 +188,7 @@ dynamics are approximately (bi)linear, effectively trading dimensionality for
 (bi)linearity. This idea should be both unsurprising and familiar to most roboticists,
 since similar techniques have already been employed in other forms, such as
 maximal-coordinate representations of rigid body dynamics
-\cite{Baraff,Brudigam2021a,Howell2022}, the
+\cite{Baraff1996,Brudigam2021a,Howell2022}, the
 ``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that
 solving large, sparse nonlinear optimization problems is often more effective than solving
 small, tightly-coupled dense problems.
@@ -256,7 +256,7 @@ Differentiating \eqref{eq:projected_dynamics} with respect to $x$ and $u$ gives 
     \bar{A}_j &= \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
     = G \left(A + \sum_{i=1}^m u_{j,i} C_i \right) \Phi(x_j)
     %   = G A_j^x \phi(x_j)
-    = G E \bar{A}(x_j,u_j) = G E \hat{A}_j \\
+    = G E \hat{A}(x_j,u_j) = G E \hat{A}_j \\
     \bar{B}_j &= \pdv{\hat{f}}{u}\left(x_j,u_j\right) 
     = G \Big(B + \begin{bmatrix} C_1 x_j & \dots & C_m x_j \end{bmatrix} \Big)
     %   = G B_j^u
@@ -284,17 +284,17 @@ We then solve the following linear least-squares problem:
     (1-\alpha) \norm{E Z_{1:P} - Y_{1:P}^+}_2^2 + 
         \alpha \sum_{j=1}^P \left( 
           \norm{G E \hat{A}_j - \tilde{A}_j}_2^2 + 
-          \norm{G E \hat{B}_j - \tilde{B}_j} \right)
+          \norm{G E \hat{B}_j - \tilde{B}_j}_2^2 \right)
 \end{align}
 
 The resulting linear least-squares problem has $(N_y + N_x^2 + N_x \cdot N_u) \cdot P$ rows
 and $N_y \cdot N_z$ columns. Given that the number of rows in this problem grows
 quadratically with the state dimension, solving this problem can be challenging from a
-computational perspective. In the following section, we propose an algorithm for solving
+computational perspective. In the Section \ref{sec:rls}, we propose an algorithm for solving
 these problems without needing to move to a distributed-memory setup in order to solve these
 large linear systems. The proposed method also provides a straightforward way to approach
 incremental updates to the bilinear system, where the coefficients could be efficiently
-learned ``live'' while the robot gathers data by moving through it's environment.
+learned ``live'' while the robot gathers data by moving through its environment.
 
 % If we define $\hat{A}_j \in
 % \R^{N_x \times N_x}$ and $\hat{B}_j \in \R^{N_x \times N_u}$ to be the Jacobians of our
@@ -530,18 +530,18 @@ specify two models: a \textit{nominal} model which is a simplified model approxi
 \textit{true} model, which contains both parametric and non-parametric model error from
 the nominal model. This true model is used exclusively for simulating the system.
 
-All models were trained by simulating the ``true'' system with an arbitrary controller to 
+All models were trained by simulating the true system with an arbitrary controller to 
 collect data in the region of the state space relevant to the task. A set of fixed-length 
-trajectories were collected, each at a sample rate of 20 Hz. The bilinear eDMD model was
+trajectories were collected, each at a sample rate of 20-25 Hz. The bilinear eDMD model was
 trained using the same approach introduced by Folkestad and Burdick \cite{Folkestad2021}.
 All continuous dynamics were discretized with an explicit
 fourth-order Runge Kutta integrator. 
-We organize the following results section by topic, we briefly describe the three simulated
+We organize the following results section by topic, and briefly describe the three simulated
 models used to produce the results in the paragraphs below.
 
-The \textit{true} cartpole model included a $\tanh$ model of Coulomb friction between
+The true cartpole model included a $\tanh$ model of Coulomb friction between
 the cart and the floor, viscous damping at both joints, and a control dead band that was not
-included in the \textit{nominal} model. Additionally, the mass of the cart and pole model
+included in the nominal model. Additionally, the mass of the cart and pole model
 were altered by 20\% and 25\% with respect to the nominal model, respectively.  The
 following nonlinear mapping was used when learning the bilinear models: 
 $\phi(x) = [\, 1,\,
@@ -550,21 +550,29 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\, T_4(x)\, 
 All reference trajectories for the swing up task were generated using ALTRO 
 \cite{Howell2019,Jackson2021}.
 
-We also include 2 quadrotor systems: a 3-DOF, planar model and a 6-DOF, full quadrotor model. For both systems,
-the \textit{true} model includes aerodynamic drag terms not included in the \textit{nominal} model, as well as parametric error of about 5\% on the system properties (e.g. mass, rotor arm length, etc.). The planar model was trained using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x) ] \in \R^{25}$ while the full quadrotor model was train using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, T_2(x),\, \sin(p),\, \cos(p),\, R^{T}v,\ v^{T}RR^{T}v,\, p \times v,\, p \times \omega,\, \omega \times \omega ] \in \R^{44}$, where $p$ is the quadrotor's position, $v$ and $\omega$ are the translational and angular velocities respectively, and $R$ is the Rotation matrix. Reference trajectories were produced by nominal MPC tracking controllers attempting to track infeasible, point-to-point, linear trajectories with various initial conditions.
+We also include 2 quadrotor systems: a 3-DOF, planar model and a 6-DOF quadrotor model with
+experimentally-determined force and torque curves for the motors. For both systems, the
+true model includes aerodynamic drag terms not included in the nominal
+model, as well as parametric error of about 5\% on the system properties (e.g. mass, rotor
+arm length, etc.). The planar model was trained using a nonlinear mapping of $\phi(x) = [\,
+1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x) ] \in \R^{25}$ while the full quadrotor
+model was train using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, T_2(x),\, \sin(p),\,
+\cos(p),\, R^{T}v,\ v^{T}RR^{T}v,\, p \times v,\, p \times \omega,\, \omega \times \omega ]
+\in \R^{44}$, where $p$ is the quadrotor's position, $v$ and $\omega$ are the translational
+and angular velocities respectively, and $R$ is the Rotation matrix. Reference trajectories
+were produced by nominal MPC tracking controllers attempting to track infeasible,
+point-to-point, linear trajectories with various initial conditions.
 
 Our most high-fidelity model is an airplane model with lift and drag coefficients fit from
-rigorous wind-tunnel testing \cite{Manchester2017}. The coefficients are valid for high
-angle-of-attach maneuvers. We produce a high-angle-of-attack (up to $40^\circ$) manuever by
-solving for ``perching'' trajectories with ALTRO that encourage minimal velocity subject to
-a constraint on the final position (see Figure \ref{fig:perch}). These trajectories are
-tracked using a QP-based linear MPC solver, with bounds on the state and control deviations
-at each time step. The nominal model used a simple flat-plate wing model with linear lift
-and quadratic drag coefficient models. To train the bilinear models, we used a
-68-dimensional nonlinear mapping composed of dynamics terms such as the rotation matrix
-(expressed in terms of a Modified Rodriguez Parameter), powers of the angle of attack and
-side slip angle, the body frame velocity, various cross products with the angular velocity,
-and some 3rd and 4th order Chebyshev polynomials.
+rigorous wind-tunnel testing \cite{Manchester2017}. We produce a high-angle-of-attack (up to
+$40^\circ$) manuever by solving for ``perching'' trajectories with ALTRO that encourage
+minimal velocity subject to a constraint on the final position (see Figure \ref{fig:perch}).
+These trajectories are tracked using a QP-based linear MPC solver. The nominal model used a
+simple flat-plate wing model with linear lift and quadratic drag coefficient curves. To
+train the bilinear models, we used a 68-dimensional nonlinear mapping composed of dynamics
+terms such as the rotation matrix (expressed in terms of a Modified Rodriguez Parameter),
+powers of the angle of attack and side slip angle, the body frame velocity, various cross
+products with the angular velocity, and some 3rd and 4th order Chebyshev polynomials.
 
 % nonlinear mapping: $\phi(x) = [1, x, \text{vec}(R), v_\text{body}, v_\text{body}^T
 % v_\text{body}, \sin(p), \alpha, \beta, \alpha^2, \beta^2, \alpha^3, \beta^3, p \times v, p
@@ -610,11 +618,9 @@ The code for the experiments is located at \todo{include after review}.
 We highlight the sample efficiency of the proposed algorithm in Figure 
 \ref{fig:sample_efficiency}. For both the cartpole swing up and the airplane perch trajectory 
 tracking tasks, the proposed method achieves better tracking than the nominal MPC controller
-with just two sample trajectories, and performs uniformly better than eDMD on both 
+with just two sample trajectories, and performs better than eDMD on both 
 trajectory tracking tasks. To achieve comparable performance on the perching task, eDMD 
 requires about 4x the number of samples (20 vs 5) compared to the proposed approach.
-\todo{add lines for ``lifted'' MPC approach?}
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Generalization}
@@ -724,7 +730,7 @@ account for the attitude dynamics, reach the goal state, and stabilize, as seen 
 \subsection{Lifted versus Projected MPC}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{wraptable}{r}{5.0cm}
-  \vspace{-1\baselineskip}
+  \vspace{-3.5\baselineskip}
   \begin{tabular}{ccc}\\
     \toprule  
     MPC       & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
@@ -746,7 +752,7 @@ stabilized 95\% of the test initial conditions for the cartpole system for that 
 and subsequent ones).  The results are summarized in Table \ref{tab:mpc_comp}. The results
 quantitatively show what we qualitatively observed while training and testing these various
 examples: the projected MPC approach usually required far fewer samples to ``train'' and
-usually had better performance than it's lifted counterpart that used the bilinear
+usually had better performance than its lifted counterpart that used the bilinear
 lifted dynamics. This was especially pronounced when combined with the proposed jDMD
 approach, which makes sense given that the approach explicitly encourages these Jacobians to
 match the analytical ones, so quickly converges to reasonable values with just a few training
@@ -799,7 +805,7 @@ method will increase performance in all cases. It is possible that having an ext
 analytical model may hurt rather than help the training process. However, we found that even
 when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
 during the learning process), it still dramatically improves the sample efficiency over 
-standard eDMD. It is also quite possible that the performance gaps between eDMD and jDMD
+standard eDMD, . It is also quite possible that the performance gaps between eDMD and jDMD
 shown here can be reduced through better selection of basis functions and better training
 data sets; however, given that the proposed approach converges to eDMD as $\alpha
 \rightarrow 0$, we see no reason to not adopt the proposed methodology as simply tune
