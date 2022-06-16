@@ -168,24 +168,11 @@ $\phi$ is constructed in such a way that this inverse mapping is linear:
 
 \subsection{Extended Dynamic Mode Decomposition} \label{sec:edmd}
 
-\todo{This section is too terse. A little more detail in the text about what's going on
-would help, e.g. ``data matrices consisting of all control inputs and lifted states...''
-Explain a little more in words and lean a little less on people parsing all of the math.}
+%\todo{This section is too terse. A little more detail in the text about what's going on would help, e.g. ``data matrices consisting of all control inputs and lifted states...'' Explain a little more in words and lean a little less on people parsing all of the math.}
 
 A lifted bilinear system of the form \eqref{eq:bilinear_dynamics} can be learned from $P$
 samples of the system dynamics $(x_j^+,x_j,u_j)$ using Extended Dynamic Mode Decomposition
-(EDMD) \cite{Williams2015,Folkestad2021}. We concatenate all of the model coefficient
-matrices as follows:
-\begin{equation} \label{eq:E_matrixdef}
-  E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
-\end{equation}
-by solving the following linear least-squares problem:
-
-\begin{align} \label{opt:edmd}
-  \underset{E}{\text{minimize}} \; \norm{E Z_{1:P} - Y_{1:P}^+}_2^2
-\end{align}
-where $Z_{1:P} \in \R^{N_z \times P}$ and $Y_{1:P}^+ \in \R^{N_y \times P}$ are the data 
-matrices 
+(EDMD) \cite{Williams2015,Folkestad2021}. We first define the following data matrices:
 \begin{equation}
   Z_{1:P} = \begin{bmatrix}
     y_1         & y_2         & \dots  & y_P          \\
@@ -198,7 +185,16 @@ matrices
     y_1^+         & y_2^+         & \dots  & y_P^+    \\
   \end{bmatrix},
 \end{equation}
-and $N_z = N_y + N_u + N_y \cdot N_u$.
+We then concatenate all of the model coefficient matrices as follows:
+\begin{equation} \label{eq:E_matrixdef}
+  E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
+\end{equation}
+The model learning problem can then be written as the following linear least-squares problem:
+
+\begin{align} \label{opt:edmd}
+  \underset{E}{\text{minimize}} \; \norm{E Z_{1:P} - Y_{1:P}^+}_2^2
+\end{align}
+%where $Z_{1:P} \in \R^{N_z \times P}$ and $Y_{1:P}^+ \in \R^{N_y \times P}$ are the data matrices and $N_z = N_y + N_u + N_y \cdot N_u$.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
