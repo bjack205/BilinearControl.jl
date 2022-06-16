@@ -52,12 +52,13 @@ function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
 
     N_tf = round(Int, tf/dt) + 1    
     N_sim = round(Int, t_sim/dt) + 1 
-    Nt = 41
+    Nt = 20
     T_ref = range(0,tf,step=dt)
 
-    Qmpc = Diagonal(fill(1.0, 12))
-    Rmpc = Diagonal(fill(1e-4, 4))
-    Qfmpc = 100*Qmpc
+    Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+    1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    Rmpc = Diagonal(fill(1e-3, 4))
+    Qfmpc = Qmpc*100
 
     results = map(ics) do x0
 
@@ -69,14 +70,16 @@ function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
         X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
 
-        err = norm(X_sim - X_ref_full) / N_sim
+        track_err = norm(X_sim - X_ref_full) / N_sim
+        stable_err = norm(X_sim[end] - X_ref_full[end]) 
 
-        (; err)
+        (; track_err, stable_err)
     end
 
-    err_avg  = mean(filter(isfinite, map(x->x.err, results)))
+    err_avg  = mean(filter(isfinite, map(x->x.track_err, results)))
+    num_success = count(x -> x <=10, map(x->x.stable_err, results))
 
-    return err_avg
+    return err_avg, num_success
 end
 
 function test_initial_conditions_offset(model, bilinear_model, xg, ics, tf, t_sim, dt)
@@ -666,9 +669,41 @@ equilibrium_results = map(distances) do dist
     eDMD_success = count(isfinite, map(x->x.error_eDMD_projected_x0s, xe_results))
     jDMD_success = count(isfinite, map(x->x.error_jDMD_projected_x0s, xe_results))
 
-    println(err_nom_MPC)
-
     (;err_nom_MPC, error_eDMD_projected, error_jDMD_projected, nom_success, eDMD_success, jDMD_success)
+
+end
+
+#############################################
+## Tracking performance vs test window
+#############################################
+
+percentages = 0.1:0.1:2
+window_results = map(percentages) do perc
+
+    println("percentage of training window = $perc")
+
+    x0_sampler = Product([
+        Uniform(-2.5*perc,2.5*perc),
+        Uniform(-2.5*perc,2.5*perc),
+        Uniform(-2.5*perc,2.5*perc),
+        Uniform(-deg2rad(40*perc),deg2rad(40*perc)),
+        Uniform(-deg2rad(40*perc),deg2rad(40*perc)),
+        Uniform(-deg2rad(40*perc),deg2rad(40*perc)),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.5*perc,0.5*perc),
+        Uniform(-0.25*perc,0.25*perc),
+        Uniform(-0.25*perc,0.25*perc),
+        Uniform(-0.25*perc,0.25*perc)
+    ])
+
+    x0_test = [rand(x0_sampler) for i = 1:50]
+
+    error_nom, num_success_nom = test_initial_conditions(model_real, dmodel_nom, x0_test, tf, t_sim, dt)
+    error_eDMD, num_success_eDMD = test_initial_conditions(model_real, model_eDMD_projected, x0_test, tf, t_sim, dt)
+    error_jDMD, num_success_jDMD = test_initial_conditions(model_real, model_jDMD_projected, x0_test, tf, t_sim, dt)
+
+    (; error_nom, error_eDMD, error_jDMD, num_success_nom, num_success_eDMD, num_success_jDMD)
 
 end
 
@@ -676,7 +711,7 @@ end
 ## Save results
 #############################################
 
-jldsave(QUADROTOR_RESULTS_FILE; MPC_test_results, equilibrium_results)
+jldsave(QUADROTOR_RESULTS_FILE; MPC_test_results, window_results)
 
 #############################################
 ## Load results and models
