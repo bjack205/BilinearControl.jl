@@ -22,9 +22,7 @@
   % JDMD: Boosting Sample Efficiency in Bilinear Koopman Models through Derivative Information
   % JDMD: Quickly Boost MPC Performance via Koopman Operators and Approximate Derivatives
   % JDMD: Adapting Adapting Extended Dynamic Mode Decomposition to Leverage What You Know 
-  JDMD: Extended Dynamic Mode Decomposition with Jacobian Residual Penalization
-  for Learning Bilinear, Control-affine Koopman Models
-}
+  Data-Efficient Model Learning for Control with Jacobian-Regularized Dynamic Mode Decomposition}
 
 \author{
 Brian E. Jackson \\
@@ -59,152 +57,96 @@ Carnegie Mellon University \\
   % model-predictive control, this could in- crease robustness to model uncertainty or improve
   % overall performance by adapt- ing the controller based on observations from the real
   % system. 
-  We present a novel extension to previous data-driven approaches based on Koopman
-  operator theory that combines many of the benefits of model-based and data-driven
-  approaches.  By including derivative information from an approximate analytical model, we
-  show that we can quickly learn an efficient bilinear representation of the system
-  dynamics, that, when combined with a novel linear MPC method that projects the dynamics
-  into the original state space, offers performance improvements over nominal linear MPC
-  with just a few training trajectories. We demonstrate increased sampling efficiency,
-  increased generalization, and robustness to training hyperparameters compared to previous
-  approaches
+  We present a novel algorithm for learning Koopman models of controlled nonlinear dynamical systems from data based on Dynamic-Mode Decomposition (DMD).
+  Our approach, Jacobian-Regularized DMD (JDMD), offers dramatically improved sample efficiency over existing DMD-based algorithms by leveraging Jacobian information from an approximate prior model of the system. 
+  We demonstrate JDMD's ability to quickly learn bilinear Koopman dynamics representations across several realistic examples in simulation, including a quadrotor and a perching fixed-wing aircraft.
+  In all cases, we show that the models learned by JDMD provide superior tracking and generalization performance in a model-predictive control framework when compared to both the approximate prior models used in training and models learned by standard extended DMD.
 \end{abstract}
 
 \section{Introduction}
 
-Controlling complex, underactuated, and highly nonlinear autonomous systems remains an
-active area of research in robotics, despite decades of previous work exploring
-effective algorithms and the development of substantial theoretical analysis. Classical
-approaches typically rely on local linear approximations of the nonlinear system, which
-are then used in any of a multitude of linear control techniques, such as PID, pole
-placement, Bode analysis, H-infinity, LQR, or linear MPC.  These approaches only work
-well if the states of the system always remain close to the equilibrium point or
-reference trajectory about which the system was linearized. The region for which these
-linearizations remain valid can be extremely small for highly nonlinear systems.
-Alternatively, model-based methods for nonlinear optimal control have shown great
-success, as long as the model is well known and an accurate estimate of the global state
-can be provided. These model-based techniques leverage decades of insight into
-dynamical systems and have demonstrated incredible performance on complicated
-autonomous systems 
-\cite{Farshidian2017,Kuindersma2014,Bjelonic2021,Subosits2019} . On the
-other hand, data-driven techniques such as reinforcement learning have received
-tremendous attention over the last decade and have begun to demonstrate impressive
-performance and robustness for complicated robotic systems in unstructured environments
-\cite{Karnchanachari2020,Hoeller2020,Li2021}. While these approaches are attractive
-since they require little to no previous knowledge about the system, they often require
-large amounts of data and fail to generalize outside of the domain or task on which they
-were ``trained.''
+In recent years, both model-based optimal-control \cite{Farshidian2017,Kuindersma2014,Bjelonic2021,Subosits2019} and data-driven reinforcement-learning methods \cite{Karnchanachari2020,Hoeller2020,Li2021} have demonstrated impressive successes on complex, nonlinear robotic systems. However, both of approaches suffer from inherent drawbacks: Data-driven methods often require extremely large amounts of data and fail to generalize outside of the domain or task on which they were trained. On the other hand, model-based methods require an accurate model of the system to achieve good performance. In many cases, high-fidelity models can be too difficult to construct from first principles or too computationally expensive to be of practical use. However, low-order approximate models that can be evaluated cheaply at the expense of controller performance are often available. With this in mind, we seek a middle ground between model-based and data-driven approaches in this work.
 
-In this work we propose a novel method that combines the benefits of model-based and
-data-driven methods, based on recent work  applying Koopman Operator Theory to
-controlled dynamical systems 
-\cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}.
-% \cite{Meduri2022,Bruder2021, Korda2021}
-% \cite{Meduri2022, Folkestad2021, Bruder2021, Korda2018, Folkestad2020a, Folkestad2020b}.  
-By leveraging data collected from an
-unknown dynamical system along with derivative information from an approximate
-analytical model, we can efficiently learn a bilinear representation of the system
-dynamics that performs well when used in traditional model-based control techniques such
-as linear MPC. By leveraging information from an analytical model, we can dramatically
-reduce the number of samples required to learn a good approximation of the true
-nonlinear dynamics. We also show the effectiveness of linear MPC on these systems 
-when the learned bilinear system is linearized and projected back into the original 
-state space. The result is a fast, robust, and sample-efficient pipeline for quickly 
-learning a model that beats previous Koopman-based linear MPC approaches as well as 
-purely model-based linear MPC controllers that do not leverage data collected from the 
-actual system. To learn these bilinear representations, we also propose 
-a numerical technique that allows for large systems to be trained while limiting the 
-peak memory required to solve the least-squares problem.
+We propose a method for learning bilinear Koopman models \todo{cite stuff} of nonlinear dynamical systems for use in model-predictive control that leverages information from an approximate prior dynamics model of the system in the training process.
+Our new algorithm builds on extended Dynamic Mode Decomposition (eDMD), which learns Koopman models from trajectory data \cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}, by adding a derivative regularization term based on derivatives computed from a prior model.
+We show that this new algorithm, Jacobian-regularized Dynamic Mode Decomposition (JDMD), can learn models with dramatically fewer samples than eDMD, even when the prior model differs significantly from the true dynamics of the system.
+We also demonstrate the effectiveness of these learned models in a model-predictive control (MPC) framework.
+%on these systems when the learned bilinear system is linearized and projected back into the original state space.
+The result is a fast, robust, and sample-efficient pipeline for quickly 
+training a model that can outperform previous Koopman-based MPC approaches as well as 
+purely model-based controllers that do not leverage data collected from the 
+actual system.
+%To learn these bilinear representations, we also propose a numerical technique that allows for large systems to be trained while limiting the peak memory required to solve the least-squares problem.
 
-The current work is most closely related to recent work out of Caltech 
-\cite{Folkestad2020,Folkestad2021,Folkestad2021a} which learn a bilinear
-model and apply nonlinear model-predictive control directly on the learned bilinear 
-dynamics. Similarly, control Lyapunov functions were also recently used directly on the 
-learned bilinear dynamics \cite{Narasingam2022}. These works build on a foundational paper
-applying MPC to nonlinear systems using Koopman operators to learn a linear model directly
-\cite{Korda2018}.
-
-In summary, our contributions are:
+Our work is most closely related to the recent work of Folkestad et. al.
+\cite{Folkestad2020,Folkestad2021,Folkestad2021a}, which learn bilinear
+models and apply nonlinear model-predictive control directly on the learned bilinear 
+dynamics. Other recent works have combined linear Koopman models with model-predictive control \cite{Korda2018} and Lyapunov control techniques with bilinear Koopman \cite{Narasingam2022}. Our contributions are:
 \begin{itemize}
-  \item A novel extension to extended dynamic mode decomposition (eDMD) that
-  incorporates gradient information from an approximate analytic model;
+  \item A novel extension to extended dynamic mode decomposition, called JDMD, that
+  incorporates gradient information from an approximate analytic model
   
-  \item a simple linear MPC control technique for learned bilinear control systems
-  that is computationally efficient online, which, when combined with the proposed
-  extension to eDMD, requires extremely little training data to get a good control
-  policy; and
+  \item A recursive, batch QR algorithm for solving the least-squares problems that arise 
+  when learning bilinear dynamical systems using DMD-based algorithms, including JDMD and eDMD
   
-  \item a recursive, batch QR algorithm solving the least-squares problems that arise 
-  when learning bilinear dynamical systems using eDMD.
+  \item A simple linear MPC control technique for learned bilinear control systems
+  that is computationally efficient and, when combined with JDMD, requires very little training data to achieve good
+  performance
 \end{itemize}
 
-The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
-give some background on the application of Koopman operator theory to controlled 
-dynamical systems and review some related works. Section \ref{sec:jdmd} describes
-the proposed algorithm for combining data-driven and model-based approaches, while 
-\ref{sec:projected_mpc} proposed an efficient technique for controlling these learned models
-online. In Section \ref{sec:rls} we outline an memory-efficient technique for solving the 
-large, sparse linear least-squares problems that arise when applying the proposed adaption 
-to eDMD. Lastly, Section \ref{sec:results} provides numerical analysis of the 
-proposed algorithm, applied to a simulated cartpole, quadrotor model, and a small foam 
-airplane, all subject to significant model mismatch. In Section \ref{sec:limitations} we 
-discuss the limitations of the method, and finish with some concluding thoughts in Section 
+The remainder of the paper is organized as follows:
+In Section \ref{sec:Preliminaries/Background} we provide some background on the application of Koopman operator theory to controlled dynamical systems and review some related works.
+Section \ref{sec:jdmd} then describes the proposed JDMD algorithm.
+In Section \ref{sec:rls} we outline a memory-efficient technique for solving the large, sparse linear least-squares problems that arise when applying JDMD and other DMD-based algorithms.
+Next, in Section \ref{sec:projected_mpc}, we propose an efficient model-predictive control technique that utilizes the learned bilinear models produced by JDMD.
+Section \ref{sec:results} then provides simulation results and analysis of the proposed algorithm applied to control tasks on a cartpole, a quadrotor, and a small foam airplane, all subject to significant model mismatch.
+In Section \ref{sec:limitations} we discuss the limitations of our approach, followed by some concluding remarks in Section 
 \ref{sec:conclusion}.
 
 \section{Background and Related Work} \label{sec:Preliminaries/Background}
 
 \subsection{Koopman Operator Theory}
 The theoretical underpinnings of the Koopman operator and its application to dynamical
-systems has been extensively studied, especially within the last decade 
-\cite{Fasel2021,Proctor2018,Bruder2021,Williams2015}. Rather than describe the theory in
-detail, we highlight the key concepts employed by the current work, and defer the
-motivated reader to the existing literature on Koopman theory.
+systems has been extensively studied \cite{Fasel2021,Proctor2018,Bruder2021,Williams2015}. Rather than describe the theory in
+detail, we highlight the key concepts employed by the current work and refer the reader to the existing literature on Koopman theory for further details.
 
-We start by assuming we have some discrete approximation of a controlled nonlinear,
-time-dynamical system whose underlying continuous dynamics are Lipchitz continuous:
+We start by assuming a controlled, nonlinear, discrete-time dynamical system,
 \begin{equation} \label{eq:discrete_dynamics} 
-  x^+ = f(x, u) 
+  x^+ = f(x, u), 
 \end{equation} 
 where $x \in \mathcal{X} \subseteq \R^{N_x}$ is the state vector, $u_k \in \R^{N_u}$ is
-the control vector, and $x^+$ is the state at the next time step. This discrete
-approximation can be obtained for any continuous-time, smooth dynamical system in many
-ways, including implicit and explicit Runge-Kutta methods, or by solving the Discrete
-Euler-Lagrange equations \cite{Brudigam2021a,Brudigam2021,Howell2022}.
-
-The key idea behind the Koopman operator is that the nonlinear finite-dimensional discrete
-dynamics \eqref{eq:discrete_dynamics} can be represented by an infinite-dimensional
-\textit{bilinear} system:
+the control vector, and $x^+$ is the state at the next time step.
+The key idea behind the Koopman operator is that the nonlinear finite-dimensional dynamics \eqref{eq:discrete_dynamics} can be represented \emph{exactly} by an infinite-dimensional bilinear system of the form,
 \begin{equation} \label{eq:bilinear_dynamics}
-  y^+ = A y + B u + \sum_{i=1}^m u_i C_i y = g(y,u)
+  y^+ = A y + B u + \sum_{i=1}^m u_i C_i y = g(y,u) ,
 \end{equation}
 where $y = \phi(x)$ is a nonlinear mapping from the finite-dimensional state space
-$\mathcal{X}$ to the (possibly) infinite-dimensional Hilbert space of \textit{observables}
-$y \in \mathcal{Y}$. We also assume the inverse map is approximately linear: $x = G y$. In
-practice, we approximate \eqref{eq:discrete_dynamics} by choosing $\phi$ to be some
-arbitrary finite set of nonlinear functions of the state variables, which in general
-include the states themselves such that the linear mapping $G \in \R^{N_x \times N_y}$ is
-exact.  Intuitively, $\phi$ ``lifts'' our states into a higher dimensional space where the
+$\mathcal{X}$ to the infinite-dimensional Hilbert space of \textit{observables} $\mathcal{Y}$.
+In practice, we approximate \eqref{eq:bilinear_dynamics} by restricting $\mathcal{Y}$ to be a finite-dimensional vector space, in which case $\phi$ becomes a finite-dimensional nonlinear function of the state variables that must be chosen by the user.
+
+
+Intuitively, $\phi$ ``lifts'' our state $x$ into a higher dimensional space $\mathcal{Y}$ where the
 dynamics are approximately (bi)linear, effectively trading dimensionality for
-(bi)linearity. This idea should be both unsurprising and familiar to most roboticists,
-since similar techniques have already been employed in other forms, such as
-maximal-coordinate representations of rigid body dynamics
-\cite{Baraff,Brudigam2021a,Howell2022}, the
-``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that
-solving large, sparse nonlinear optimization problems is often more effective than solving
-small, tightly-coupled dense problems.
+(bi)linearity. Similarly, we can perform the inverse operation by projecting a lifted state $y$ back into the original state space $\mathcal{X}$. In this work, we will assume that $\phi$ is constructed in such a way that this inverse mapping is linear:
+\begin{equation}
+	x = G y
+\end{equation}
+
+%This idea should be both unsurprising and familiar to most roboticists, since similar techniques have already been employed in other forms, such as maximal-coordinate representations of rigid body dynamics \cite{Baraff,Brudigam2021a,Howell2022}, the ``kernel trick'' for state-vector machines \cite{Hofmann2006}, or the observation that solving large, sparse nonlinear optimization problems is often more effective than solving small, tightly-coupled dense problems.
 % \todo{add citations from the trajectory optimization literature}.
 
 \subsection{Extended Dynamic Mode Decomposition} \label{sec:edmd}
 
-The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned
-from $P$ samples of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic
-Mode Decomposition (eDMD) \cite{Williams2015,Folkestad2021}. We can learn the
-matrix of model coefficients
+\todo{This section is too terse. A little more detail in the text about what's going on would help, e.g. ``data matrices consisting of all control inputs and lifted states...'' Explain a little more in words and lean a little less on people parsing all of the math.}
 
+A lifted bilinear system of the form \eqref{eq:bilinear_dynamics} can be learned
+from $P$ samples of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic
+Mode Decomposition (eDMD) \cite{Williams2015,Folkestad2021}. We concatenate all of the model coefficient matrices as follows:
 \begin{equation} \label{eq:E_matrixdef}
   E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
 \end{equation}
 by solving the following linear least-squares problem:
+\todo{typo on $Y_{1:P}^2$ below?}
 \begin{align} \label{opt:edmd}
   \underset{E}{\text{minimize}} \; \norm{E Z_{1:P} - Y_{1:P}^2}_2^2
 \end{align}
@@ -228,15 +170,15 @@ and $N_z = N_y + N_u + N_y \cdot N_u$.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Methodology
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{EDMD with Jacobian Residual-Penalization} \label{sec:jdmd}
-We derive our proposed algorithm, Jacobian-penalized Dynamic Mode Decomposition (jDMD) 
-through a straightforward adaptation of the original eDMD algorithm described in Section 
-\ref{sec:edmd}.
+\section{Jacobian-Regularizated Dynamic Mode Decomposition} \label{sec:jdmd}
 
-Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an approximate discrete
-dynamics model 
+\todo{Let's standardize on ``Jacobian-Regularized'' instead of ``Jacobian-penalized'' and ``JDMD'' instead of jDMD}
+
+We now present JDMD as a straightforward adaptation of the original eDMD algorithm described in Section 
+\ref{sec:edmd}. Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an approximate discrete-time
+dynamics model,
 \begin{equation}
-  x^+ = \tilde{f}(x,u)
+  x^+ = \tilde{f}(x,u),
 \end{equation}
 we can evaluate the Jacobians of our approximate model $\tilde{f}$ at each of the sample
 points: $\tilde{A}_i = \pdv{\tilde{f}}{x}, \tilde{B}_i = \pdv{\tilde{f}}{u}$. After
@@ -251,6 +193,7 @@ model. These \textit{projected Jacobians} are calculated by differentiating thro
   x^+ = G \left( A \phi(x) + B u + \sum_{i=1}^m u_i C_i \phi(x) \right)  = \bar{f}(x,u).
 \end{equation}
 Differentiating \eqref{eq:projected_dynamics} with respect to $x$ and $u$ gives us
+\todo{This notation isn't super clear. Can we try using some different letters instead of hats on $A$ and $B$ below? Also is there a typo on the $\bar{A}$ below?}
 \begin{subequations} \label{eq:projected_jacobians}
   \begin{align}
     \bar{A}_j &= \pdv{\hat{f}}{x}\left(x_j,u_j\right) 
@@ -423,29 +366,6 @@ learned ``live'' while the robot gathers data by moving through it's environment
 % \eqref{eq:bilinear_dynamics} by solving this large, sparse linear least-squares 
 % problem.
 
-\section{Projected Bilinear MPC} \label{sec:projected_mpc}
-Here we propose a simple approach to model-predictive control for the bilinear systems 
-learned using either classic eDMD or the proposed jDMD approach. The key idea is to use the 
-projected Jacobians $\bar{A}$ and $\bar{B}$ in \eqref{eq:projected_jacobians}, effectively 
-reducing the problem back to the original state dimension instead of the larger, lifted one.
-When tracking a reference trajectory as we do in the all of the following examples, this 
-can be done by solving the following convex Quadratic Program (QP):
-% \begin{mini}[2]
-%   {x_{1:N}, u_{1:N}}{\half x_N^T Q_N x_N + \frac \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k}{}{}
-% \end{mini}
-\begin{mini}
-  {x_{1:N}, u_{1:N-1}}{\half x_N^T Q_N x_N + \half \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k }{}{}
-  \addConstraint{x_{k+1} = \bar{A}_k x_k + \bar{B}_k u_k + d_k}{}
-  \addConstraint{x_1 = x_\text{init}}
-\end{mini}
-where here we define $x$ and $u$ to be the ``delta''  from the reference trajectory 
-$\bar{x}_{1:N}$, $\bar{u}_{1:N-1}$. The affine dynamics term 
-$d_k = f(\bar{x}_k, \bar{u}_k) - \bar{x}_{k+1}$ allows for dynamically infeasible reference
-trajectories. The projected Jacobians can be efficiently calculated from the bilinear 
-dynamics either offline or online, and since the problem dimension is the same size as the 
-linear MPC problem for the original dynamics, it is no more expensive to compute. This
-formulation also makes it trivial to enforce additional control or path constraints, and 
-avoids the need to regularize or otherwise constrain the lifted states.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Efficient Recursive Least Squares} \label{sec:rls}
@@ -458,31 +378,30 @@ following unconstrained optimization problem:
 We assume $F$ is a large, sparse matrix and that solving it directly using a QR or Cholesky
 decomposition requires too much memory for a single computer. While solving \eqref{opt:lls}
 using an iterative method such as LSMR \cite{Fong2011} or LSQR \cite{Paige1982} is possible,
-we found these methods do not work well in practice for solving \eqref{opt:jdmd} since the 
-matrices tend to be ill-conditioned. Recursive methods for solving these problems are able
-to process the rows of the matrices sequentially to build QR decomposition of the full
-matrix, but also tend to be ill-conditioned \cite{Strobach1990,Sayed2009,Ghirnikar1990}. We
-propose an alternative recursive method based off of numerical techniques that, to our
-knowledge, aren't well known to the learning community. We solve \eqref{opt:lls} by dividing
-up the rows of $F$ into batches:
+we find that these methods do not work well in practice for solving \eqref{opt:jdmd} due to ill-conditioning.
+Standard recursive methods for solving these problems are able
+to process the rows of the matrices sequentially to build a QR decomposition of the full
+matrix, but also tend to suffer from ill-conditioning \cite{Strobach1990,Sayed2009,Ghirnikar1990}.
+
+To overcome these issues, we propose an alternative recursive method based. We solve \eqref{opt:lls} by dividing
+up rows of $F$ into batches:
 \begin{align} \label{eq:F_sum}
   F^T F = F_1^T F_1 + F_2^T F_2 + \ldots + F_N^T F_N.
 \end{align}
-The main idea of this recursive method is to maintain an upper-triangular ``square root''
-factor $U_i$ of the first $i$ terms of the sum \eqref{eq:F_sum}. Given the factorization 
-$U_i$, we can calculate $U_{i+1}$ using the $\operatorname{QR}$ decomposition, as shown in
+The main idea is to maintain and update an upper-triangular Cholesky
+factor $U_i$ of the first $i$ terms of the sum \eqref{eq:F_sum}. Given $U_i$, we can calculate $U_{i+1}$ using the $\operatorname{QR}$ decomposition, as shown in
 \cite{Howell2019}:
 \begin{equation}
   U_{i+1} = \sqrt{U_i^TU_i + F_{i+1}^TF_{i+1}} = 
   \operatorname{QR_R}\bigg( \begin{bmatrix} {U_i} \\ {F_{i+1}} \end{bmatrix} \bigg),
 \end{equation}
 where $\operatorname{QR_R}$ returns the upper triangular matrix $R$ from the 
-$\operatorname{QR}$ decomposition. For a maximally-efficient implementation, this function 
-should be a ``Q-less'' $\operatorname{QR}$ decomposition, since the $Q$ matrix is never 
+$\operatorname{QR}$ decomposition. For an efficient implementation, this function 
+should be an ``economy'' or ``Q-less'' $\operatorname{QR}$ decomposition \cite{cite something (e.g. Van Loan)}, since the $Q$ matrix is never 
 needed.
 
-We handle regularization of the normal equations, equivalent to adding L2 regularization to 
-the original least squares problem, during the base case of our recursion. If we want to 
+We also handle regularization of the normal equations, equivalent to adding Tikhonov regularization to 
+the original least squares problem \todo{cite something}, during the base case of our recursion. If we want to 
 add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
 
 \begin{equation}
@@ -518,6 +437,29 @@ add an L2 regularization with weight $\lambda$, we calculate $U_1$ as:
   \label{fig:perch}
 \end{figure}
 
+\section{Projected Bilinear MPC} \label{sec:projected_mpc}
+
+We propose a simple approach to model-predictive control for the bilinear systems 
+learned using either classic eDMD or the proposed JDMD approach. The key idea is to use the 
+projected Jacobians $\bar{A}$ and $\bar{B}$ in \eqref{eq:projected_jacobians}, effectively reducing
+the problem to a standard linear MPC problem in the original state space instead of the larger, lifted one.
+In the all of the examples in the following section, our MPC controller solves the following convex Quadratic Program (QP):
+% \begin{mini}[2]
+%   {x_{1:N}, u_{1:N}}{\half x_N^T Q_N x_N + \frac \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k}{}{}
+% \end{mini}
+\begin{mini}
+  {x_{1:N}, u_{1:N-1}}{\half x_N^T Q_N x_N + \half \sum_{k=1}^{N-1} x_k^T Q_k x_k + u_k^T R_k u_k }{}{}
+  \addConstraint{x_{k+1} = \bar{A}_k x_k + \bar{B}_k u_k + d_k}{}
+  \addConstraint{x_1 = x_\text{init}}
+\end{mini}
+where here we define $x$ and $u$ to be the ``delta''  from the reference trajectory \todo{how about just writing $\Delta x$ and $\Delta u$ explicitly above?}
+$\bar{x}_{1:N}$, $\bar{u}_{1:N-1}$. The affine dynamics term 
+$d_k = f(\bar{x}_k, \bar{u}_k) - \bar{x}_{k+1}$ allows for dynamically infeasible reference
+trajectories. The projected Jacobians can be efficiently calculated from the bilinear 
+dynamics either offline or online, and since the problem dimension is the same size as the 
+linear MPC problem for the original dynamics, it is no more expensive to compute. This
+formulation also makes it trivial to enforce additional control or path constraints, and 
+avoids the need to regularize or otherwise constrain the lifted states.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Results
