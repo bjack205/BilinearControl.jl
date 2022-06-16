@@ -563,7 +563,20 @@ solving for ``perching'' trajectories with ALTRO that encourage minimal velocity
 a constraint on the final position (see Figure \ref{fig:perch}). These trajectories are
 tracked using a QP-based linear MPC solver, with bounds on the state and control deviations
 at each time step. The nominal model used a simple flat-plate wing model with linear lift
-and quadratic drag coefficient models.
+and quadratic drag coefficient models. To train the bilinear models, we used a
+68-dimensional nonlinear mapping composed of dynamics terms such as the rotation matrix
+(expressed in terms of a Modified Rodriguez Parameter), powers of the angle of attack and
+side slip angle, the body frame velocity, various cross products with the angular velocity,
+and some 3rd and 4th order Chebyshev polynomials.
+
+% nonlinear mapping: $\phi(x) = [1, x, \text{vec}(R), v_\text{body}, v_\text{body}^T
+% v_\text{body}, \sin(p), \alpha, \beta, \alpha^2, \beta^2, \alpha^3, \beta^3, p \times v, p
+% \times \omega, \omega \times \omega, T_3(x), T_4(x) ] \in \R^{68}$, where $p \in \R^3$ is
+% the position, $g \in \R^3$ is the attitude expressed as Modified Rodriguez Parameter, $v \in
+% \R^3$ is the linear velocity in the world frame, $\omega \in \R^3$ is the angular velocity,
+% $R \in \R^{3 \times 3}$ is the rotation matrix expressed in terms of $g$, $v_\text{body}$ is
+% the velocity in the body frame, $\alpha$ is the angle of attack, and $\beta$ is the side
+% slip angle.
 
 The code for the experiments is located at \todo{include after review}.  
 
