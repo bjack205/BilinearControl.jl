@@ -21,7 +21,7 @@
   % JDMD: A Sample-Efficient Method for Learning How To Control Nonlinear Systems
   % JDMD: Boosting Sample Efficiency in Bilinear Koopman Models through Derivative Information
   % JDMD: Quickly Boost MPC Performance via Koopman Operators and Approximate Derivatives
-  % JDMD: Adapting Adapting Extended Dynamic Mode Decomposition to Leverage What You Know 
+  % JDMD: Adapting Extended Dynamic Mode Decomposition to Leverage What You Know 
   JDMD: Extended Dynamic Mode Decomposition with Jacobian Residual Penalization
   for Learning Bilinear, Control-affine Koopman Models
 }
@@ -673,7 +673,7 @@ information provided by the nominal model.
 	\vspace{-2\baselineskip}
 	\begin{tabular}{cccc}\\
 		\toprule  
-								& {\color{black} \textbf{nominal MPC}} & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
+								& {\color{black} \textbf{Nominal MPC}} & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
 		\midrule
 		Mean Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
 		Success Rate 			& \textbf{82\%} & 18\%	& 80\% \\
@@ -688,7 +688,7 @@ To demonstrate that this generalizability extends to more complex dynamics, we a
 show the tracking capabilities of infeasible, point-to-point trajectories for the 6-DOF quadrotor
 with full attitude dynamics. As seen in Figure \ref{fig:rex_full_quadrotor_initial_conditions}, the generated
 reference trajectories have a wide scope in sampling despite being sparse in nature. As shown in
-Table \ref{tab:mpc_comp}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
+Table \ref{tab:full_quad_tracking_mpc}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
 successfully reach the equilibrium. Meanwhile, eDMD has significantly worse performance in tracking and succeeding
 in stabilizing about the goal state.  Despite the aggressive starting position, jDMD is still able to successfully
 account for the attitude dynamics, reach the goal state, and stabilize, as seen in Figure \ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
@@ -697,7 +697,8 @@ account for the attitude dynamics, reach the goal state, and stabilize, as seen 
 	\begin{subfigure}[t]{0.49\textwidth}
 		\centering
 		\includegraphics[width=\textwidth,height=5cm]{full_quadrotor_test_linear_trajectories.png}
-		\caption{Sampled point-to-point trajectories and initial conditions for test tracking MPC of 6-DOF quadrotor.}
+		\caption{Sampled point-to-point trajectories and initial conditions for test
+		tracking MPC of 6-DOF quadrotor (top-down view).}
 		\label{fig:rex_full_quadrotor_initial_conditions}
 	\end{subfigure}
 	\hfill
@@ -723,7 +724,7 @@ account for the attitude dynamics, reach the goal state, and stabilize, as seen 
 \subsection{Lifted versus Projected MPC}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{wraptable}{r}{5.0cm}
-  \vspace{-2\baselineskip}
+  \vspace{-1\baselineskip}
   \begin{tabular}{ccc}\\
     \toprule  
     MPC       & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
@@ -736,19 +737,19 @@ account for the attitude dynamics, reach the goal state, and stabilize, as seen 
   \vspace{-1\baselineskip}
   \label{tab:mpc_comp}
 \end{wraptable} 
-      
+
 We performed a simple experiment to highlight the value of the proposed ``projected'' MPC,
-outlined in \label{sec:projected_mpc}. We trained eDMD and jDMD models with an increasing 
-number of training trajectories, and recorded the first sample size at which the ``lifted''
-and ``projected'' MPC controllers consistently stabilized the system (i.e. stabilized 95\%
-of the test initial conditions for the cartpole system for that sample size and subsequent 
-ones). The results are summarized in Table \ref{tab:mpc_comp}. The results qualitatively 
-show what we quantitatively observed while training and testing these various examples:
-the projected MPC approach usually required far fewer samples to ``train'' and usually had 
-better performance than it's ``lifted'' counterpart that used the bilinear ``lifted'' 
-dynamics. This was especially pronounced when combined with the proposed jDMD approach, 
-which makes sense given that the approach explicitly encourages these Jacobians to match 
-the analytical ones, so quickly converge to reasonable values with just a few training 
+outlined in Section \ref{sec:projected_mpc}. We trained eDMD and jDMD models with an
+increasing number of training trajectories, and recorded the first sample size at which the
+``lifted'' and ``projected'' MPC controllers consistently stabilized the system (i.e.
+stabilized 95\% of the test initial conditions for the cartpole system for that sample size
+and subsequent ones).  The results are summarized in Table \ref{tab:mpc_comp}. The results
+quantitatively show what we qualitatively observed while training and testing these various
+examples: the projected MPC approach usually required far fewer samples to ``train'' and
+usually had better performance than it's lifted counterpart that used the bilinear
+lifted dynamics. This was especially pronounced when combined with the proposed jDMD
+approach, which makes sense given that the approach explicitly encourages these Jacobians to
+match the analytical ones, so quickly converges to reasonable values with just a few training
 examples.
 
 \subsection{Sensitivity to Model Mismatch}
@@ -769,7 +770,7 @@ a natural argument against model-based methods is that they're only as good as y
 at capturing the salient dynamics of the system.  We investigated the effect of increasing
 model mismatch by incrementally increasing the Coulomb friction coefficient between the cart
 and the floor for the cartpole stabilization task (recall the nominal model assumed zero
-friction). The results are shown in Figure \ref{tab:friction_comp}. As expected, the number
+friction). The results are shown in Table \ref{tab:friction_comp}. As expected, the number
 of training trajectories required to find a good stabilizing controller increases for the
 proposed approach. We achieved the results above by setting $\alpha = 0.01$, corresponding 
 to a decreased confidence in our model, thereby placing greater weight on the experimental 
@@ -803,16 +804,18 @@ dynamics.
 % Limitations 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Limitations} \label{sec:limitations}
+
 As with most data-driven techniques, it is hard to definitively declare that the proposed 
 method will increase performance in all cases. It is possible that having an extremely poor
 analytical model may hurt rather than help the training process. However, we found that even
 when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
-during the learning process), it still dramatically improves the sample efficiency. It is 
-also quite possible that the performance gaps between eDMD and jDMD shown here can be 
-reduced through better selection of basis functions and better training data sets; however,
-given that the proposed approach converges to eDMD as $\alpha \rightarrow 0$, we see no 
-reason to not adopt the proposed methodology as simply tune $\alpha$ based on the 
-confidence of the model and the quantity (and quality) of training data.
+during the learning process), it still dramatically improves the sample efficiency over 
+standard eDMD. It is also quite possible that the performance gaps between eDMD and jDMD
+shown here can be reduced through better selection of basis functions and better training
+data sets; however, given that the proposed approach converges to eDMD as $\alpha
+\rightarrow 0$, we see no reason to not adopt the proposed methodology as simply tune
+$\alpha$ based on the confidence of the model and the quantity (and quality) of training
+data.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -828,22 +831,22 @@ resulting pipeline can dramatically increase sample efficiency, often improving 
 nominal MPC policy with just a few sample trajectories. Substantial areas for future work
 remain: most notably testing the proposed pipeline on hardware. Additional directions
 include lifelong learning or adaptive control applications, combining simulated and real
-data through the use of modern differentiable physics engines \cite{Howell2022,Todorov2012}
+data through the use of modern differentiable physics engines \cite{Howell2022,Todorov2012},
 residual dynamics learning, as well as the development of specialized numerical methods for
 solving nonlinear optimal control problems using the learned bilinear dynamics.
 
-\begin{figure}
-	\centering
-	\includegraphics[width=1.0\textwidth, height=5.5cm]{quadrotor_mpc_zigzag_tracking_trajectories.tikz}
-	\caption{Effect of increasing model mismatch. Displays the number of training trajectories
-		required to consistently stabilize the cartpole system, given an increasing friction 
-		coefficient, which the nominal model does not include at all. An entry of 0 signifies 
-		that a stabilizing controller wasn't found with less than 100 training trajectories.
-		The nominal MPC controller failed to stabilize once the friction coefficient went above 
-		0.1.
-	}
-	\label{fig:cartpole_friction_mismatch}
-\end{figure}
+% \begin{figure}
+% 	\centering
+% 	\includegraphics[width=1.0\textwidth, height=5.5cm]{quadrotor_mpc_zigzag_tracking_trajectories.tikz}
+% 	\caption{Effect of increasing model mismatch. Displays the number of training trajectories
+% 		required to consistently stabilize the cartpole system, given an increasing friction 
+% 		coefficient, which the nominal model does not include at all. An entry of 0 signifies 
+% 		that a stabilizing controller wasn't found with less than 100 training trajectories.
+% 		The nominal MPC controller failed to stabilize once the friction coefficient went above 
+% 		0.1.
+% 	}
+% 	\label{fig:cartpole_friction_mismatch}
+% \end{figure}
 
 
 \bibliography{Koopman.bib}
