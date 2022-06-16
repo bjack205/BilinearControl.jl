@@ -161,6 +161,8 @@ dt = metadata.dt
 
 num_train = 1:50
 prog = Progress(length(num_train), dt=0.1, desc="Progress: ", showspeed=true)
+
+res = test_mpc_stabilization_controllers(X_train0, U_train0, t_train, dt, num_train=2, num_test=10)
 @time results = map(num_train) do N
     next!(prog)
     test_mpc_stabilization_controllers(X_train0, U_train0, t_train, dt, num_train=N, num_test=10)

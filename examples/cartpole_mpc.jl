@@ -1,3 +1,8 @@
+"""
+    cartpole_mpc.jl
+
+This script was used to generated Figure 2a in the paper
+"""
 import Pkg; Pkg.activate(joinpath(@__DIR__)); Pkg.instantiate();
 using BilinearControl
 using BilinearControl.Problems
@@ -25,8 +30,16 @@ include("constants.jl")
 include("cartpole_utils.jl")
 const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")
 
-## Create function for generating nominal cartpole problem for ALTRO
+##
+"""
+    train_cartpole_models(num_lqr, num_swingup; kwargs...)
 
+Trains eDMD and jDMD models with `num_lqr` LQR stabilization trajectories and 
+`num_swingup` ALTRO swingup trajectories, loaded from `cartpole_swingup_data.jld2`.
+
+After training, uses MPC to track the swingup reference trajectories in the data files,
+and reports back statistics.
+"""
 function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0, reg=1e-6)
 
     #############################################
@@ -138,7 +151,8 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
 end
 
 ##
-generate_cartpole_data()
+generate_cartpole_data()  # OPTIONAL (data file already exists)
+train_cartpole_models(0,2, α=0.5, β=1.0, learnB=true, reg=1e-4)  # run once for JIT
 num_swingup = 2:2:36
 results = map(num_swingup) do N
     println("\nRunning with N = $N")
@@ -148,7 +162,6 @@ results = map(num_swingup) do N
     res
 end
 jldsave(CARTPOLE_RESULTS_FILE; results)
-results
 
 ## Process results
 using PGFPlotsX

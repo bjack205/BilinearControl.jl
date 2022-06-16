@@ -160,7 +160,7 @@ p_err = @pgf Axis(
     PlotInc({lineopts..., color=color_nominal}, Coordinates(num_train, err_nom)),
     PlotInc({lineopts..., color=color_eDMD}, Coordinates(num_train, err_eDMD)),
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, err_jDMD)),
-    Legend(["Nominal MPC", "eDMD", "jDMD"])
+    Legend(["Nominal MPC", "EDMD", "JDMD"])
 )
 pgfsave(joinpath(Problems.FIGDIR, "airplane_error_by_num_train.tikz"), p_err, 
     include_preamble=false)
