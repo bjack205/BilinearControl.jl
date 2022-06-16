@@ -800,9 +800,9 @@ dynamics.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Limitations} \label{sec:limitations}
 
-As with most data-driven techniques, it is hard to definitively declare that the proposed 
+As with most data-driven techniques, it is difficult to claim that our
 method will increase performance in all cases. It is possible that having an extremely poor
-analytical model may hurt rather than help the training process. However, we found that even
+prior model may hurt rather than help the training process. However, we found that even
 when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
 during the learning process), it still dramatically improves the sample efficiency over 
 standard EDMD. It is also quite possible that the performance gaps between EDMD and JDMD
@@ -818,13 +818,12 @@ data.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusions and Future Work} \label{sec:conclusion}
 
-We have presented a simple but powerful extension to EDMD, a model-based method for learning
-a bilinear representation of arbitrary dynamical systems, that incorporates derivative
-information from an analytical model. When combined with a simple linear MPC policy that
-projects the learned dynamics back into the original state space, we have shown that the
-resulting pipeline can dramatically increase sample efficiency, often improving over a
+We have presented JDMD, a simple but powerful extension to EDMD that incorporates derivative
+information from an approximate prior model. We have tested JDMD in combination with 
+a simple linear MPC control policy across a range of systems and tasks, and have found that the
+resulting combination can dramatically increase sample efficiency over EDMD, often improving over a
 nominal MPC policy with just a few sample trajectories. Substantial areas for future work
-remain: most notably testing the proposed pipeline on hardware. Additional directions
+remain: most notably, demonstrating the proposed pipeline on hardware. Additional directions
 include lifelong learning or adaptive control applications, combining simulated and real
 data through the use of modern differentiable physics engines \cite{Howell2022,Todorov2012},
 residual dynamics learning, as well as the development of specialized numerical methods for
