@@ -106,7 +106,7 @@ end
 
 function traj3!(vis, X::AbstractVector{<:AbstractVector}; inds=SA[1,2,3], kwargs...)
     pts = [Point{3,Float32}(x[inds]) for x in X] 
-    setobject!(vis[:traj], MeshCat.Line(pts, LineBasicMaterial(;kwargs...)))
+    setobject!(vis[:traj], MeshCat.Line(pts, LineBasicMaterial(; linewidth=3.0, kwargs...)))
 end
 
 #############################################
@@ -203,10 +203,10 @@ eDMD_MPC = eDMD_MPC_trajectories[i]
 jDMD_MPC = jDMD_MPC_trajectories[i]
 T_mpc = T_mpc_vecs[i]
 
-traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(23,75,63)")
-traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"rgb(0,193,208)")
-traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=colorant"rgb(255,75,63)")
-traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(255,173,0)")
+traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(204,0,43)")
+traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"black")
+traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=colorant"rgb(255,173,0)")
+traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(0,193,208)")
 
 waypoints!(vis, model, jDMD_MPC; color=colorant"rgb(70,70,70)", interval=15)
 
