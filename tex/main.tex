@@ -550,11 +550,8 @@ x,\, \sin(x),\, \cos(x),\, \sin(2x),\, \sin(4x),\, T_2(x),\, T_3(x),\, T_4(x)\, 
 All reference trajectories for the swing up task were generated using ALTRO 
 \cite{Howell2019,Jackson2021}.
 
-\todo{update quadotor description} For the planar quadrotor, the \textit{true} model
-included aerodynamic drag terms not included in the \textit{nominal} model, as well as
-parametric error of about 5\% on the system properties (e.g. mass, rotor arm length, etc.).
-The model was trained using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, \sin(x),\,
-\cos(x),\, \sin(2x),\, T_2(x),\, ] \in \R^{25}$. 
+We also include 2 quadrotor systems: a 3-DOF, planar model and a 6-DOF, full quadrotor model. For both systems,
+the \textit{true} model includes aerodynamic drag terms not included in the \textit{nominal} model, as well as parametric error of about 5\% on the system properties (e.g. mass, rotor arm length, etc.). The planar model was trained using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, \sin(x),\, \cos(x),\, \sin(2x),\, T_2(x) ] \in \R^{25}$ while the full quadrotor model was train using a nonlinear mapping of $\phi(x) = [\, 1,\, x,\, T_2(x),\, \sin(p),\, \cos(p),\, R^{T}v,\ v^{T}RR^{T}v,\, p \times v,\, p \times \omega,\, \omega \times \omega ] \in \R^{44}$, where $p$ is the quadrotor's position, $v$ and $\omega$ are the translational and angular velocities respectively, and $R$ is the Rotation matrix. Reference trajectories were produced by nominal MPC tracking controllers attempting to track infeasible, point-to-point, linear trajectories with various initial conditions.
 
 Our most high-fidelity model is an airplane model with lift and drag coefficients fit from
 rigorous wind-tunnel testing \cite{Manchester2017}. The coefficients are valid for high
@@ -651,8 +648,8 @@ requires about 4x the number of samples (20 vs 5) compared to the proposed appro
 
 
 We demonstrate the generalizability of the proposed method to tasks outside of its training
-domain in Figure \ref{fig:training_window}. In both the quadrotor 
-stabilization (Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_training_window}) and 
+domain in Figure \ref{fig:training_window}. In both the planar quadrotor 
+stabilization (Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change}) and 
 trajectory tracking (Figure \ref{fig:rex_planar_quadrotor_mpc_error_by_training_window})
 tasks, we trained the models by sampling uniformly from a given window of offsets, centered 
 about the origin. 
@@ -671,6 +668,56 @@ conditions within the training window. As shown, eDMD doesn't generalize to othe
 equilibrium points, despite the fact that the underlying dynamics are invariant to the
 equilibrium position. Our proposed approach, however, easily learns this from the derivative
 information provided by the nominal model.
+
+\begin{wraptable}{l}{9.0cm}
+	\vspace{-2\baselineskip}
+	\begin{tabular}{cccc}\\
+		\toprule  
+								& {\color{black} \textbf{nominal MPC}} & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
+		\midrule
+		Mean Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
+		Success Rate 			& \textbf{82\%} & 18\%	& 80\% \\
+		\bottomrule
+	\end{tabular}
+	\caption{Performance summary of MPC tracking of 6-DOF quadrotor}
+	\vspace{-1\baselineskip}
+	\label{tab:full_quad_tracking_mpc}
+\end{wraptable} 
+
+To demonstrate that this generalizability extends to more complex dynamics, we additionally 
+show the tracking capabilities of infeasible, point-to-point trajectories for the 6-DOF quadrotor
+with full attitude dynamics. As seen in Figure \ref{fig:rex_full_quadrotor_initial_conditions}, the generated
+reference trajectories have a wide scope in sampling despite being sparse in nature. As shown in
+Table \ref{tab:mpc_comp}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
+successfully reach the equilibrium. Meanwhile, eDMD has significantly worse performance in tracking and succeeding
+in stabilizing about the goal state.  Despite the aggressive starting position, jDMD is still able to successfully
+account for the attitude dynamics, reach the goal state, and stabilize, as seen in Figure \ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
+
+\begin{figure}[t] \centering
+	\begin{subfigure}[t]{0.49\textwidth}
+		\centering
+		\includegraphics[width=\textwidth,height=5cm]{full_quadrotor_test_linear_trajectories.png}
+		\caption{Sampled point-to-point trajectories and initial conditions for test tracking MPC of 6-DOF quadrotor.}
+		\label{fig:rex_full_quadrotor_initial_conditions}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[t]{0.49\textwidth}
+		\raggedright
+		\includegraphics[width=\textwidth, height=5cm]{jdmd_full_quad_pointtopoint_with_waypoints.png}
+		\caption{Generated MPC tracking trajectories for nominal MPC (\color{blue} blue\color{black}), eDMD (\color{red} red\color{black}), and jDMD (\color{orange} orange\color{black}) for an example reference.}
+		\label{fig:jdmd_full_quad_pointtopoint_with_waypoints}
+		% \includegraphics[width=\textwidth,height=5cm]{rex_planar_quadrotor_lqr_error_by_training_window.tikz}
+		% \label{fig:rex_planar_quadrotor_lqr_error_by_training_window}
+	\end{subfigure}
+	\caption{Generalizability with respect to initial conditions sampled outside of the 
+		training domain. The initial conditions are sampled from a uniform distribution, whose 
+		limits are determined by a scaling of the limits used for the training distribution. 
+		A training range fraction greater than $1$ indicates the
+		distribution range is beyond that used to generate the training trajectories. The thick 
+		lines represent the algorithm with a heavy regularization parameter.
+	}
+	\label{fig:training_window}
+\end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Lifted versus Projected MPC}

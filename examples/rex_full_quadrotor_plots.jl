@@ -139,14 +139,15 @@ vis = Visualizer()
 delete!(vis)
 render(vis)
 
-# Some cool trajectories: 3, 8, 16, 22, 33
-i = 3
+## Some cool trajectories: 38, 45, 46, 47, 48
+i = 46
 
 ref = ref_trajectories[i]
 nom_MPC = nom_MPC_trajectories[i]
 eDMD_MPC = eDMD_MPC_trajectories[i]
 jDMD_MPC = jDMD_MPC_trajectories[i]
 T_mpc = T_mpc_vecs[i]
+set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
 visualize!(vis, model, T_mpc[end], jDMD_MPC)
 
 println("")
@@ -195,7 +196,7 @@ setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
 
 set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
 
-i = 3
+i = 46
 ref = ref_trajectories[i]
 nom_MPC = nom_MPC_trajectories[i]
 eDMD_MPC = eDMD_MPC_trajectories[i]
@@ -243,6 +244,7 @@ visualize!(vis["jDMD_quad"]["$i"], model, T_mpc[end], jDMD_MPC)
 #############################################
 
 equilibrium_results = load(QUADROTOR_RESULTS_FILE)["equilibrium_results"]
+distances = 0:0.1:2.0
 
 fields = keys(equilibrium_results[1])
 res_equilibrium = Dict(Pair.(fields, map(x->getfield.(equilibrium_results, x), fields)))
@@ -270,14 +272,60 @@ p_equilibrium_err = @pgf Axis(
         xmajorgrids,
         ymajorgrids,
         xlabel = "Equilibirum offset",
-        ylabel = "Tracking error",
+        ylabel = "Success rate",
         legend_pos = "north west",
-        ymax = 10,
+        ymax = 1.2,
         
     },
-    PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:err_nom_MPC])),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
+    PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:nom_success][2:end] ./ 10.0)),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:eDMD_success][2:end] ./ 10.0)),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:jDMD_success][2:end] ./ 10.0)),
 
     Legend(["nominal MPC", "eDMD", "jDMD"])
 )
+pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_success_rate_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
+
+#############################################
+## Plot tracking performance vs test window
+#############################################
+
+window_results = load(QUADROTOR_RESULTS_FILE)["window_results"]
+percentages = 0.1:0.1:2
+
+fields = keys(window_results[1])
+window_results = Dict(Pair.(fields, map(x->getfield.(window_results, x), fields)))
+
+p_window_error = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Training range",
+        ylabel = "Tracking error",
+        legend_pos = "north west",
+        
+    },
+    PlotInc({lineopts..., color="black"}, Coordinates(percentages, window_results[:error_nom])),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, window_results[:error_eDMD])),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, window_results[:error_jDMD])),
+
+    Legend(["nominal MPC", "eDMD", "jDMD"])
+)
+pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_error_by_training_range.tikz"), p_window_error, include_preamble=false)
+
+p_window_success = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Training range",
+        ylabel = "Success rate",
+        legend_pos = "north east",
+        ymax = 1.2,
+        
+    },
+    PlotInc({lineopts..., color="black"}, Coordinates(percentages, window_results[:num_success_nom] ./ 50)),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, window_results[:num_success_eDMD]./ 50)),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, window_results[:num_success_jDMD]./ 50)),
+
+    Legend(["nominal MPC", "eDMD", "jDMD"])
+)
+pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_success_rate_by_training_range.tikz"), p_window_success, include_preamble=false)
