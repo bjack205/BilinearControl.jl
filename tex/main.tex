@@ -76,11 +76,11 @@ In recent years, both model-based optimal-control \cite{Farshidian2017,Kuindersm
 We propose a method for learning bilinear Koopman models \todo{cite stuff} of nonlinear
 dynamical systems for use in model-predictive control that leverages information from an
 approximate prior dynamics model of the system in the training process.  Our new algorithm
-builds on extended Dynamic Mode Decomposition (eDMD), which learns Koopman models from
+builds on extended Dynamic Mode Decomposition (EDMD), which learns Koopman models from
 trajectory data \cite{Meduri2022,Bruder2021,Korda2018,Folkestad2020,Suh2020}, by adding a
 derivative regularization term based on derivatives computed from a prior model.  We show
 that this new algorithm, Jacobian-regularized Dynamic Mode Decomposition (JDMD), can learn
-models with dramatically fewer samples than eDMD, even when the prior model differs
+models with dramatically fewer samples than EDMD, even when the prior model differs
 significantly from the true dynamics of the system.  We also demonstrate the effectiveness
 of these learned models in a model-predictive control (MPC) framework.
 %on these systems when the learned bilinear system is linearized and projected back into the
@@ -104,7 +104,7 @@ are:
   incorporates gradient information from an approximate analytic model
   
   \item A recursive, batch QR algorithm for solving the least-squares problems that arise 
-  when learning bilinear dynamical systems using DMD-based algorithms, including JDMD and eDMD
+  when learning bilinear dynamical systems using DMD-based algorithms, including JDMD and EDMD
   
   \item A simple linear MPC control technique for learned bilinear control systems that is
   computationally efficient and, when combined with JDMD, requires very little training data
@@ -173,8 +173,8 @@ would help, e.g. ``data matrices consisting of all control inputs and lifted sta
 Explain a little more in words and lean a little less on people parsing all of the math.}
 
 A lifted bilinear system of the form \eqref{eq:bilinear_dynamics} can be learned from $P$
-samples of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic Mode Decomposition
-(eDMD) \cite{Williams2015,Folkestad2021}. We concatenate all of the model coefficient
+samples of the system dynamics $(x_j^+,x_j,u_j)$ using Extended Dynamic Mode Decomposition
+(EDMD) \cite{Williams2015,Folkestad2021}. We concatenate all of the model coefficient
 matrices as follows:
 \begin{equation} \label{eq:E_matrixdef}
   E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
@@ -209,7 +209,7 @@ and $N_z = N_y + N_u + N_y \cdot N_u$.
 \todo{Let's standardize on ``Jacobian-Regularized'' instead of ``Jacobian-penalized'' and
 ``JDMD'' instead of jDMD}
 
-We now present JDMD as a straightforward adaptation of the original eDMD algorithm described
+We now present JDMD as a straightforward adaptation of the original EDMD algorithm described
 in Section \ref{sec:edmd}. Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an
 approximate discrete-time dynamics model,
 \begin{equation}
@@ -479,7 +479,7 @@ calculate $U_1$ as:
 \section{Projected Bilinear MPC} \label{sec:projected_mpc}
 
 We propose a simple approach to model-predictive control for the bilinear systems learned
-using either classic eDMD or the proposed JDMD approach. The key idea is to use the 
+using either classic EDMD or the proposed JDMD approach. The key idea is to use the 
 projected Jacobians $\bar{A}$ and $\bar{B}$ in \eqref{eq:projected_jacobians}, effectively
 reducing the problem to a standard linear MPC problem in the original state space instead of
 the larger, lifted one.  In the all of the examples in the following section, our MPC
@@ -804,9 +804,9 @@ dynamics.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Limitations} \label{sec:limitations}
 
-As with most data-driven techniques, it is hard to definitively declare that the proposed 
+As with most data-driven techniques, it is difficult to claim that our
 method will increase performance in all cases. It is possible that having an extremely poor
-analytical model may hurt rather than help the training process. However, we found that even
+prior model may hurt rather than help the training process. However, we found that even
 when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
 during the learning process), it still dramatically improves the sample efficiency over 
 standard EDMD. It is also quite possible that the performance gaps between EDMD and JDMD
@@ -822,13 +822,12 @@ data.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusions and Future Work} \label{sec:conclusion}
 
-We have presented a simple but powerful extension to EDMD, a model-based method for learning
-a bilinear representation of arbitrary dynamical systems, that incorporates derivative
-information from an analytical model. When combined with a simple linear MPC policy that
-projects the learned dynamics back into the original state space, we have shown that the
-resulting pipeline can dramatically increase sample efficiency, often improving over a
+We have presented JDMD, a simple but powerful extension to EDMD that incorporates derivative
+information from an approximate prior model. We have tested JDMD in combination with 
+a simple linear MPC control policy across a range of systems and tasks, and have found that the
+resulting combination can dramatically increase sample efficiency over EDMD, often improving over a
 nominal MPC policy with just a few sample trajectories. Substantial areas for future work
-remain: most notably testing the proposed pipeline on hardware. Additional directions
+remain: most notably, demonstrating the proposed pipeline on hardware. Additional directions
 include lifelong learning or adaptive control applications, combining simulated and real
 data through the use of modern differentiable physics engines \cite{Howell2022,Todorov2012},
 residual dynamics learning, as well as the development of specialized numerical methods for
