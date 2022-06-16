@@ -627,6 +627,20 @@ requires about 4x the number of samples (20 vs 5) compared to the proposed appro
   }
   \label{fig:training_window}
 \end{figure}
+\begin{wraptable}{r}{7.0cm}
+	\vspace{-2\baselineskip}
+	\begin{tabular}{cccc}\\
+		\toprule  
+								& {\color{black} \textbf{Nominal}} & {\color{orange} \textbf{EDMD}} & {\textbf{\color{cyan} JDMD}} \\
+		\midrule
+		Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
+		Success Rate 			& \textbf{82\%} & 18\%	& 80\% \\
+		\bottomrule
+	\end{tabular}
+	\caption{Performance summary of MPC tracking of 6-DOF quadrotor}
+	\vspace{-1\baselineskip}
+	\label{tab:full_quad_tracking_mpc}
+\end{wraptable} 
 
 We demonstrate the generalizability of the proposed method on both the planar and 3D 
 quadrotor. In all tasks, the goal is to return to the origin, given an initial condition 
@@ -642,20 +656,6 @@ Additionally, in Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_c
 show the effect of changing the equilibrium position away from the origin: while the true 
 dynamics should be invariant to this change, EDMD fails to learn this whereas JDMD does.
 
-\begin{wraptable}{r}{7.0cm}
-	\vspace{-2\baselineskip}
-	\begin{tabular}{cccc}\\
-		\toprule  
-								& {\color{black} \textbf{Nominal}} & {\color{orange} \textbf{EDMD}} & {\textbf{\color{cyan} JDMD}} \\
-		\midrule
-		Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
-		Success Rate 			& \textbf{82\%} & 18\%	& 80\% \\
-		\bottomrule
-	\end{tabular}
-	\caption{Performance summary of MPC tracking of 6-DOF quadrotor}
-	\vspace{-1\baselineskip}
-	\label{tab:full_quad_tracking_mpc}
-\end{wraptable} 
 For the full quadrotor, given the goal of tracking a straight line back to the origin, we
 test 50 initial conditions, many of which are far from the goal, have large velocities, or
 are nearly inverted (see Figure \ref{fig:rex_full_quadrotor_initial_conditions}). 
@@ -730,20 +730,6 @@ while the majority of the time resulting in trajectories like those in Figure
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Lifted versus Projected MPC}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{wraptable}{r}{5.0cm}
-  \vspace{-3.5\baselineskip}
-  \begin{tabular}{ccc}\\
-    \toprule  
-    MPC       & {\color{orange} \textbf{EDMD}} & {\textbf{\color{cyan} JDMD}} \\
-    \midrule
-    Lifted    & 17   &          15 \\
-    Projected & 18   &  \textbf{2} \\
-    \bottomrule
-  \end{tabular}
-  \caption{Training trajectories required to beat nominal MPC}
-  \vspace{-1\baselineskip}
-  \label{tab:mpc_comp}
-\end{wraptable} 
 
 We performed a simple experiment to highlight the value of the proposed ``projected'' MPC,
 outlined in Section \ref{sec:projected_mpc}. We trained EDMD and JDMD models with an
@@ -758,6 +744,21 @@ lifted dynamics. This was especially pronounced when combined with the proposed 
 approach, which makes sense given that the approach explicitly encourages these Jacobians to
 match the analytical ones, so quickly converges to reasonable values with just a few training
 examples.
+
+\begin{wraptable}{r}{5.0cm}
+  \vspace{-2\baselineskip}
+  \begin{tabular}{ccc}\\
+    \toprule  
+    MPC       & {\color{orange} \textbf{EDMD}} & {\textbf{\color{cyan} JDMD}} \\
+    \midrule
+    Lifted    & 17   &          15 \\
+    Projected & 18   &  \textbf{2} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Training trajectories required to beat nominal MPC}
+  \vspace{-1\baselineskip}
+  \label{tab:mpc_comp}
+\end{wraptable} 
 
 \subsection{Sensitivity to Model Mismatch}
 
