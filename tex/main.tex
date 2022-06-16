@@ -126,16 +126,16 @@ applying MPC to nonlinear systems using Koopman operators to learn a linear mode
 
 In summary, our contributions are:
 \begin{itemize}
-  \item A novel extension to extended dynamic mode decomposition (eDMD) that
+  \item A novel extension to extended dynamic mode decomposition (EDMD) that
   incorporates gradient information from an approximate analytic model;
   
   \item a simple linear MPC control technique for learned bilinear control systems
   that is computationally efficient online, which, when combined with the proposed
-  extension to eDMD, requires extremely little training data to get a good control
+  extension to EDMD, requires extremely little training data to get a good control
   policy; and
   
   \item a recursive, batch QR algorithm solving the least-squares problems that arise 
-  when learning bilinear dynamical systems using eDMD.
+  when learning bilinear dynamical systems using EDMD.
 \end{itemize}
 
 The paper is organized as follows: in Section \ref{sec:Preliminaries/Background} we 
@@ -145,7 +145,7 @@ the proposed algorithm for combining data-driven and model-based approaches, whi
 \ref{sec:projected_mpc} proposes an efficient technique for controlling these learned models
 online. In Section \ref{sec:rls} we outline a memory-efficient technique for solving the 
 large, sparse linear least-squares problems that arise when applying the proposed adaptation 
-to eDMD. Lastly, Section \ref{sec:results} provides numerical analysis of the 
+to EDMD. Lastly, Section \ref{sec:results} provides numerical analysis of the 
 proposed algorithm, applied to a simulated cartpole, quadrotor model, and a small foam 
 airplane, all subject to significant model mismatch. In Section \ref{sec:limitations} we 
 discuss the limitations of the method, and finish with some concluding thoughts in Section 
@@ -198,7 +198,7 @@ small, tightly-coupled dense problems.
 
 The lifted bilinear system \eqref{eq:bilinear_dynamics} can be easily learned
 from $P$ samples of the system dynamics $(x_j^+,x_j,u_j)$ using extended Dynamic
-Mode Decomposition (eDMD) \cite{Williams2015,Folkestad2021}. We can learn the
+Mode Decomposition (EDMD) \cite{Williams2015,Folkestad2021}. We can learn the
 matrix of model coefficients
 
 \begin{equation} \label{eq:E_matrixdef}
@@ -229,8 +229,8 @@ and $N_z = N_y + N_u + N_y \cdot N_u$.
 % Methodology
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{EDMD with Jacobian Residual-Penalization} \label{sec:jdmd}
-We derive our proposed algorithm, Jacobian-penalized Dynamic Mode Decomposition (jDMD) 
-through a straightforward adaptation of the original eDMD algorithm described in Section 
+We derive our proposed algorithm, Jacobian-penalized Dynamic Mode Decomposition (JDMD) 
+through a straightforward adaptation of the original EDMD algorithm described in Section 
 \ref{sec:edmd}.
 
 Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an approximate discrete
@@ -425,7 +425,7 @@ learned ``live'' while the robot gathers data by moving through its environment.
 
 \section{Projected Bilinear MPC} \label{sec:projected_mpc}
 Here we propose a simple approach to model-predictive control for the bilinear systems 
-learned using either classic eDMD or the proposed jDMD approach. The key idea is to use the 
+learned using either classic EDMD or the proposed JDMD approach. The key idea is to use the 
 projected Jacobians $\bar{A}$ and $\bar{B}$ in \eqref{eq:projected_jacobians}, effectively 
 reducing the problem back to the original state dimension instead of the larger, lifted one.
 When tracking a reference trajectory as we do in the all of the following examples, this 
@@ -532,7 +532,7 @@ the nominal model. This true model is used exclusively for simulating the system
 
 All models were trained by simulating the true system with an arbitrary controller to 
 collect data in the region of the state space relevant to the task. A set of fixed-length 
-trajectories were collected, each at a sample rate of 20-25 Hz. The bilinear eDMD model was
+trajectories were collected, each at a sample rate of 20-25 Hz. The bilinear EDMD model was
 trained using the same approach introduced by Folkestad and Burdick \cite{Folkestad2021}.
 All continuous dynamics were discretized with an explicit
 fourth-order Runge Kutta integrator. 
@@ -618,8 +618,8 @@ The code for the experiments is located at \todo{include after review}.
 We highlight the sample efficiency of the proposed algorithm in Figure 
 \ref{fig:sample_efficiency}. For both the cartpole swing up and the airplane perch trajectory 
 tracking tasks, the proposed method achieves better tracking than the nominal MPC controller
-with just two sample trajectories, and performs better than eDMD on both 
-trajectory tracking tasks. To achieve comparable performance on the perching task, eDMD 
+with just two sample trajectories, and performs better than EDMD on both 
+trajectory tracking tasks. To achieve comparable performance on the perching task, EDMD 
 requires about 4x the number of samples (20 vs 5) compared to the proposed approach.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -670,7 +670,7 @@ dynamics should be invariant to this change, EDMD fails to learn this whereas JD
 	\vspace{-2\baselineskip}
 	\begin{tabular}{cccc}\\
 		\toprule  
-								& {\color{black} \textbf{Nominal}} & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
+								& {\color{black} \textbf{Nominal}} & {\color{orange} \textbf{EDMD}} & {\textbf{\color{cyan} JDMD}} \\
 		\midrule
 		Tracking Err.		& 0.30			& 0.63 	& \textbf{0.11} \\
 		Success Rate 			& \textbf{82\%} & 18\%	& 80\% \\
@@ -701,14 +701,14 @@ while the majority of the time resulting in trajectories like those in Figure
 % from which the test data was sampled, e.g. if the initial lateral position was trained on 
 % data in the interval $[-1.5,+1.5]$, we sampled the test initial condition from the window 
 % $[-\gamma 1.5, +\gamma 1.5]$. As shown in the results, while the performance of the proposed
-% algorithm remains relatively constant even when $\gamma = 2.5$, whereas the classic eDMD 
+% algorithm remains relatively constant even when $\gamma = 2.5$, whereas the classic EDMD 
 % approach looses performance and fails to generalize at all for the stabilization task using 
 % and LQR controller (like due to poor derivative information), and up to $\gamma = 2$ for the 
 % tracking task using a linear MPC controller.
 
 % In Figure \ref{fig:rex_planar_quadrotor_lqr_error_by_equilibrium_change} we show the effect 
 % of changing the equilibrium position for the planar quadrotor, but keeping the delta initial
-% conditions within the training window. As shown, eDMD doesn't generalize to other
+% conditions within the training window. As shown, EDMD doesn't generalize to other
 % equilibrium points, despite the fact that the underlying dynamics are invariant to the
 % equilibrium position. Our proposed approach, however, easily learns this from the derivative
 % information provided by the nominal model.
@@ -717,9 +717,9 @@ while the majority of the time resulting in trajectories like those in Figure
 % show the tracking capabilities of infeasible, point-to-point trajectories for the 6-DOF quadrotor
 % with full attitude dynamics. As seen in Figure \ref{fig:rex_full_quadrotor_initial_conditions}, the generated
 % reference trajectories have a wide scope in sampling despite being sparse in nature. As shown in
-% Table \ref{tab:full_quad_tracking_mpc}, jDMD has the best tracking performance and closely matches nominal MPC's ability to
-% successfully reach the equilibrium. Meanwhile, eDMD has significantly worse performance in tracking and succeeding
-% in stabilizing about the goal state.  Despite the aggressive starting state, jDMD is still able to successfully
+% Table \ref{tab:full_quad_tracking_mpc}, JDMD has the best tracking performance and closely matches nominal MPC's ability to
+% successfully reach the equilibrium. Meanwhile, EDMD has significantly worse performance in tracking and succeeding
+% in stabilizing about the goal state.  Despite the aggressive starting state, JDMD is still able to successfully
 % account for the attitude dynamics, reach the goal state, and stabilize, as seen in Figure \ref{fig:jdmd_full_quad_pointtopoint_with_waypoints}.
 
 \begin{figure}[t] \centering
@@ -756,7 +756,7 @@ while the majority of the time resulting in trajectories like those in Figure
   \vspace{-3.5\baselineskip}
   \begin{tabular}{ccc}\\
     \toprule  
-    MPC       & {\color{orange} \textbf{eDMD}} & {\textbf{\color{cyan} jDMD}} \\
+    MPC       & {\color{orange} \textbf{EDMD}} & {\textbf{\color{cyan} JDMD}} \\
     \midrule
     Lifted    & 17   &          15 \\
     Projected & 18   &  \textbf{2} \\
@@ -768,7 +768,7 @@ while the majority of the time resulting in trajectories like those in Figure
 \end{wraptable} 
 
 We performed a simple experiment to highlight the value of the proposed ``projected'' MPC,
-outlined in Section \ref{sec:projected_mpc}. We trained eDMD and jDMD models with an
+outlined in Section \ref{sec:projected_mpc}. We trained EDMD and JDMD models with an
 increasing number of training trajectories, and recorded the first sample size at which the
 ``lifted'' and ``projected'' MPC controllers consistently stabilized the system (i.e.
 stabilized 95\% of the test initial conditions for the cartpole system for that sample size
@@ -776,7 +776,7 @@ and subsequent ones).  The results are summarized in Table \ref{tab:mpc_comp}. T
 quantitatively show what we qualitatively observed while training and testing these various
 examples: the projected MPC approach usually required far fewer samples to ``train'' and
 usually had better performance than its lifted counterpart that used the bilinear
-lifted dynamics. This was especially pronounced when combined with the proposed jDMD
+lifted dynamics. This was especially pronounced when combined with the proposed JDMD
 approach, which makes sense given that the approach explicitly encourages these Jacobians to
 match the analytical ones, so quickly converges to reasonable values with just a few training
 examples.
@@ -792,7 +792,7 @@ friction). The results are shown in Table \ref{tab:friction_comp}. As expected, 
 of training trajectories required to find a good stabilizing controller increases for the
 proposed approach. We achieved the results above by setting $\alpha = 0.01$, corresponding 
 to a decreased confidence in our model, thereby placing greater weight on the experimental 
-data. The standard eDMD approach always required more samples, and was unable to find a good
+data. The standard EDMD approach always required more samples, and was unable to find a good
 enough model above friction values of 0.4. While this could likely be remedied by adjusting
 the nonlinear mapping $\phi$, the proposed approach works well with the given bases.  Note
 that the nominal MPC controller failed to stabilize the system above friction values of 0.1,
@@ -807,8 +807,8 @@ dynamics.
   Friction ($\mu$) & 0.0 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\
   \midrule 
   Nominal & \cmark & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark \\
-  eDMD & 3 & 19 & 6 & 14 & \xmark & \xmark & \xmark \\
-  jDMD & 2 & 2 & 2 & 2 & 3 & 7 & 12 \\
+  EDMD & 3 & 19 & 6 & 14 & \xmark & \xmark & \xmark \\
+  JDMD & 2 & 2 & 2 & 2 & 3 & 7 & 12 \\
   \end{tabular}
   % \include(../images/tables/friction_comp.tex)
   \caption{Training trajectories required to stabilize the cartpole with the given friction
@@ -828,9 +828,9 @@ method will increase performance in all cases. It is possible that having an ext
 analytical model may hurt rather than help the training process. However, we found that even
 when the $\alpha$ parameter is extremely small (placing little weight on the Jacobians 
 during the learning process), it still dramatically improves the sample efficiency over 
-standard eDMD, . It is also quite possible that the performance gaps between eDMD and jDMD
+standard EDMD. It is also quite possible that the performance gaps between EDMD and JDMD
 shown here can be reduced through better selection of basis functions and better training
-data sets; however, given that the proposed approach converges to eDMD as $\alpha
+data sets; however, given that the proposed approach converges to EDMD as $\alpha
 \rightarrow 0$, we see no reason to not adopt the proposed methodology as simply tune
 $\alpha$ based on the confidence of the model and the quantity (and quality) of training
 data.
@@ -841,7 +841,7 @@ data.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Conclusion and Future Work} \label{sec:conclusion}
 
-We have presented a simple but powerful extension to eDMD, a model-based method for learning
+We have presented a simple but powerful extension to EDMD, a model-based method for learning
 a bilinear representation of arbitrary dynamical systems, that incorporates derivative
 information from an analytical model. When combined with a simple linear MPC policy that
 projects the learned dynamics back into the original state space, we have shown that the
