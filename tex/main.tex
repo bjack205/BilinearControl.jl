@@ -180,7 +180,7 @@ matrices as follows:
   E = \begin{bmatrix} A & B & C_1 & \dots & C_m \end{bmatrix} \in \R^{N_y \times N_z},
 \end{equation}
 by solving the following linear least-squares problem:
-\todo{typo on $Y_{1:P}^2$ below?}
+
 \begin{align} \label{opt:edmd}
   \underset{E}{\text{minimize}} \; \norm{E Z_{1:P} - Y_{1:P}^+}_2^2
 \end{align}
@@ -205,9 +205,6 @@ and $N_z = N_y + N_u + N_y \cdot N_u$.
 % Methodology
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Jacobian-Regularizated Dynamic Mode Decomposition} \label{sec:jdmd}
-
-\todo{Let's standardize on ``Jacobian-Regularized'' instead of ``Jacobian-penalized'' and
-``JDMD'' instead of jDMD}
 
 We now present JDMD as a straightforward adaptation of the original EDMD algorithm described
 in Section \ref{sec:edmd}. Given $P$ samples of the dynamics $(x_i^+, x_i, u_i)$, and an
@@ -552,7 +549,7 @@ and quadratic drag coefficient approximations. The bilinear models use a 68-dime
 nonlinear mapping $\phi$ including terms such as the rotation matrix (expressed in terms of
 a Modified Rodriguez Parameter), powers of the angle of attack and side slip angle, the body
 frame velocity, various cross products with the angular velocity, and some 3rd and 4th order
-Chebyshev polynomials \todo{of what?}.
+Chebyshev polynomials of the states.
 
 % nonlinear mapping: $\phi(x) = [1, x, \text{vec}(R), v_\text{body}, v_\text{body}^T
 % v_\text{body}, \sin(p), \alpha, \beta, \alpha^2, \beta^2, \alpha^3, \beta^3, p \times v, p
