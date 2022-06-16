@@ -2,3 +2,4 @@
 *.mtl
 statprof/
 *_checkpoint.ipynb
+.DS_Store
