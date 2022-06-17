@@ -6,6 +6,18 @@ using BilinearControl: Problems
 using Test
 include(joinpath(BilinearControl.EXAMPLES_DIR,"cartpole_utils.jl"))
 
+## Test problem generation
+X_train, U_train, X_test, U_test, X_ref, U_ref, metadata = generate_cartpole_data(
+    save_to_file=false)
+
+# make sure the reference test trajectories all get to the goal
+@test norm(getindex.(X_ref[end,:],2) - fill(pi,10)) < 1e-5
+
+# make sure training trajectories all do a fair job of getting to the goal
+angle_errors_train = map(x->abs(x[2] - pi), X_train[end,:])
+@test maximum(angle_errors_train) < deg2rad(25)
+
+
 ## Test Cartpole controller at specific sample size
 println("\nTESTING CARTPOLE MPC CONTROLLER WITH N = ", 2)
 const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")

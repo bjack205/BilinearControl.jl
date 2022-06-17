@@ -30,9 +30,7 @@ include("constants.jl")
 include("cartpole_utils.jl")
 const CARTPOLE_RESULTS_FILE = joinpath(Problems.DATADIR, "cartpole_results.jld2")
 
-##
-
-##
+## Test MPC Controller with a given number of training samples
 generate_cartpole_data()  # OPTIONAL (data file already exists)
 train_cartpole_models(0,2, α=0.5, β=1.0, learnB=true, reg=1e-4)  # run once for JIT
 num_swingup = 2:2:36
