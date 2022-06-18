@@ -23,8 +23,6 @@ export run_eDMD, run_jDMD
 
 using BilinearControl
 using LinearAlgebra
-using Convex
-using COSMO
 import QDLDL
 using SparseArrays
 using LazyArrays

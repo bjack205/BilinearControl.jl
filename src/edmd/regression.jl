@@ -286,31 +286,6 @@ function linear_regression(Y::AbstractVector{<:AbstractFloat},
         return b
     elseif algorithm == :qr_rls
         b = rls_qr(Y, X; Q=λ, showprog)
-    elseif algorithm == :convex
-        Q = X'X / T
-        c = X'Y / T                   #c'b = Y'X*b
-
-        b = Variable(K)               #define variables to optimize over
-        L1 = quadform(b, Q)           #b'Q*b
-        L2 = dot(c, b)                #c'b
-        L3 = norm(b, 1)               #sum(|b|)
-        L4 = sumsquares(b)            #sum(b^2)
-
-        if gamma==0 && lambda==0
-            return X \ Y
-        end
-
-        if lambda > 0
-            # perform elastic net or ridge
-            Sol = minimize(L1 - 2 * L2 + gamma * L3 + lambda * L4)
-        else
-            # perform lasso
-            Sol = minimize(L1 - 2 * L2 + gamma * L3)
-        end
-
-        solve!(Sol, COSMO.Optimizer; silent_solver = true)
-        Sol.status == Convex.MOI.OPTIMAL ? b = vec(evaluate(b)) : b = X \ Y
-        return b
     else
         error("Algorithm $algorithm not recognized.")
     end
