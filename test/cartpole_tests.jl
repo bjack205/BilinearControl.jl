@@ -66,4 +66,4 @@ println("FINDING MIN SAMPLES FOR LIFTED MPC")
 res_jDMD_lifted = find_min_sample_to_beat_mpc(13:25, dt; alg=:jDMD, lifted=true, 
     repeats_required, α=0.1
 )
-res_jDMD_lifted == 15
+@test res_jDMD_lifted == 15
