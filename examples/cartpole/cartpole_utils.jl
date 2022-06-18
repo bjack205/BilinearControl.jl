@@ -8,11 +8,16 @@ using Distributions
 using Random
 using JLD2
 
+const CARTPOLE_LQR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "cartpole_lqr_results.jld2")
+const CARTPOLE_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_results.jld2")
+const CARTPOLE_MISMATCH_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mistmatch_results.jld2")
+const CARTPOLE_MPC_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mpc_results.jld2")
+
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
     dt=0.05, constrained=true, μ=0.0)
 
     # NOTE: this should exactly match RobotZoo.Cartpole() when μ = 0.0
-    model = Problems.NominalCartpole(; μ=μ)
+    model = BinlinearControl.NominalCartpole(; μ=μ)
     dmodel = RD.DiscretizedDynamics{RD.RK4}(model) 
     n,m = RD.dims(model)
     N = round(Int, tf/dt) + 1
@@ -49,11 +54,11 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     ## Define the Models
     #############################################
     # Define Nominal Simulated Cartpole Model
-    model_nom = Problems.NominalCartpole(;μ=μ_nom)
+    model_nom = BilinearControl.NominalCartpole(;μ=μ_nom)
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Cartpole Model
-    model_real = Problems.SimulatedCartpole(;μ=μ) # this model has damping
+    model_real = BilinearControl.SimulatedCartpole(;μ=μ) # this model has damping
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     # Time parameters
@@ -88,10 +93,10 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     initial_conditions_test = [rand(x0_sampler) for _ in 1:num_test_lqr]
 
     # Create data set
-    X_train_lqr, U_train_lqr = EDMD.create_data(dmodel_real, ctrl_lqr, 
+    X_train_lqr, U_train_lqr = BilinearControl.create_data(dmodel_real, ctrl_lqr, 
         x0_sampler, num_train_lqr, xe, t_sim, dt, max_samples=max_lqr_samples
     )
-    X_test_lqr, U_test_lqr = EDMD.create_data(dmodel_real, ctrl_lqr, 
+    X_test_lqr, U_test_lqr = BilinearControl.create_data(dmodel_real, ctrl_lqr, 
         x0_sampler, num_test_lqr, xe, t_sim, dt, max_samples=max_lqr_samples
     );
 
@@ -199,7 +204,7 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
 
     ## Save generated training and test data
     if save_to_file
-        jldsave(joinpath(Problems.DATADIR, "cartpole_swingup_data.jld2"); 
+        jldsave(joinpath(BilinearControl.DATADIR, "cartpole_swingup_data.jld2"); 
             X_train_lqr, U_train_lqr,
             X_train_swingup, U_train_swingup,
             X_test_swingup, U_test_swingup, 
@@ -220,7 +225,7 @@ function generate_stabilizing_mpc_controller(model, t_sim, dt;
     )
     xe = [0,pi,0,0]
     ue = [0.]
-    ye = EDMD.expandstate(model, xe)
+    ye = BilinearControl.expandstate(model, xe)
     lifted_state_error(x,x0) = model.kf(x) - x0
 
     # Reference Trajectory
@@ -228,7 +233,7 @@ function generate_stabilizing_mpc_controller(model, t_sim, dt;
     X_ref = [copy(xe) for t in T_sim]
     U_ref = [copy(ue) for t in T_sim]
     T_ref = copy(T_sim)
-    Y_ref = map(x->EDMD.expandstate(model,x), X_ref)
+    Y_ref = map(x->BilinearControl.expandstate(model,x), X_ref)
 
     # Objective
     is_lifted_model = length(ye) > length(xe)
@@ -263,17 +268,17 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
     ## Define the Models
     #############################################
     # Define Nominal Simulated Cartpole Model
-    model_nom = Problems.NominalCartpole()
+    model_nom = BilinearControl.NominalCartpole()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Cartpole Model
-    model_real = Problems.SimulatedCartpole() # this model has damping
+    model_real = BilinearControl.SimulatedCartpole() # this model has damping
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     #############################################  
     ## Load Training and Test Data
     #############################################  
-    altro_lqr_traj = load(joinpath(Problems.DATADIR, "cartpole_swingup_data.jld2"))
+    altro_lqr_traj = load(joinpath(BilinearControl.DATADIR, "cartpole_swingup_data.jld2"))
 
     # Training data
     X_train_lqr = altro_lqr_traj["X_train_lqr"][:,1:num_lqr]
@@ -305,12 +310,12 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
     eigfuns = ["state", "sine", "cosine", "sine", "sine", "chebyshev"]
     eigorders = [[0],[1],[1],[2],[4],[2, 4]]
 
-    t_train_eDMD = @elapsed model_eDMD = EDMD.run_eDMD(X_train, U_train, dt, eigfuns, eigorders, 
+    t_train_eDMD = @elapsed model_eDMD = BilinearControl.run_eDMD(X_train, U_train, dt, eigfuns, eigorders, 
         reg=reg, name="cartpole_eDMD")
-    t_train_jDMD = @elapsed model_jDMD = EDMD.run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, 
+    t_train_jDMD = @elapsed model_jDMD = BilinearControl.run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, 
         reg=reg, name="cartpole_jDMD"; α, β, learnB)
-    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-    model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+    model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
+    model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
 
     #############################################
     ## MPC Tracking
@@ -385,11 +390,11 @@ function test_sample_size(;
 )
 
     ## Define the models
-    model_nom = Problems.NominalCartpole()
+    model_nom = BilinearControl.NominalCartpole()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Cartpole Model
-    model_real = Problems.SimulatedCartpole(; μ=μ) # this model has damping
+    model_real = BilinearControl.SimulatedCartpole(; μ=μ) # this model has damping
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     # Generate data with the new damping term
@@ -438,7 +443,7 @@ function test_sample_size(;
     mpc = if lifted
         generate_stabilizing_mpc_controller(model, t_sim, dt; Nt, ρ)
     else
-        model_projected = EDMD.ProjectedEDMDModel(model)
+        model_projected = BilinearControl.ProjectedEDMDModel(model)
         generate_stabilizing_mpc_controller(model_projected, t_sim, dt; Nt, ρ)
     end
     return test_initial_conditions(
@@ -573,8 +578,8 @@ function find_min_sample_to_beat_mpc(
     mu_vals_remaining = 0 
 
     ## Get the nominal MPC performance
-    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(Problems.NominalCartpole())
-    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(Problems.SimulatedCartpole())
+    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(BilinearControl.NominalCartpole())
+    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(BilinearControl.SimulatedCartpole())
     mpc_nom = generate_stabilizing_mpc_controller(dmodel_nom, t_sim, dt; Nt)
     success_rate, err_mpc_nom = test_initial_conditions(
         dmodel_real, mpc_nom, dt; x_window, test_window_ratio, num_test
