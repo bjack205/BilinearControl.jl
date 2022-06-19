@@ -3,9 +3,10 @@ module BilinearControl
 const EXAMPLES_DIR = joinpath(@__DIR__, "..", "examples")
 
 export Problems
-export LQRController, TrackingMPC
+export LQRController, TrackingMPC, Visualizer
 
 export resetcontroller!, simulatewithcontroller, simulate
+export set_airplane!, set_cartpole!, set_quadrotor!, visualize!
 
 using LinearAlgebra
 using SparseArrays
@@ -19,6 +20,7 @@ using Polynomials
 using JLD2
 using RobotZoo
 using Rotations
+using MeshCat
 
 import RobotDynamics
 import RobotDynamics as RD
@@ -32,6 +34,7 @@ include("controllers.jl")
 include("edmd/edmd.jl")
 # include(joinpath(EXAMPLES_DIR,"problems.jl"))
 include("problems.jl")
+include("visualization/visualization.jl")
 
 export run_eDMD, run_jDMD
 

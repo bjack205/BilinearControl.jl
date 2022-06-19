@@ -585,7 +585,7 @@ function run_jDMD(X_train, U_train, dt, function_list, order_list, model::RD.Dis
 
     ## Build Least Squares Problem
     verbose && println("Generating least squares data")
-    W,s = BilinearControl.EDMD.build_edmd_data(
+    W,s = build_edmd_data(
         Y_train, U_train, A_train, B_train, F_train, G; cinds_jac, α, learnB, verbose)
 
     n = length(Z_train[1])

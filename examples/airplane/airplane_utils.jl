@@ -2,13 +2,78 @@ using ThreadsX
 using Rotations
 using Altro
 using TrajectoryOptimization
+using LinearAlgebra
+using Random
+using Distributions
+using StaticArrays
+using Rotations
+using JLD2
+import RobotDynamics as RD
 const TO = TrajectoryOptimization
+
+const AIRPLANE_DATAFILE = joinpath(BilinearControl.DATADIR, "airplane_trajectory_data.jld2")
+const AIRPLANE_MODELFILE = joinpath(BilinearControl.DATADIR, "airplane_trained_models.jld2")
+const AIRPLANE_RESULTS = joinpath(BilinearControl.DATADIR, "airplane_results.jld2")
+
+function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv, pf=[5,0,1.5])
+    # Discretization
+    model = BilinearControl.SimulatedAirplane()
+    # model = BilinearControl.NominalAirplane()
+    N = round(Int, tf/dt) + 1
+    dt = tf / (N-1)
+
+    # Initial condition
+    p0 = MRP(0.997156, 0., 0.075366) # initial orientation
+    x0     = [-5,0,1.5, Rotations.params(p0)..., 5,0,0, 0,0,0]
+    u_trim = [41.66667789082778, 105.99999999471807, 74.65179381344494, 106.00000124622453]
+
+    # Final condition
+    xf = copy(x0)
+    xf[1:3] .= pf
+    xf[7] = 0.0
+
+    # Shift initial position
+    x0[1:3] .+= dp
+
+    # Objective
+    Qf = Diagonal([fill(1.0, 3); fill(1.0, 3); fill(Qv, 3); fill(Qw, 3)])
+    Q  = Diagonal([fill(1e-2, 3); fill(1e-2, 3); fill(1e-1, 3); fill(1e-1, 3)])
+    R = Diagonal(fill(1e-3,4))
+    obj = TO.LQRObjective(Q,R,Qf,xf,N, uf=u_trim)
+
+    # Constraint
+    n,m = RD.dims(model)
+    constraints = TO.ConstraintList(n,m,N)
+    goalcon = GoalConstraint(xf, SA[1,2,3])
+    add_constraint!(constraints, goalcon, N)
+
+    U0 = [copy(u_trim) for k = 1:N-1]
+    prob = Problem(model,obj,x0,tf; constraints, U0)
+    rollout!(prob)
+    prob
+end
+
+function airplane_kf(x)
+    p = x[1:3]
+    q = x[4:6]
+    mrp = MRP(x[4], x[5], x[6])
+    R = Matrix(mrp)
+    v = x[7:9]
+    w = x[10:12]
+    α = atan(v[3],v[1])  # angle of attack
+    β = atan(v[2],v[1])  # side slip
+    vbody = R'v
+    speed = vbody'vbody
+    [1; x; vec(R); vbody; speed; sin.(p); α; β; α^2; β^2; α^3; β^3; p × v; p × w; 
+        w × w; 
+        BilinearControl.chebyshev(x, order=[3,4])]
+end
 
 function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3.0,2.0], 
         save_to_file=true)
     ## Define nominal and true models
-    model_nom = Problems.NominalAirplane()
-    model_real = Problems.SimulatedAirplane()
+    model_nom = BilinearControl.NominalAirplane()
+    model_real = BilinearControl.SimulatedAirplane()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
@@ -54,7 +119,7 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
             Uref = Vector.(TO.controls(solver))
             Tref = Vector(range(0,tf,step=dt))
 
-            mpc = EDMD.LinearMPC(dmodel_nom, Xref, Uref, Tref, Qk, Rk, Qf; Nt=Nt,
+            mpc = BilinearControl.LinearMPC(dmodel_nom, Xref, Uref, Tref, Qk, Rk, Qf; Nt=Nt,
                 xmin,xmax,umin,umax
             )
             Xsim,Usim,Tsim = simulatewithcontroller(dmodel_real, mpc, Xref[1], Tref[end], Tref[2])
@@ -70,16 +135,6 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
     end
     T_ref = range(0,tf,step=dt)
 
-    # println("Running MPC controller")
-    # mpc_trajectories = ThreadsX.map(1:num_train+num_test) do i
-    #     X_ref,U_ref = reference_trajectories[i]
-
-    #     mpc = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
-    #         xmin,xmax,umin,umax
-    #     )
-    #     X_sim,U_sim,T_sim = simulatewithcontroller(dmodel_real, mpc, X_ref[1], T_ref[end], T_ref[2])
-    #     X_sim,U_sim
-    # end
     X_mpc = mapreduce(x->getindex(x,1), hcat, plane_data)
     U_mpc = mapreduce(x->getindex(x,2), hcat, plane_data)
     X_ref = mapreduce(x->getindex(x,3), hcat, plane_data)
@@ -108,7 +163,7 @@ function train_airplane(num_train)
     dt = T_ref[2]
 
     # Get nominal model
-    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(Problems.NominalAirplane())
+    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(BilinearControl.NominalAirplane())
 
     ## Train models
     model_eDMD = run_eDMD(X_train, U_train, dt, airplane_kf, nothing; 
@@ -122,8 +177,8 @@ end
 
 function test_airplane(model_eDMD, model_jDMD)
     # Models
-    model_nom = Problems.NominalAirplane()
-    model_real = Problems.SimulatedAirplane()
+    model_nom = BilinearControl.NominalAirplane()
+    model_real = BilinearControl.SimulatedAirplane()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
@@ -155,22 +210,22 @@ function test_airplane(model_eDMD, model_jDMD)
     err_nom = zeros(num_test) 
     err_eDMD = zeros(num_test) 
     err_jDMD = zeros(num_test) 
-    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-    model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+    model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
+    model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
 
     # Run MPC on each trajectory
-    Threads.@threads for i = 1:num_test
+    for i = 1:num_test
         X_ref = X_ref0[:,i]
         U_ref = U_ref0[:,i]
         N = length(X_ref)
 
-        mpc_nom = EDMD.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+        mpc_nom = BilinearControl.LinearMPC(dmodel_nom, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
             xmin,xmax,umin,umax
         )
-        mpc_eDMD = EDMD.LinearMPC(model_eDMD_projected, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+        mpc_eDMD = BilinearControl.LinearMPC(model_eDMD_projected, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
             xmin,xmax,umin,umax
         )
-        mpc_jDMD = EDMD.LinearMPC(model_jDMD_projected, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
+        mpc_jDMD = BilinearControl.LinearMPC(model_jDMD_projected, X_ref, U_ref, T_ref, Qk, Rk, Qf; Nt=Nt,
             xmin,xmax,umin,umax
         )
 
