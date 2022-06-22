@@ -153,7 +153,7 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
     X_mpc,U_mpc, X_ref,U_ref
 end
 
-function train_airplane(num_train)
+function train_airplane(num_train; alg=:qr)
     # Get training data
     airplane_data = load(AIRPLANE_DATAFILE)
     good_cols = findall(x->isfinite(norm(x)), eachcol(airplane_data["X_train"]))
@@ -167,10 +167,10 @@ function train_airplane(num_train)
 
     ## Train models
     model_eDMD = run_eDMD(X_train, U_train, dt, airplane_kf, nothing; 
-        alg=:qr, showprog=false, reg=1e-6
+        alg, showprog=false, reg=1e-6
     )
     model_jDMD = run_jDMD(X_train, U_train, dt, airplane_kf, nothing,
-        dmodel_nom; showprog=false, verbose=false, reg=1e-6, alg=:qr, α=0.1
+        dmodel_nom; showprog=false, verbose=false, reg=1e-6, alg, α=0.1
     )
     model_eDMD, model_jDMD
 end

@@ -1,3 +1,17 @@
+"""
+    airplane_main.jl
+
+Code to generate Figure 2b in the paper, showing the sample complexity of the fixed-wing 
+airplane perching example.
+
+Uses ALTRO to generate a set of reference perching trajectories using the true model, in 
+order to get a dynamically feasible reference trajectory. These trajectories are then 
+tracked using an MPC controller designed using the nominal model to generate the training
+trajectories.
+
+The main loop trains a new model using incrementally more and more training trajectories.
+"""
+
 using Pkg; Pkg.activate(joinpath(@__DIR__, "..", ".."))
 using BilinearControl
 using ThreadsX
@@ -18,6 +32,7 @@ open(vis)
 gen_airplane_data(num_train=50, num_test=50, dt=0.04, dp_window=fill(0.5, 3))
 
 ## Test the model with an increasing number of training samples
+# NOTE: This can blow your RAM
 num_train = [2; 5:5:50]
 prog = Progress(length(num_train))
 results = map(num_train) do N
