@@ -2,10 +2,14 @@ using Test
 using Distributions
 using Random
 using Rotations
+using LinearAlgebra
+using JLD2
+using ThreadsX
+import RobotDynamics as RD
 
-const QUADROTOR_NUMTRAJ_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_num_traj_sweep_results.jld2")
-const QUADROTOR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_results.jld2")
-const QUADROTOR_MODELS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_models.jld2")
+# const QUADROTOR_NUMTRAJ_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_num_traj_sweep_results.jld2")
+# const QUADROTOR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_results.jld2")
+# const QUADROTOR_MODELS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_models.jld2")
 const FULL_QUAD_DATA = joinpath(BilinearControl.DATADIR, "full_quad_data.jld2")
 const FULL_QUAD_MODEL_DATA = joinpath(BilinearControl.DATADIR, "full_quad_model_data.jld2")
 const FULL_QUAD_RESULTS = joinpath(BilinearControl.DATADIR, "full_quad_results.jld2")
@@ -233,77 +237,83 @@ function generate_quadrotor_data()
     )
 end
 
-function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
+# function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
 
-    dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+#     dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 
-    N_tf = round(Int, tf/dt) + 1    
-    N_sim = round(Int, t_sim/dt) + 1 
-    Nt = 20
-    T_ref = range(0,tf,step=dt)
+#     N_tf = round(Int, tf/dt) + 1    
+#     N_sim = round(Int, t_sim/dt) + 1 
+#     Nt = 20
+#     T_ref = range(0,tf,step=dt)
 
-    Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    Rmpc = Diagonal(fill(1e-3, 4))
-    Qfmpc = Qmpc*100
+#     Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+#     1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+#     Rmpc = Diagonal(fill(1e-3, 4))
+#     Qfmpc = Qmpc*100
 
-    results = map(ics) do x0
+#     results = map(ics) do x0
 
-        X_ref = nominal_trajectory(x0,N_tf,dt)
-        X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
-        U_ref = [copy(BilinearControl.trim_controls(model)) for k = 1:N_tf]
+#         X_ref = nominal_trajectory(x0,N_tf,dt)
+#         X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
+#         U_ref = [copy(BilinearControl.trim_controls(model)) for k = 1:N_tf]
 
-        mpc = BilinearControl.TrackingMPC_no_OSQP(bilinear_model, 
-            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
-        X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
+#         mpc = BilinearControl.TrackingMPC_no_OSQP(bilinear_model, 
+#             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
+#         X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
 
-        track_err = norm(X_sim - X_ref_full) / N_sim
-        stable_err = norm(X_sim[end] - X_ref_full[end]) 
+#         track_err = norm(X_sim - X_ref_full) / N_sim
+#         stable_err = norm(X_sim[end] - X_ref_full[end]) 
 
-        (; track_err, stable_err)
-    end
+#         (; track_err, stable_err)
+#     end
 
-    err_avg  = mean(filter(isfinite, map(x->x.track_err, results)))
-    num_success = count(x -> x <=10, map(x->x.stable_err, results))
+#     err_avg  = mean(filter(isfinite, map(x->x.track_err, results)))
+#     num_success = count(x -> x <=10, map(x->x.stable_err, results))
 
-    return err_avg, num_success
-end
+#     return err_avg, num_success
+# end
 
-function test_initial_conditions_offset(model, bilinear_model, xg, ics, tf, t_sim, dt)
+# function test_initial_conditions_offset(model, bilinear_model, xg, ics, tf, t_sim, dt)
 
-    dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
+#     dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
 
-    N_tf = round(Int, tf/dt) + 1    
-    N_sim = round(Int, t_sim/dt) + 1 
-    Nt = 20
-    T_ref = range(0,tf,step=dt)
+#     N_tf = round(Int, tf/dt) + 1    
+#     N_sim = round(Int, t_sim/dt) + 1 
+#     Nt = 20
+#     T_ref = range(0,tf,step=dt)
 
-    Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-    1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    Rmpc = Diagonal(fill(1e-3, 4))
-    Qfmpc = Qmpc*100
+#     Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+#     1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+#     Rmpc = Diagonal(fill(1e-3, 4))
+#     Qfmpc = Qmpc*100
 
-    results = map(ics) do x0
+#     results = map(ics) do x0
 
-        x0 += xg
-        X_ref = nominal_trajectory(x0,N_tf,dt; xf=xg[1:3]) 
-        X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
-        U_ref = [copy(BilinearControl.trim_controls(model)) for k = 1:N_tf]
+#         x0 += xg
+#         X_ref = nominal_trajectory(x0,N_tf,dt; xf=xg[1:3]) 
+#         X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
+#         U_ref = [copy(BilinearControl.trim_controls(model)) for k = 1:N_tf]
 
-        mpc = BilinearControl.TrackingMPC_no_OSQP(bilinear_model, 
-            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
-        X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
+#         mpc = BilinearControl.TrackingMPC_no_OSQP(bilinear_model, 
+#             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
+#         X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
 
-        err = norm(X_sim - X_ref_full) / N_sim
+#         err = norm(X_sim - X_ref_full) / N_sim
 
-        (; err)
-    end
+#         (; err)
+#     end
 
-    err_avg  = mean(filter(isfinite, map(x->x.err, results)))
+#     err_avg  = mean(filter(isfinite, map(x->x.err, results)))
 
-    return err_avg
-end
+#     return err_avg
+# end
 
+"""
+    nominal_trajectory(x0, N, dt)
+
+Generate a straight line trajectory from `x0` to the origin with `N` steps and a time step 
+of `dt` seconds.
+"""
 function nominal_trajectory(x0,N,dt; xf=zeros(3))
     Xref = [fill(NaN, length(x0)) for k = 1:N]
     
@@ -329,6 +339,12 @@ function nominal_trajectory(x0,N,dt; xf=zeros(3))
 end
 
 
+"""
+    train_quadrotor_models(num_lqr, num_mpc)
+
+Train eDMD and jDMD bilinear 6DOF quadrotor models using `num_lqr` LQR training 
+trajectories and `num_mpc` MPC training trajectories.
+"""
 function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=true, β=1.0, reg=1e-6)
 
     #############################################
@@ -372,7 +388,7 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
 
     println("Training jDMD model...")
     t_train_jDMD = @elapsed model_jDMD = run_jDMD(X_train, U_train, dt, full_quadrotor_kf, nothing,
-        dmodel_nom; showprog=true, verbose=true, reg=reg, alg=:qr_rls, α=0.5
+        dmodel_nom; showprog=true, verbose=false, reg=reg, alg=:qr_rls, α=0.5
     )
 
     eDMD_data = Dict(
@@ -384,4 +400,116 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
 
     res = (; eDMD_data, jDMD_data, dt)
     return res
+end
+
+"""
+"""
+function test_full_quadrotor(; save_to_file=true)
+    # Load models
+    model_info = load(FULL_QUAD_MODEL_DATA)["model_info"]
+
+    eDMD_data = model_info.eDMD_data
+    jDMD_data = model_info.jDMD_data
+    G = model_info.G
+    kf = model_info.kf
+    dt = model_info.dt
+
+    model_eDMD = EDMDModel(eDMD_data[:A],eDMD_data[:B],eDMD_data[:C],G,kf,dt,"quadrotor_eDMD")
+    model_eDMD_projected = ProjectedEDMDModel(model_eDMD)
+    model_jDMD = EDMDModel(jDMD_data[:A],jDMD_data[:B],jDMD_data[:C],G,kf,dt,"quadrotor_jDMD")
+    model_jDMD_projected = ProjectedEDMDModel(model_jDMD)
+
+    # Load data
+    # mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
+    mpc_lqr_traj = load(FULL_QUAD_DATA)
+
+    # # Training data
+    # X_train_lqr = mpc_lqr_traj["X_train_lqr"][:,1:num_lqr]
+    # U_train_lqr = mpc_lqr_traj["U_train_lqr"][:,1:num_lqr]
+    # X_train_mpc = mpc_lqr_traj["X_train_mpc"][:,1:num_mpc]
+    # U_train_mpc = mpc_lqr_traj["U_train_mpc"][:,1:num_mpc]
+
+    # # combine lqr and mpc training data
+    # X_train = [X_train_lqr X_train_mpc]
+    # U_train = [U_train_lqr U_train_mpc]
+
+    # Test data
+    # X_nom_mpc = mpc_lqr_traj["X_nom_mpc"]
+    # U_nom_mpc = mpc_lqr_traj["U_nom_mpc"]
+    X_test_infeasible = mpc_lqr_traj["X_test_infeasible"]
+    U_test_infeasible = mpc_lqr_traj["U_test_infeasible"]
+
+    # Metadata
+    tf = mpc_lqr_traj["tf"]
+    t_sim = 10.0
+    dt = mpc_lqr_traj["dt"]
+
+    T_ref = range(0,tf,step=dt)
+    T_sim = range(0,t_sim,step=dt)
+
+    #############################################
+    ## MPC Tracking
+    #############################################
+
+    # Define Nominal Simulated Quadrotor Model
+    model_nom = BilinearControl.NominalRexQuadrotor()
+    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
+
+    # Define Mismatched "Real" Quadrotor Model
+    model_real = BilinearControl.SimulatedRexQuadrotor()  # this model has aero drag
+    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
+
+    xe = zeros(12)
+    ue = BilinearControl.trim_controls(model_real)
+    Nt = 20  # MPC horizon
+    N_sim = length(T_sim)
+    N_ref = length(T_ref)
+
+    Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+        1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    Rmpc = Diagonal(fill(1e-3, 4))
+    Qfmpc = Qmpc*100
+
+    N_test = size(X_test_infeasible,2)
+    test_results = map(1:N_test) do i
+        X_ref = deepcopy(X_test_infeasible[:,i])
+        U_ref = deepcopy(U_test_infeasible[:,i])
+        X_ref[end] .= xe
+        push!(U_ref, ue)
+
+        X_ref_full = [X_ref; [copy(xe) for i = 1:N_sim - N_ref]]
+        mpc_nom = TrackingMPC_no_OSQP(dmodel_nom, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+        mpc_eDMD = TrackingMPC_no_OSQP(model_eDMD_projected, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+        mpc_jDMD = TrackingMPC_no_OSQP(model_jDMD_projected, 
+            X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
+        )
+        X_mpc_nom, U_mpc_nom, T_mpc = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_sim, dt)
+        X_mpc_eDMD,U_mpc_eDMD,T_mpc = simulatewithcontroller(dmodel_real, mpc_eDMD, X_ref[1], t_sim, dt)
+        X_mpc_jDMD,U_mpc_jDMD,T_mpc = simulatewithcontroller(dmodel_real, mpc_jDMD, X_ref[1], t_sim, dt)
+
+        err_nom = norm(X_mpc_nom - X_ref_full) / N_sim
+        err_eDMD = norm(X_mpc_eDMD - X_ref_full) / N_sim
+        err_jDMD = norm(X_mpc_jDMD - X_ref_full) / N_sim
+
+        (; err_nom, err_eDMD, err_jDMD, X_ref, X_mpc_nom, X_mpc_eDMD, X_mpc_jDMD, T_mpc)
+    end
+
+    nom_err_avg  = mean(filter(isfinite, map(x->x.err_nom, test_results)))
+    eDMD_err_avg = mean(filter(isfinite, map(x->x.err_eDMD, test_results)))
+    jDMD_err_avg = mean(filter(isfinite, map(x->x.err_jDMD, test_results)))
+    nom_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_nom, test_results)) / N_test
+    eDMD_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_eDMD, test_results)) / N_test
+    jDMD_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_jDMD, test_results)) / N_test
+    MPC_test_results = (;
+        nom_success, eDMD_success, jDMD_success, 
+        nom_err_avg, eDMD_err_avg, jDMD_err_avg
+    )
+    if save_to_file
+        jldsave(FULL_QUAD_RESULTS; MPC_test_results)
+    end
+    MPC_test_results
 end

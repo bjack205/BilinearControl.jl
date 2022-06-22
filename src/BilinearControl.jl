@@ -2,7 +2,7 @@ module BilinearControl
 
 const EXAMPLES_DIR = joinpath(@__DIR__, "..", "examples")
 
-export EDMDModel, ProjectedEDMDModel, LQRController, TrackingMPC, Visualizer
+export EDMDModel, ProjectedEDMDModel, LQRController, TrackingMPC, Visualizer, TrackingMPC_no_OSQP
 
 export resetcontroller!, simulatewithcontroller, simulate
 export set_airplane!, set_cartpole!, set_quadrotor!, visualize!
