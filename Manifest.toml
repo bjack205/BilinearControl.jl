@@ -42,9 +42,9 @@ uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 
 [[deps.ArrayInterface]]
 deps = ["ArrayInterfaceCore", "Compat", "IfElse", "LinearAlgebra", "Static"]
-git-tree-sha1 = "8dade591a24870ab163e2dd13900c2085e0f805c"
+git-tree-sha1 = "d956c0606a3bc1112a1f99a8b2309b79558d9921"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "6.0.16"
+version = "6.0.17"
 
 [[deps.ArrayInterfaceCore]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -579,6 +579,11 @@ git-tree-sha1 = "e5b909bcf985c5e2605737d2ce278ed791b89be6"
 uuid = "dd4b983a-f0e5-5f8d-a1b7-129d4a5fb1ac"
 version = "2.10.1+0"
 
+[[deps.LaTeXStrings]]
+git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
+uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+version = "1.3.0"
+
 [[deps.LayoutPointers]]
 deps = ["ArrayInterface", "ArrayInterfaceOffsetArrays", "ArrayInterfaceStaticArrays", "LinearAlgebra", "ManualMemory", "SIMDTypes", "Static"]
 git-tree-sha1 = "b67e749fb35530979839e7b4b606a97105fe4f1c"
@@ -857,9 +862,9 @@ version = "8.44.0+0"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "3e32c8dbbbe1159a5057c80b8a463369a78dd8d8"
+git-tree-sha1 = "7f4869861f8dac4990d6808b66b57e5a425cfd99"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.12"
+version = "0.11.13"
 
 [[deps.PGFPlotsX]]
 deps = ["ArgCheck", "DataStructures", "Dates", "DefaultApplication", "DocStringExtensions", "MacroTools", "Parameters", "Requires", "Tables"]
@@ -1029,9 +1034,9 @@ version = "0.1.0"
 
 [[deps.SLEEFPirates]]
 deps = ["IfElse", "Static", "VectorizationBase"]
-git-tree-sha1 = "ac399b5b163b9140f9c310dfe9e9aaa225617ff6"
+git-tree-sha1 = "7ee0e13ac7cd77f2c0e93bff8c40c45f05c77a5a"
 uuid = "476501e8-09a2-5ece-8869-fb82de89a1fa"
-version = "0.6.32"
+version = "0.6.33"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1101,9 +1106,9 @@ version = "1.4.0"
 
 [[deps.StatsBase]]
 deps = ["DataAPI", "DataStructures", "LinearAlgebra", "LogExpFunctions", "Missings", "Printf", "Random", "SortingAlgorithms", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "8977b17906b0a1cc74ab2e3a05faa16cf08a8291"
+git-tree-sha1 = "642f08bf9ff9e39ccc7b710b2eb9a24971b52b1a"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-version = "0.33.16"
+version = "0.33.17"
 
 [[deps.StatsFuns]]
 deps = ["ChainRulesCore", "HypergeometricFunctions", "InverseFunctions", "IrrationalConstants", "LogExpFunctions", "Reexport", "Rmath", "SpecialFunctions"]
@@ -1113,9 +1118,9 @@ version = "1.0.1"
 
 [[deps.StructArrays]]
 deps = ["Adapt", "DataAPI", "StaticArrays", "Tables"]
-git-tree-sha1 = "9097e2914e179ab1d45330403fae880630acea0b"
+git-tree-sha1 = "9abba8f8fb8458e9adf07c8a2377a070674a24f1"
 uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-version = "0.6.9"
+version = "0.6.8"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
