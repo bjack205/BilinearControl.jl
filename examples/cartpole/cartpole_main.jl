@@ -67,9 +67,9 @@ res_eDMD_lifted = find_min_sample_to_beat_mpc(2:60, dt; alg=:eDMD, lifted=true,
     repeats_required=4,
 )
 
-#############################################
-## MPC Performance Sample Efficient (Fig. 2a)
-#############################################
+##############################################
+## MPC Performance Sample Efficiency (Fig. 2a)
+##############################################
 generate_cartpole_data()  # OPTIONAL (data file already exists)
 train_cartpole_models(0,2, α=0.5, β=1.0, learnB=true, reg=1e-4)  # run once for JIT
 num_swingup = 2:2:36
