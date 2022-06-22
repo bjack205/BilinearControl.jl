@@ -96,7 +96,7 @@ const ROBOT_MESHES_DIR = joinpath(homedir(), "Code", "robot_meshes")
 
 function BilinearControl.set_quadrotor!(vis;
     scaling=1.0, color=nothing
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.LabQuadrotor, BilinearControl.LabPlanarQuadrotor}}
      
     if isdir(ROBOT_MESHES_DIR)
         meshfile = joinpath(ROBOT_MESHES_DIR, "quadrotor", "drone.obj")
@@ -140,7 +140,7 @@ setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
 setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
 
 delete!(vis)
-model = BilinearControl.NominalRexQuadrotor()
+model = BilinearControl.NominalLabQuadrotor()
 set_quadrotor!(vis["robot"], color=colorant"rgb(204,0,43)")
 
 for i = 1:length(ref_trajectories)
@@ -157,7 +157,7 @@ render(vis)
 ## Trajectory plotting with waypoints
 #############################################
 
-model = Problems.RexQuadrotor()
+model = Problems.LabQuadrotor()
 vis = Visualizer()
 delete!(vis)
 open(vis)
@@ -179,4 +179,5 @@ traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"black")
 traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=colorant"rgb(255,173,0)")
 traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(0,193,208)")
 
+model = BilinearControl.NominalLabQuadrotor()
 waypoints!(vis, model, jDMD_MPC; color=colorant"rgb(70,70,70)", interval=15)

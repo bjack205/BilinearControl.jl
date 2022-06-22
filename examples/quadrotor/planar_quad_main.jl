@@ -45,7 +45,7 @@ p_lqr_equilibrium = @pgf Axis(
     # Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
 )
 pgfsave(joinpath(BilinearControl.FIGDIR, 
-    "rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz"), 
+    "lab_planar_quadrotor_lqr_error_by_equilibrium_change.tikz"), 
     p_lqr_equilibrium, 
     include_preamble=false
 )
@@ -74,4 +74,4 @@ p_tracking = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD, line_width=2.0}, Coordinates(percentages, res_training_range[:error_jDMD_hireg])),
     Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
 )
-pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_mpc_error_by_training_window.tikz"), p_tracking, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "lab_planar_quadrotor_mpc_error_by_training_window.tikz"), p_tracking, include_preamble=false)

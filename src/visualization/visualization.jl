@@ -24,7 +24,7 @@ using RobotZoo
 
 function set_quadrotor!(vis, model::L;
     scaling=1.0, color=colorant"black"
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, RexQuadrotor, RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, LabQuadrotor, LabPlanarQuadrotor}}
      
     urdf_folder = @__DIR__
     # if scaling != 1.0
@@ -51,13 +51,13 @@ function defcolor(c1, c2, c1def, c2def)
     c1,c2
 end
 
-function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RobotZoo.PlanarQuadrotor, RexPlanarQuadrotor}}
+function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RobotZoo.PlanarQuadrotor, LabPlanarQuadrotor}}
     py,pz = x[1], x[2]
     θ = x[3]
     settransform!(vis["robot"], compose(Translation(0,py,pz), LinearMap(RotX(-θ))))
 end
 
-function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RexQuadrotor}}
+function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{LabQuadrotor}}
     px, py,pz = x[1], x[2], x[3]
     rx, ry, rz = x[4], x[5], x[6]
     settransform!(vis, compose(Translation(px,py,pz), LinearMap(MRP(rx, ry, rz))))
@@ -186,7 +186,7 @@ end
 
 function waypoints!(vis, model::L, Z::AbstractVector;
     interval=20, color=nothing
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, RexQuadrotor, RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, LabQuadrotor, LabPlanarQuadrotor}}
     
     inds = Int.(round.(range(1,length(Z), interval)))
 

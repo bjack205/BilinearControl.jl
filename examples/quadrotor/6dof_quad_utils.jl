@@ -7,9 +7,6 @@ using JLD2
 using ThreadsX
 import RobotDynamics as RD
 
-# const QUADROTOR_NUMTRAJ_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_num_traj_sweep_results.jld2")
-# const QUADROTOR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_results.jld2")
-# const QUADROTOR_MODELS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_models.jld2")
 const FULL_QUAD_DATA = joinpath(BilinearControl.DATADIR, "full_quad_data.jld2")
 const FULL_QUAD_MODEL_DATA = joinpath(BilinearControl.DATADIR, "full_quad_model_data.jld2")
 const FULL_QUAD_RESULTS = joinpath(BilinearControl.DATADIR, "full_quad_results.jld2")
@@ -39,11 +36,11 @@ function generate_quadrotor_data()
     #############################################
 
     # Define Nominal Simulated Quadrotor Model
-    model_nom = BilinearControl.NominalRexQuadrotor()
+    model_nom = BilinearControl.NominalLabQuadrotor()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Quadrotor Model
-    model_real = BilinearControl.SimulatedRexQuadrotor()  # this model has aero drag
+    model_real = BilinearControl.SimulatedLabQuadrotor()  # this model has aero drag
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     # Time parameters
@@ -237,77 +234,6 @@ function generate_quadrotor_data()
     )
 end
 
-# function test_initial_conditions(model, bilinear_model, ics, tf, t_sim, dt)
-
-#     dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
-
-#     N_tf = round(Int, tf/dt) + 1    
-#     N_sim = round(Int, t_sim/dt) + 1 
-#     Nt = 20
-#     T_ref = range(0,tf,step=dt)
-
-#     Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-#     1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-#     Rmpc = Diagonal(fill(1e-3, 4))
-#     Qfmpc = Qmpc*100
-
-#     results = map(ics) do x0
-
-#         X_ref = nominal_trajectory(x0,N_tf,dt)
-#         X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
-#         U_ref = [copy(BilinearControl.trim_controls(model)) for k = 1:N_tf]
-
-#         mpc = BilinearControl.TrackingMPC_no_OSQP(bilinear_model, 
-#             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
-#         X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
-
-#         track_err = norm(X_sim - X_ref_full) / N_sim
-#         stable_err = norm(X_sim[end] - X_ref_full[end]) 
-
-#         (; track_err, stable_err)
-#     end
-
-#     err_avg  = mean(filter(isfinite, map(x->x.track_err, results)))
-#     num_success = count(x -> x <=10, map(x->x.stable_err, results))
-
-#     return err_avg, num_success
-# end
-
-# function test_initial_conditions_offset(model, bilinear_model, xg, ics, tf, t_sim, dt)
-
-#     dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
-
-#     N_tf = round(Int, tf/dt) + 1    
-#     N_sim = round(Int, t_sim/dt) + 1 
-#     Nt = 20
-#     T_ref = range(0,tf,step=dt)
-
-#     Qmpc = Diagonal([10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-#     1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-#     Rmpc = Diagonal(fill(1e-3, 4))
-#     Qfmpc = Qmpc*100
-
-#     results = map(ics) do x0
-
-#         x0 += xg
-#         X_ref = nominal_trajectory(x0,N_tf,dt; xf=xg[1:3]) 
-#         X_ref_full = [X_ref; [X_ref[end] for i = 1:N_sim - N_tf]]
-#         U_ref = [copy(BilinearControl.trim_controls(model)) for k = 1:N_tf]
-
-#         mpc = BilinearControl.TrackingMPC_no_OSQP(bilinear_model, 
-#             X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
-#         X_sim,= simulatewithcontroller(dmodel, mpc, x0, t_sim, dt)
-
-#         err = norm(X_sim - X_ref_full) / N_sim
-
-#         (; err)
-#     end
-
-#     err_avg  = mean(filter(isfinite, map(x->x.err, results)))
-
-#     return err_avg
-# end
-
 """
     nominal_trajectory(x0, N, dt)
 
@@ -352,17 +278,18 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
     #############################################
 
     # Define Nominal Simulated Quadrotor Model
-    model_nom = BilinearControl.NominalRexQuadrotor()
+    model_nom = BilinearControl.NominalLabQuadrotor()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Quadrotor Model
-    model_real = BilinearControl.SimulatedRexQuadrotor()  # this model has aero drag
+    model_real = BilinearControl.SimulatedLabQuadrotor()  # this model has aero drag
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     #############################################  
     ## Load Training and Test Data
     #############################################  
-    mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
+    # mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "lab_full_quadrotor_mpc_tracking_data.jld2"))
+    mpc_lqr_traj = load(FULL_QUAD_DATA)
 
     # Training data
     X_train_lqr = mpc_lqr_traj["X_train_lqr"][:,1:num_lqr]
@@ -403,6 +330,9 @@ function train_quadrotor_models(num_lqr::Int64, num_mpc::Int64;  α=0.5, learnB=
 end
 
 """
+    test_full_quadrotor()
+
+Run the MPC controller to track all of the test trajectories
 """
 function test_full_quadrotor(; save_to_file=true)
     # Load models
@@ -420,22 +350,9 @@ function test_full_quadrotor(; save_to_file=true)
     model_jDMD_projected = ProjectedEDMDModel(model_jDMD)
 
     # Load data
-    # mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
     mpc_lqr_traj = load(FULL_QUAD_DATA)
 
-    # # Training data
-    # X_train_lqr = mpc_lqr_traj["X_train_lqr"][:,1:num_lqr]
-    # U_train_lqr = mpc_lqr_traj["U_train_lqr"][:,1:num_lqr]
-    # X_train_mpc = mpc_lqr_traj["X_train_mpc"][:,1:num_mpc]
-    # U_train_mpc = mpc_lqr_traj["U_train_mpc"][:,1:num_mpc]
-
-    # # combine lqr and mpc training data
-    # X_train = [X_train_lqr X_train_mpc]
-    # U_train = [U_train_lqr U_train_mpc]
-
     # Test data
-    # X_nom_mpc = mpc_lqr_traj["X_nom_mpc"]
-    # U_nom_mpc = mpc_lqr_traj["U_nom_mpc"]
     X_test_infeasible = mpc_lqr_traj["X_test_infeasible"]
     U_test_infeasible = mpc_lqr_traj["U_test_infeasible"]
 
@@ -452,11 +369,11 @@ function test_full_quadrotor(; save_to_file=true)
     #############################################
 
     # Define Nominal Simulated Quadrotor Model
-    model_nom = BilinearControl.NominalRexQuadrotor()
+    model_nom = BilinearControl.NominalLabQuadrotor()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
     # Define Mismatched "Real" Quadrotor Model
-    model_real = BilinearControl.SimulatedRexQuadrotor()  # this model has aero drag
+    model_real = BilinearControl.SimulatedLabQuadrotor()  # this model has aero drag
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
     xe = zeros(12)
@@ -504,10 +421,6 @@ function test_full_quadrotor(; save_to_file=true)
     nom_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_nom, test_results)) / N_test
     eDMD_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_eDMD, test_results)) / N_test
     jDMD_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_jDMD, test_results)) / N_test
-
-    # nom_errs  = map(x->x.err_nom, test_results)
-    # eDMD_errs = map(x->x.err_eDMD, test_results)
-    # jDMD_errs = map(x->x.err_jDMD, test_results)
 
     X_ref = map(x->x.X_ref, test_results)
     X_mpc_nom = map(x->x.X_mpc_nom, test_results)

@@ -4,7 +4,7 @@ using Test
 using BenchmarkTools
 using StaticArrays
 
-model = RexQuadrotor()
+model = LabQuadrotor()
 @test RD.dims(model) == (12,4,12)
 
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)
@@ -37,7 +37,7 @@ RD.jacobian!(RD.InPlace(), RD.ForwardAD(), model, ∇c2, xdot, z)
 RD.jacobian!(RD.InPlace(), RD.FiniteDifference(), model, ∇c1, xdot, z)
 @test ∇c1 ≈ ∇c2 atol=1e-5
 
-model = RexPlanarQuadrotor()
+model = LabPlanarQuadrotor()
 @test RD.dims(model) == (6,2,6)
 
 dmodel = RD.DiscretizedDynamics{RD.RK4}(model)

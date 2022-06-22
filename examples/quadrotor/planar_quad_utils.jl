@@ -8,9 +8,9 @@ using JLD2
 using Test
 import RobotDynamics as RD
 
-const PLANAR_QUAD_DATA = joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_data.jld2"); 
-const PLANAR_QUAD_LQR_RESULTS = joinpath(BilinearControl.DATADIR, "planar_quad_lqr_results.jld2")
-const PLANAR_QUAD_MPC_RESULTS = joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_mpc_training_range_results.jld2")
+const PLANAR_QUAD_DATA = joinpath(BilinearControl.DATADIR, "lab_planar_quadrotor_data.jld2"); 
+const PLANAR_QUAD_LQR_RESULTS = joinpath(BilinearControl.DATADIR, "lab_planar_quad_lqr_results.jld2")
+const PLANAR_QUAD_MPC_RESULTS = joinpath(BilinearControl.DATADIR, "lab_planar_quadrotor_mpc_training_range_results.jld2")
 """
     generate_planar_quadrotor_data
 
@@ -163,7 +163,7 @@ function generate_planar_quadrotor_data()
     end
 
     ## Save generated training and test data
-    jldsave(joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"); 
+    jldsave(joinpath(BilinearControl.DATADIR, "lab_planar_quadrotor_mpc_tracking_data.jld2"); 
         X_train_lqr, U_train_lqr,
         X_train_mpc, U_train_mpc,
         X_nom_mpc, U_nom_mpc, 
@@ -214,7 +214,7 @@ function planar_quad_lqr_offset(; num_train=30, verbose=true, save_to_file=true)
     ############################################# 
     verbose && println("Reading Training Data...")
     num_lqr = num_train
-    mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"))
+    mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "lab_planar_quadrotor_mpc_tracking_data.jld2"))
     X_train = mpc_lqr_traj["X_train_lqr"][:,1:num_lqr]
     U_train = mpc_lqr_traj["U_train_lqr"][:,1:num_lqr]
     dt = mpc_lqr_traj["dt"]
@@ -431,7 +431,7 @@ function train_planar_quadrotor_models(num_lqr, num_mpc;  Î±=0.5, learnB=true, Î
     #############################################  
     ## Load Training and Test Data
     #############################################  
-    mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_mpc_tracking_data.jld2"))
+    mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "lab_planar_quadrotor_mpc_tracking_data.jld2"))
 
     # Training data
     X_train_lqr = mpc_lqr_traj["X_train_lqr"][:,1:num_lqr]
