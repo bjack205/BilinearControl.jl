@@ -7,6 +7,12 @@ include("planar_quad_utils.jl")
 include("../plotting_constants.jl")
 
 #####################################################
+## Generate training data for LQR and MPC problems
+#####################################################
+# NOTE: this is optional, since the data is saved to a jld2 file
+generate_planar_quadrotor_data()
+
+#####################################################
 ## LQR Stabilization w/ Equilibrium Offset (Fig 3a)
 #####################################################
 res_equilibrium = planar_quad_lqr_offset()
@@ -41,11 +47,10 @@ pgfsave(joinpath(BilinearControl.FIGDIR,
 #####################################################
 ## MPC Tracking vs Window Size (Fig 3b) 
 #####################################################
-generate_planar_quadrotor_data()
 
 planar_quad_mpc_generalization()
 
-results = load(joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_mpc_training_range_results.jld2"))
+results = load(PLANAR_QUAD_MPC_RESULTS)
 percentages = results["percentages"]
 res_training_range = results["res_training_range"]
 
