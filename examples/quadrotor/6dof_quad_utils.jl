@@ -504,7 +504,19 @@ function test_full_quadrotor(; save_to_file=true)
     nom_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_nom, test_results)) / N_test
     eDMD_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_eDMD, test_results)) / N_test
     jDMD_success = count(x -> norm(x[end]-xe)<=10, map(x->x.X_mpc_jDMD, test_results)) / N_test
+
+    # nom_errs  = map(x->x.err_nom, test_results)
+    # eDMD_errs = map(x->x.err_eDMD, test_results)
+    # jDMD_errs = map(x->x.err_jDMD, test_results)
+
+    X_ref = map(x->x.X_ref, test_results)
+    X_mpc_nom = map(x->x.X_mpc_nom, test_results)
+    X_mpc_eDMD = map(x->x.X_mpc_eDMD, test_results)
+    X_mpc_jDMD = map(x->x.X_mpc_jDMD, test_results)
+    T_mpc = map(x->x.T_mpc, test_results)
+
     MPC_test_results = (;
+        X_ref, X_mpc_nom, X_mpc_eDMD, X_mpc_jDMD, T_mpc,
         nom_success, eDMD_success, jDMD_success, 
         nom_err_avg, eDMD_err_avg, jDMD_err_avg
     )

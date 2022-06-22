@@ -3,6 +3,7 @@ using BilinearControl
 using SparseArrays
 using PGFPlotsX
 using LaTeXTabulars
+using RobotZoo
 
 include("6dof_quad_utils.jl")
 include("../plotting_constants.jl")
@@ -78,3 +79,95 @@ latex_tabular(joinpath(BilinearControl.FIGDIR, "tables", "full_quad_mpc.tex"),
     ]
 )
 
+#############################################
+## Generate Images
+#############################################
+using GeometryBasics, CoordinateTransformations, Colors, MeshCat
+const ROBOT_MESHES_DIR = joinpath(homedir(), "Code", "robot_meshes")
+
+function BilinearControl.set_quadrotor!(vis;
+    scaling=1.0, color=nothing
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
+     
+    if isdir(ROBOT_MESHES_DIR)
+        meshfile = joinpath(ROBOT_MESHES_DIR, "quadrotor", "drone.obj")
+        if isnothing(color)
+            obj = MeshFileObject(meshfile)
+            setobject!(vis["drone"], obj)
+        else
+            geom = MeshFileGeometry(meshfile)
+            mat = MeshPhongMaterial(color=color)
+            mat = MeshLambertMaterial(color=color)
+            setobject!(vis["drone"], geom, mat)
+        end
+        settransform!(vis["drone"], LinearMap(scaling * RotX(pi/2)))
+    else
+        meshfile = joinpath(BilinearControl.DATADIR, "quadrotor.obj")
+        obj = MeshFileGeometry(meshfile)
+        mat = MeshPhongMaterial(color=color)
+        settransform!(vis, LinearMap(scaling * 0.25 * I(3)))
+    end
+end
+
+## Visualizer
+vis = Visualizer()
+open(vis)
+set_quadrotor!(vis["robot"], color=colorant"red")
+
+## Load trajectories
+MPC_test_results = load(FULL_QUAD_RESULTS)["MPC_test_results"]
+
+ref_trajectories = MPC_test_results[:X_ref]
+nom_MPC_trajectories = MPC_test_results[:X_mpc_nom]
+eDMD_MPC_trajectories = MPC_test_results[:X_mpc_eDMD]
+jDMD_MPC_trajectories = MPC_test_results[:X_mpc_jDMD]
+T_mpc_vecs = MPC_test_results[:T_mpc]
+
+#############################################
+## Plot all Initial Conditions (Fig 4a)
+#############################################
+# WARNING: This is slow!
+setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+
+delete!(vis)
+model = BilinearControl.NominalRexQuadrotor()
+set_quadrotor!(vis["robot"], color=colorant"rgb(204,0,43)")
+
+for i = 1:length(ref_trajectories)
+    println("Visualizing Initial condition $i / $(length(ref_trajectories))")
+    ref = ref_trajectories[i]
+    set_quadrotor!(vis["ref_start"]["$i"], color=colorant"rgb(70,70,70)")
+    # set_quadrotor!(vis["ref_start"]["$i"], model)
+    visualize!(vis["ref_start"]["$i"], model, ref[1])
+    traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(23,75,63)")
+end
+render(vis)
+
+#############################################
+## Trajectory plotting with waypoints
+#############################################
+
+model = Problems.RexQuadrotor()
+vis = Visualizer()
+delete!(vis)
+open(vis)
+
+setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+
+set_quadrotor!(vis, color=colorant"rgb(204,0,43)")
+
+i = 46
+ref = ref_trajectories[i]
+nom_MPC = nom_MPC_trajectories[i]
+eDMD_MPC = eDMD_MPC_trajectories[i]
+jDMD_MPC = jDMD_MPC_trajectories[i]
+T_mpc = T_mpc_vecs[i]
+
+traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(204,0,43)")
+traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"black")
+traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=colorant"rgb(255,173,0)")
+traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(0,193,208)")
+
+waypoints!(vis, model, jDMD_MPC; color=colorant"rgb(70,70,70)", interval=15)

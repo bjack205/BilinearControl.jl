@@ -60,7 +60,7 @@ end
 function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RexQuadrotor}}
     px, py,pz = x[1], x[2], x[3]
     rx, ry, rz = x[4], x[5], x[6]
-    settransform!(vis["robot"], compose(Translation(px,py,pz), LinearMap(MRP(rx, ry, rz))))
+    settransform!(vis, compose(Translation(px,py,pz), LinearMap(MRP(rx, ry, rz))))
 end
 
 #############################################
@@ -164,6 +164,8 @@ end
 function visualize!(vis, model::RD.AbstractModel, x::AbstractVector)
     r = translation(model, x)
     q = orientation(model, x)
+    @show r
+    @show q
     visualize!(vis, r, q)
 end
 
@@ -183,3 +185,26 @@ orientation(model, x) = UnitQuaternion(x[4], x[5], x[6], x[7])
 translation(model::RD.DiscretizedDynamics, x) = translation(model.continuous_dynamics, x)
 orientation(model::RD.DiscretizedDynamics, x) = orientation(model.continuous_dynamics, x)
 
+function waypoints!(vis, model::L, Z::AbstractVector;
+    interval=20, color=nothing
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, RexQuadrotor, RexPlanarQuadrotor}}
+    
+    inds = Int.(round.(range(1,length(Z), interval)))
+
+    delete!(vis["waypoints"])
+    for i in inds
+        if isnothing(color)
+            set_quadrotor!(vis["waypoints"]["point$i"])
+        else
+            set_quadrotor!(vis["waypoints"]["point$i"], color=color)
+        end
+            
+        visualize!(vis["waypoints"]["point$i"], model, Z[i])
+    end
+    visualize!(vis, model, Z[end])
+end
+
+function traj3!(vis, X::AbstractVector{<:AbstractVector}; inds=SA[1,2,3], kwargs...)
+    pts = [Point{3,Float32}(x[inds]) for x in X] 
+    setobject!(vis[:traj], MeshCat.Line(pts, LineBasicMaterial(; linewidth=3.0, kwargs...)))
+end
