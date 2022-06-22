@@ -19,6 +19,7 @@ using Altro
 import BilinearControl.Problems
 using Test
 using Infiltrator
+using LaTeXStrings
 
 include("constants.jl")
 const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_planar_quadrotor_mpc_results.jld2")
@@ -689,8 +690,8 @@ p_tracking = @pgf Axis(
         ylabel = "Tracking error",
         legend_pos = "north west"
     },
-    PlotInc({no_marks, color=color_eDMD, thick}, Coordinates(percentages, res_training_range[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_eDMD, line_width=2.0}, Coordinates(percentages, res_training_range[:error_eDMD_projected_no_reg])),
+    PlotInc({lineopts..., color=color_eDMD, thick}, Coordinates(percentages, res_training_range[:error_eDMD_projected_no_reg])),
+    PlotInc({no_marks, color=color_eDMD, line_width=2.0}, Coordinates(percentages, res_training_range[:error_eDMD_projected])),
     PlotInc({no_marks, color=color_jDMD, thick}, Coordinates(percentages, res_training_range[:error_jDMD_projected])),
     PlotInc({lineopts..., color=color_jDMD, line_width=2.0}, Coordinates(percentages, res_training_range[:error_jDMD_projected2])),
     Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])

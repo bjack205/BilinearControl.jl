@@ -171,6 +171,7 @@ render(vis)
 setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
 setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
 
+set_quadrotor!(vis, model, color=colorant"rgb(70, 70, 70)")
 set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
 
 i = 1
