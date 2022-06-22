@@ -1,3 +1,9 @@
+"""
+    planar_quad_main
+
+Runs the code to generate Figure 3.
+"""
+
 using Pkg; Pkg.activate(joinpath(@__DIR__, "..", ".."))
 using BilinearControl
 using PGFPlotsX
