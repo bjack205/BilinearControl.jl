@@ -1,4 +1,10 @@
-using Pkg; Pkg.activate(joinpath(@__DIR__, "..", ".."))
+"""
+    cartpole_main.jl
+
+Code to generate Figure 2a, and Tables 2 and 3.
+"""
+
+using Pkg; Pkg.activate(joinpath(@__DIR__, "..", "..")); Pkg.instantiate();
 using BilinearControl
 using PGFPlotsX
 

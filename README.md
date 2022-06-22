@@ -1,3 +1,9 @@
-# BilinearControl.jl
+# Data-Efficient Model Learning for Control with Jacobian-Regularized Dynamic Mode Decomposition
 
-Methods for solving optimal control problems for bilinear systems.
+This contains the code used to generate the figures and examples in the CORL 2022 
+submission.
+
+## Running the Examples
+To run the examples, run the `<xxx>_main.jl` files in the `examples/` folder, which are 
+organized by system. Each file should activate the project environment and download all
+required packages.

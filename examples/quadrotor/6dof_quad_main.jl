@@ -7,7 +7,7 @@ Trains bilinear models for a full six degree-of-freedom quadrotor, where the att
 parameterized using an MRP.
 """
 
-using Pkg; Pkg.activate(joinpath(@__DIR__, "..", ".."))
+using Pkg; Pkg.activate(joinpath(@__DIR__, "..", "..")); Pkg.instantiate();
 using BilinearControl
 using SparseArrays
 using PGFPlotsX
