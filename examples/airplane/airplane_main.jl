@@ -91,4 +91,18 @@ p_err = @pgf Axis(
 pgfsave(joinpath(Problems.FIGDIR, "airplane_error_by_num_train.tikz"), p_err, 
     include_preamble=false)
 
-## TODO: Add waypoints plot
+#############################################
+## Waypoints plot (Fig 1)
+#############################################
+using Colors, MeshCat
+airplane_data = load(AIRPLANE_DATAFILE)
+num_train = size(airplane_data["X_train"],2)
+X_ref0 = airplane_data["X_ref"][:,num_train+1:end]
+
+i = 5
+X_ref = X_ref0[:,i]
+model_nom = BilinearControl.NominalAirplane()
+delete!(vis["robot"])
+waypoints!(vis, model_nom, X_ref, vis->set_airplane!(vis, model_nom), [1,5,10,15,20,25,30,35,40,51])
+setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")

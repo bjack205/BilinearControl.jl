@@ -164,16 +164,7 @@ end
 function visualize!(vis, model::RD.AbstractModel, x::AbstractVector)
     r = translation(model, x)
     q = orientation(model, x)
-    @show r
-    @show q
     visualize!(vis, r, q)
-end
-
-function waypoints!(vis, model::RD.AbstractModel,  X, setmodel, inds)
-    for i in inds
-        setmodel(vis["waypoints/point$i"])
-        visualize!(vis["waypoints/point$i"], model, X[i])
-    end
 end
 
 visualize!(vis, r::AbstractVector, q::AbstractVector) = settransform!(vis["robot"], compose(Translation(r), LinearMap(UnitQuaternion(q[1], q[2], q[3], q[4]))))
@@ -184,6 +175,14 @@ orientation(model, x) = UnitQuaternion(x[4], x[5], x[6], x[7])
 
 translation(model::RD.DiscretizedDynamics, x) = translation(model.continuous_dynamics, x)
 orientation(model::RD.DiscretizedDynamics, x) = orientation(model.continuous_dynamics, x)
+
+function waypoints!(vis, model::RD.AbstractModel,  X, setmodel::Function, inds)
+    for i in inds
+        setmodel(vis["waypoints/point$i"])
+        visualize!(vis["waypoints/point$i"], model, X[i])
+    end
+end
+
 
 function waypoints!(vis, model::L, Z::AbstractVector;
     interval=20, color=nothing

@@ -1,3 +1,12 @@
+"""
+    6dof_quad_main.jl
+
+Runs code to generate the data used in Table 1 and Figure 4
+
+Trains bilinear models for a full six degree-of-freedom quadrotor, where the attitude is 
+parameterized using an MRP.
+"""
+
 using Pkg; Pkg.activate(joinpath(@__DIR__, "..", ".."))
 using BilinearControl
 using SparseArrays
