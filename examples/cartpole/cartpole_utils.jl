@@ -13,6 +13,12 @@ const CARTPOLE_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_results.jld
 const CARTPOLE_MISMATCH_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mismatch_results.jld2")
 const CARTPOLE_MPC_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mpc_results.jld2")
 
+"""
+    gencartpoleproblem()
+
+Generates the nonlinear trajectory optimization problem for the cartpole swingup. Passed 
+ALTRO for solving.
+"""
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
     dt=0.05, constrained=true, μ=0.0)
 
@@ -46,6 +52,12 @@ function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, t
     prob
 end
 
+"""
+    generate_cartpole_data(;kwargs...)
+
+Generate the training and test data for the cartpole. Includes both stabilization 
+and swingup trajectories.
+"""
 function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true, 
         μ=0.1, μ_nom=0.0, max_lqr_samples=3*num_lqr,
         x_window = [0.7,deg2rad(45),0.2,0.2]
@@ -217,6 +229,11 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     return X_train, U_train, X_test, U_test, X_ref, U_ref, metadata
 end
 
+"""
+    generate_stabilizing_mpc_controller(model, t_sim, dt)
+
+Generate a linear MPC controller for stabilizing the cartpole about the upward equilibrium.
+"""
 function generate_stabilizing_mpc_controller(model, t_sim, dt; 
         Nt=41, ρ=1e-6, 
         Qmpc = Diagonal(fill(1e-0,4)),
@@ -372,6 +389,12 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
         )
 end
 
+"""
+    test_sample_size(;kwargs...)
+
+Train a model with `num_train` LQR stabilization training trajectories, then test it on 
+`num_test` initial conditions. Returns the success rate and average terminal error.
+"""
 function test_sample_size(;
     μ=0.1,
     μ_nom=μ,
@@ -451,6 +474,12 @@ function test_sample_size(;
     )
 end
 
+"""
+    test_initial_conditions(model, controller, dt; kwargs...)
+
+Test the given controller on the "real" system. Runs `num_test` initial conditions sampled 
+from `x_window`, scaled by `test_window_ratio`.
+"""
 function test_initial_conditions(
     model_real,
     ctrl,
@@ -485,6 +514,13 @@ function test_initial_conditions(
     return success_rate, average_error
 end
 
+"""
+    find_min_sample_to_stabilize(mu_vals, num_train)
+
+Finds the minimum number of training samples (of theose given in `num_train`) to stabilize 
+the system for each of the friction coefficients in `mu_vals`. Only runs for the algorithm 
+given by `alg` (either `:eDMD`` or `:jDMD`).
+"""
 function find_min_sample_to_stabilize(
     mu_vals,
     num_train;

@@ -15,6 +15,13 @@ const AIRPLANE_DATAFILE = joinpath(BilinearControl.DATADIR, "airplane_trajectory
 const AIRPLANE_MODELFILE = joinpath(BilinearControl.DATADIR, "airplane_trained_models.jld2")
 const AIRPLANE_RESULTS = joinpath(BilinearControl.DATADIR, "airplane_results.jld2")
 
+"""
+    AirplaneProblem(;kwargs...)
+
+Generate the nonlinear trajectory optimization problem for the airplane perching trajectory.
+Increasing `Qv` and `Qw` (the weights on the terminal linear and angular velocities) will
+encourage a more dramatic/aggressive perch.
+"""
 function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv, pf=[5,0,1.5])
     # Discretization
     model = BilinearControl.SimulatedAirplane()
@@ -53,6 +60,11 @@ function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv, pf=[5,0,
     prob
 end
 
+"""
+    airplane_kf(x)
+
+Koopman function (nonlinear mapping) for the airplane.
+"""
 function airplane_kf(x)
     p = x[1:3]
     q = x[4:6]
@@ -69,6 +81,14 @@ function airplane_kf(x)
         BilinearControl.chebyshev(x, order=[3,4])]
 end
 
+"""
+    gen_airplane_data(;kwargs...)
+
+Generate the training and testing data for the airplane perching problem. Uses ALTRO
+to generate reference trajectories on the true system (so that they're dynamically feasible)
+and then generates training data by tracking those trajectories with an MPC controller 
+designed using the nominal model.
+"""
 function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3.0,2.0], 
         save_to_file=true)
     ## Define nominal and true models
@@ -153,6 +173,12 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
     X_mpc,U_mpc, X_ref,U_ref
 end
 
+"""
+    train_airplane(num_train)
+
+Train the bilinear models for the airplane with the given number of sample trajectories.
+Reads the data from `AIRPLANE_DATAFILE`.
+"""
 function train_airplane(num_train; alg=:qr)
     # Get training data
     airplane_data = load(AIRPLANE_DATAFILE)
@@ -175,6 +201,13 @@ function train_airplane(num_train; alg=:qr)
     model_eDMD, model_jDMD
 end
 
+"""
+    test_airplane(model_eDMD, model_jDMD)
+
+Test the bilinear models on the test reference trajectories. Reads the test trajectories 
+from `AIRPLANE_DATAFILE`. Tracks the test trajectories using a constrained linear MPC 
+policy.
+"""
 function test_airplane(model_eDMD, model_jDMD)
     # Models
     model_nom = BilinearControl.NominalAirplane()
