@@ -234,21 +234,24 @@ jDMD_MPC = jDMD_MPC_trajectories[i]
 T_mpc = T_mpc_vecs[i]
 
 traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(204,0,43)")
-traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"black")
+set_quadrotor!(vis["ref_quad"]["$i"], model, color=colorant"rgb(204,0,43)")
+visualize!(vis["ref_quad"]["$i"], model, ref[1])
+visualize!(vis["ref_quad"]["$i"], model, 5.0, ref)
+
+##
+# traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"black")
+# set_quadrotor!(vis["nominal_quad"]["$i"], model, color=colorant"rgb(70,70,70)")
+# visualize!(vis["nominal_quad"]["$i"], model, nom_MPC[1])
+# visualize!(vis["nominal_quad"]["$i"], model, T_mpc[end], nom_MPC)
+
+##
 traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=colorant"rgb(255,173,0)")
-traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(0,193,208)")
-
-##
-set_quadrotor!(vis["nominal_quad"]["$i"], model, color=colorant"rgb(70,70,70)")
-visualize!(vis["nominal_quad"]["$i"], model, nom_MPC[1])
-visualize!(vis["nominal_quad"]["$i"], model, T_mpc[end], nom_MPC)
-
-##
 set_quadrotor!(vis["eDMD_quad"]["$i"], model, color=colorant"rgb(255,173,0)")
 visualize!(vis["eDMD_quad"]["$i"], model, eDMD_MPC[1])
 visualize!(vis["eDMD_quad"]["$i"], model, T_mpc[end], eDMD_MPC)
 
 ##
+traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(0,193,208)")
 set_quadrotor!(vis["jDMD_quad"]["$i"], model, color=colorant"rgb(0,193,208)")
 visualize!(vis["jDMD_quad"]["$i"], model, jDMD_MPC[1])
 visualize!(vis["jDMD_quad"]["$i"], model, T_mpc[end], jDMD_MPC)

@@ -123,26 +123,26 @@ render(vis)
 setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
 setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
 
+##
 traj3!(vis["ref_traj"]["$i"], X_ref; color=colorant"rgb(204,0,43)")
-traj3!(vis["nom_traj"]["$i"], X_nom; color=colorant"black")
+set_airplane!(vis["ref_air"]["$i"], model, color=colorant"rgb(204,0,43)")
+visualize!(vis["ref_air"]["$i"], model, X_ref[1])
+visualize!(vis["ref_air"]["$i"], model, t_ref, X_ref)
+
+##
+# traj3!(vis["nom_traj"]["$i"], X_nom; color=colorant"black")
+# set_airplane!(vis["nominal_air"]["$i"], model, color=colorant"black")
+# visualize!(vis["nominal_air"]["$i"], model, X_nom[1])
+# visualize!(vis["nominal_air"]["$i"], model, t_ref, X_nom)
+
+##
 traj3!(vis["eDMD_traj"]["$i"], X_eDMD; color=colorant"rgb(255,173,0)")
-traj3!(vis["jDMD_traj"]["$i"], X_jDMD; color=colorant"rgb(0,193,208)")
-
-set_airplane!(vis, model)
-set_airplane!(vis, model, color=colorant"rgb(204,0,43)")
-visualize!(vis, model, X_ref[end])
-
-##
-set_airplane!(vis["nominal_air"]["$i"], model, color=colorant"black")
-visualize!(vis["nominal_air"]["$i"], model, X_nom[1])
-visualize!(vis["nominal_air"]["$i"], model, t_ref, X_nom)
-
-##
 set_airplane!(vis["eDMD_air"]["$i"], model, color=colorant"rgb(255,173,0)")
 visualize!(vis["eDMD_air"]["$i"], model, X_eDMD[1])
 visualize!(vis["eDMD_air"]["$i"], model, t_ref, X_eDMD)
 
 ##
+traj3!(vis["jDMD_traj"]["$i"], X_jDMD; color=colorant"rgb(0,193,208)")
 set_airplane!(vis["jDMD_air"]["$i"], model, color=colorant"rgb(0,193,208)")
 visualize!(vis["jDMD_air"]["$i"], model, X_jDMD[1])
 visualize!(vis["jDMD_air"]["$i"], model, t_ref, X_jDMD)
