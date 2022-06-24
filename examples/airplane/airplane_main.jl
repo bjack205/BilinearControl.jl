@@ -94,6 +94,8 @@ pgfsave(joinpath(Problems.FIGDIR, "airplane_error_by_num_train.tikz"), p_err,
 #############################################
 ## Waypoints plot (Fig 1)
 #############################################
+# NOTE: This won't work unless you have the "piper" model in the data folder
+#       Not shipped with supplementary materials because the size is too large
 using Colors, MeshCat
 airplane_data = load(AIRPLANE_DATAFILE)
 num_train = size(airplane_data["X_train"],2)
