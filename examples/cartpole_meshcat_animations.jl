@@ -200,3 +200,26 @@ visualize_multiple(vis["edmd_cart"], vis["jdmd_cart"],
 # visualize!(vis["ref_cart"], model, 7.0, X_nom_05)
 # visualize!(vis["edmd_cart"], model, 7.0, X_edmd_05)
 # visualize!(vis["jdmd_cart"], model, 7.0, X_jdmd_05)
+
+#############################################
+## Visualize swing-up trajectory
+#############################################
+
+cartpole_traj = load(joinpath(Problems.DATADIR, "cartpole_swingup_data.jld2"))
+X_ref = cartpole_traj["X_ref"]
+t_ref = 5.0
+
+model = RobotZoo.Cartpole()
+include(joinpath(Problems.VISDIR, "visualization.jl"))
+vis = Visualizer()
+delete!(vis)
+render(vis)
+
+setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+
+set_cartpole!(vis)
+
+##
+visualize!(vis, model, X_ref[1, 1])
+visualize!(vis, model, 5.0, X_ref[:, 1]) 

@@ -130,10 +130,10 @@ visualize!(vis["ref_air"]["$i"], model, X_ref[1])
 visualize!(vis["ref_air"]["$i"], model, t_ref, X_ref)
 
 ##
-# traj3!(vis["nom_traj"]["$i"], X_nom; color=colorant"black")
-# set_airplane!(vis["nominal_air"]["$i"], model, color=colorant"black")
-# visualize!(vis["nominal_air"]["$i"], model, X_nom[1])
-# visualize!(vis["nominal_air"]["$i"], model, t_ref, X_nom)
+traj3!(vis["nom_traj"]["$i"], X_nom; color=colorant"black")
+set_airplane!(vis["nominal_air"]["$i"], model, color=colorant"black")
+visualize!(vis["nominal_air"]["$i"], model, X_nom[1])
+visualize!(vis["nominal_air"]["$i"], model, t_ref, X_nom)
 
 ##
 traj3!(vis["eDMD_traj"]["$i"], X_eDMD; color=colorant"rgb(255,173,0)")
