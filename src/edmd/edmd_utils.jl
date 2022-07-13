@@ -266,7 +266,7 @@ function TrackingMPC(model::L, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref),
     U = [zeros(m) for k in 1:Nt]
     λ = [zeros(n) for k in 1:Nt]
     TrackingMPC(
-        Xref, Uref, Tref, model, A, B, f, Q, R, q, r, K, d, P, p, X, U, λ, [Nt], state_error
+        Xref, Uref, collect(Tref), model, A, B, f, Q, R, q, r, K, d, P, p, X, U, λ, [Nt], state_error
     )
 end
 
@@ -693,8 +693,9 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
         try
             u = getcontrol(ctrl, X[k], t)
             U[k] .= umod(u)
-            RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
+            RD.discrete_dynamics!(model, X[k+1], X[k], U[k], times[k], dt)
         catch e
+            showerror(stderr,e)
             break
         end
     end

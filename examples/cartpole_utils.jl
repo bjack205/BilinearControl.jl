@@ -1,5 +1,8 @@
 using Altro
 import TrajectoryOptimization as TO
+using BilinearControl.EDMD
+import BilinearControl: Problems
+using JLD2
 
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 
     dt=0.05, constrained=true, μ=0.0)
@@ -98,11 +101,13 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
     # Make sure they all stabilize
     num_train_stabilized = count(x->x<0.1, map(x->norm(x-xe), X_train_lqr[end,:]))
     num_test_stabilized = count(x->x<0.1, map(x->norm(x-xe), X_test_lqr[end,:]))
-    if num_train_stabilized < num_train_lqr
-        @warn "Not all of the LQR training trajectories succesfully stabilized. Got $num_train_stabilized / $num_train_lqr."
-    end
-    if num_test_stabilized < num_test_lqr
-        @warn "Not all of the LQR test trajectories succesfully stabilized. Got $num_test_stabilized / $num_test_lqr."
+    if num_lqr > 0
+        if num_train_stabilized < num_train_lqr
+            @warn "Not all of the LQR training trajectories succesfully stabilized. Got $num_train_stabilized / $num_train_lqr."
+        end
+        if num_test_stabilized < num_test_lqr
+            @warn "Not all of the LQR test trajectories succesfully stabilized. Got $num_test_stabilized / $num_test_lqr."
+        end
     end
 
     #############################################
@@ -188,6 +193,8 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
         ## combine lqr and mpc training data
         X_train = [X_train_lqr X_train_swingup]
         U_train = [U_train_lqr U_train_swingup]
+        X_ref = [X_train_swingup_ref X_ref]
+        U_ref = [U_train_swingup_ref U_ref]
     end
 
     ## Save generated training and test data

@@ -40,7 +40,7 @@ include("lqr_solver.jl")
 include("linear_admm.jl")
 
 include("edmd/edmd.jl")
-include(joinpath(@__DIR__,"..","examples","Problems.jl"))
+include(joinpath(@__DIR__,"..","examples","problems.jl"))
 include("problem.jl")
 
 end # module
