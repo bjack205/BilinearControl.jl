@@ -1,35 +1,31 @@
-using Pkg; Pkg.activate(joinpath(@__DIR__));
-Pkg.instantiate();
+using Pkg; Pkg.activate(joinpath(@__DIR__, "..", ".."))
 using BilinearControl
-using BilinearControl.Problems
-using BilinearControl.EDMD
-using Rotations
-using StaticArrays
-using Test
-using LinearAlgebra 
-using Altro
-using RobotDynamics
-using TrajectoryOptimization
-const TO = TrajectoryOptimization
-import RobotDynamics as RD
-using BilinearControl: Problems
-using JLD2
-using Plots
+using ThreadsX
 using ProgressMeter
-using Statistics
 using PGFPlotsX
 
-include("airplane_constants.jl")
-include("constants.jl")
+include("airplane_utils.jl")
+include("../plotting_constants.jl")
 
-##
+## Visualizer
+model = BilinearControl.NominalAirplane()
+vis = Visualizer()
+delete!(vis)
+set_airplane!(vis, model)
+open(vis)
+
+## Generate Training Data
+gen_airplane_data(num_train=50, num_test=50, dt=0.04, dp_window=fill(0.5, 3))
+
+## Test the model with an increasing number of training samples
 num_train = [2; 5:5:50]
-results = @showprogress map(num_train) do N
+prog = Progress(length(num_train))
+results = map(num_train) do N
     test_airplane(train_airplane(N)...)
+    next!(prog)
 end
-jldsave(AIRPLANE_RESULTS; results, num_train)
 
-##
+## Plot the Results
 results = load(AIRPLANE_RESULTS)["results"]
 airplane_data = load(AIRPLANE_DATAFILE)
 num_test =  size(airplane_data["X_test"],2)
@@ -80,17 +76,4 @@ p_err = @pgf Axis(
 pgfsave(joinpath(Problems.FIGDIR, "airplane_error_by_num_train.tikz"), p_err, 
     include_preamble=false)
 
-p_sr = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Number of Training Trajectories",
-        ylabel = "Success Rate",
-    },
-    PlotInc({lineopts..., color=color_nominal}, Coordinates(num_train, sr_nom)),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(num_train, sr_eDMD)),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, sr_jDMD)),
-    Legend(["Nominal MPC", "eDMD", "jDMD"])
-)
-pgfsave(joinpath(Problems.FIGDIR, "airplane_success_by_num_train.tikz"), p_sr, 
-    include_preamble=false)
+## TODO: Add waypoints plot

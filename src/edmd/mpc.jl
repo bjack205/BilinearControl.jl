@@ -83,7 +83,7 @@ function getcontrol(mpc::LinearMPC, x, t)
         error("Large state detected")
     end
     dx = x - mpc.Xref[k]
-    dX,dU,_,solved = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
+    dX,dU,_,solved = solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
     if !solved
         # @warn "OSQP solve failed"
         mpc.num_fails[1] += 1
