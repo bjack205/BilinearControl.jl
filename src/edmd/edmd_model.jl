@@ -143,9 +143,16 @@ function fiterror(model::EDMDModel, X, U)
     BilinearControl.EDMD.fiterror(model.A, model.B, model.C, model.g, model.kf, X, U)
 end
 
-struct EDMDErrorModel{L} <: RD.DiscreteDynamics
+RD.@autodiff struct EDMDErrorModel{L<:RD.DiscreteDynamics} <: RD.DiscreteDynamics
     nominal::L
-    err::EDMDModel
+    err::ProjectedEDMDModel
+    J::Matrix{Float64}
+    function EDMDErrorModel(nominal::RD.DiscreteDynamics, err_edmd::EDMDModel)
+        err = ProjectedEDMDModel(err_edmd)
+        n,m = RD.dims(nominal)
+        J = zeros(n,n+m)
+        new{typeof(nominal)}(nominal, err, J)
+    end
 end
 RD.state_dim(model::EDMDErrorModel) = RD.state_dim(model.nominal)
 RD.control_dim(model::EDMDErrorModel) = RD.control_dim(model.nominal)
