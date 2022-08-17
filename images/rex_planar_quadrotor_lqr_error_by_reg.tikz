@@ -1,6 +1,6 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[xmajorgrids, ymajorgrids, xmode={log}, ymode={log}, xlabel={Regularization value}, ylabel={Stabilization error}, legend pos={north west}]
+\begin{axis}[xmajorgrids, ymajorgrids, xmode={log}, ymode={log}, xlabel={Regularization Value}, ylabel={Stabilization Error}, legend pos={north west}]
     \addplot+[no marks, very thick, color={orange}]
         coordinates {
             (0.0,98.71538379893781)

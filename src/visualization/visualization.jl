@@ -24,7 +24,7 @@ using RobotZoo
 
 function set_quadrotor!(vis, model::L;
     scaling=1.0, color=colorant"black"
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, RexQuadrotor, RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
      
     urdf_folder = @__DIR__
     # if scaling != 1.0
@@ -51,13 +51,13 @@ function defcolor(c1, c2, c1def, c2def)
     c1,c2
 end
 
-function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RobotZoo.PlanarQuadrotor, RexPlanarQuadrotor}}
+function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RobotZoo.PlanarQuadrotor, BilinearControl.RexPlanarQuadrotor}}
     py,pz = x[1], x[2]
     θ = x[3]
     settransform!(vis["robot"], compose(Translation(0,py,pz), LinearMap(RotX(-θ))))
 end
 
-function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{RexQuadrotor}}
+function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{BilinearControl.RexQuadrotor}}
     px, py,pz = x[1], x[2], x[3]
     rx, ry, rz = x[4], x[5], x[6]
     settransform!(vis["robot"], compose(Translation(px,py,pz), LinearMap(MRP(rx, ry, rz))))
@@ -86,7 +86,7 @@ function set_cartpole!(vis0; model=RobotZoo.Cartpole(),
     settransform!(vis["cart","pole"], Translation(0.75*dim[1],0,dim[3]/2))
 end
 
-function visualize!(vis, model::Union{RobotZoo.Cartpole, Cartpole2}, x::AbstractVector)
+function visualize!(vis, model::Union{RobotZoo.Cartpole, BilinearControl.Cartpole2}, x::AbstractVector)
     y = x[1]
     θ = x[2]
     q = expm((pi-θ) * @SVector [1,0,0])
@@ -125,7 +125,7 @@ end
 #############################################
 # Airplane
 #############################################
-function set_airplane!(vis, ::YakPlane; color=nothing, scale=0.15)
+function set_airplane!(vis, ::BilinearControl.YakPlane; color=nothing, scale=0.15)
     meshfile = joinpath(DATADIR,"piper","piper_pa18.obj")
     # meshfile = joinpath(@__DIR__,"..","data","meshes","cirrus","Cirrus.obj")
     # meshfile = joinpath(@__DIR__,"..","data","meshes","piper","piper_scaled.obj")
@@ -142,7 +142,7 @@ function set_airplane!(vis, ::YakPlane; color=nothing, scale=0.15)
     setobject!(vis["robot"]["geom"], obj, mat)
     settransform!(vis["robot"]["geom"], compose(Translation(0,0,0.07),LinearMap( RotY(pi/2)*RotZ(-pi/2) * scale)))
 end
-orientation(model::YakPlane, x) = UnitQuaternion(MRP(x[4], x[5], x[6]))
+orientation(model::BilinearControl.YakPlane, x) = UnitQuaternion(MRP(x[4], x[5], x[6]))
 # orientation(model::YakPlane, x) = UnitQuaternion(x[4:7])
 
 #############################################
