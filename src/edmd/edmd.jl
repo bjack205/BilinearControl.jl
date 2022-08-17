@@ -17,7 +17,7 @@ export
     simulatewithcontroller,
     simulate
 
-export EDMDModel, LQRController, TrackingMPC, TrackingMPC_no_OSQP
+export EDMDModel, LQRController, TrackingMPC, TrackingMPC_no_OSQP, AltroController
 
 export run_eDMD, run_jDMD
 
@@ -33,6 +33,8 @@ using Statistics
 using ProgressMeter
 import RobotDynamics
 import RobotDynamics as RD
+using Altro
+import TrajectoryOptimization as TO
 
 include("edmd_utils.jl")
 include("eigenfunctions.jl")

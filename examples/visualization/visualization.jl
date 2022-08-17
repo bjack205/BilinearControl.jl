@@ -7,6 +7,11 @@ using RobotZoo
 import RobotDynamics as RD
 import BilinearControl.Problems: orientation, translation
 
+const ROBOT_MESHES_DIR = joinpath(homedir(), "Code", "robot_meshes")
+if isdir(ROBOT_MESHES_DIR)
+    include(joinpath(ROBOT_MESHES_DIR, "src", "RobotMeshes.jl"))
+end
+
 #############################################
 # Endurance (satellite) 
 #############################################

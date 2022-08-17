@@ -159,6 +159,8 @@ RD.control_dim(model::EDMDErrorModel) = RD.control_dim(model.nominal)
 RD.default_diffmethod(model::EDMDErrorModel) = RD.default_diffmethod(model.nominal)
 RD.default_signature(model::EDMDErrorModel) = RD.default_signature(model.nominal)
 
+Base.copy(model::EDMDErrorModel) = EDMDErrorModel(model.nominal, model.err.edmd_model)
+
 function RD.discrete_dynamics(model::EDMDErrorModel, x, u, t, dt)
     y = expandstate(model.err, x)
     xn = RD.discrete_dynamics(model.nominal, x, u, t, dt)

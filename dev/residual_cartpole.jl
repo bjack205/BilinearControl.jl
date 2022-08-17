@@ -126,14 +126,17 @@ Uref = U_ref[:,i+num_train]
 Tref = range(0,tf,step=dt)
 push!(Uref, zeros(m))
 
+mpc_true = TrackingMPC(dmodel_real, Xref, Uref, Tref, Qmpc, Rmpc, Qfmpc; Nt) 
 mpc_nom = TrackingMPC(dmodel_nom, Xref, Uref, Tref, Qmpc, Rmpc, Qfmpc; Nt) 
 mpc_res = TrackingMPC(res_model,  Xref, Uref, Tref, Qmpc, Rmpc, Qfmpc; Nt) 
 
+X_true, = simulatewithcontroller(dmodel_real, mpc_true, Xref[1], t_sim, dt)
 X_nom, = simulatewithcontroller(dmodel_real, mpc_nom, Xref[1], t_sim, dt)
 X_res, = simulatewithcontroller(dmodel_real, mpc_res, Xref[1], t_sim, dt)
 plotstates(Tref, Xref, inds=1:2, label="ref", lw=2, legend=:topleft)
 plotstates!(T_sim, X_nom, c=[1 2], lw=2, s=:dash, inds=1:2, label="nominal")
 plotstates!(T_sim, X_res, c=[1 2], lw=2, s=:dot,  inds=1:2, label="res")
+plotstates!(T_sim, X_true, c=[1 2], lw=2, linestyle=:dashdot,  inds=1:2, label="true")
 
 visualize!(vis, RobotZoo.Cartpole(), t_sim, X_nom)
 visualize!(vis, RobotZoo.Cartpole(), t_sim, X_res)

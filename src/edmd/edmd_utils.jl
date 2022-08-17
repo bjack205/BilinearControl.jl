@@ -723,6 +723,68 @@ end
 #     end
 # end
 
+struct AltroController{S} <: AbstractController
+    solver::S
+    Xref::Vector{Vector{Float64}}
+    Uref::Vector{Vector{Float64}}
+    Tref::Vector{Float64}
+    function AltroController(prob, Xref, Uref, Tref; opts=Altro.SolverOptions())
+        solver = ALTROSolver(prob, opts)
+        new{typeof(solver)}(solver, Xref, Uref, Tref)
+    end
+end
+
+function update!(ctrl::AltroController, x0, kstart)
+    Xref = ctrl.Xref
+    Uref = ctrl.Uref
+    solver = ctrl.solver
+
+    obj = TO.get_objective(solver).obj
+    Z = TO.get_trajectory(solver)
+    Nmpc = length(Z)
+    N = length(Xref)
+    xf = Xref[end]
+    xf[8:10] .= 0
+    uf = Uref[end] 
+    for i = 1:Nmpc
+        k = kstart + i - 1
+        if k > N
+            x = xf
+            u = uf
+        else
+            x = Xref[k] 
+            u = Uref[k] 
+        end
+        obj[i].q .= -obj[i].Q * x
+        obj[i].r .= -obj[i].R * u
+
+        if i > 1
+            RD.setdata!(Z[i-1], RD.getdata(Z[i]))
+        end
+    end
+
+    # Set new initial state
+    TO.set_initial_state!(solver, x0)
+
+    # Shift gains and roll out using feedback law from previous solve
+    if kstart > 1
+        ilqr = Altro.get_ilqr(solver)
+        Altro.shift_fill!(ilqr.gains)
+        TO.rollout!(ilqr, 0.0)
+        copyto!(ilqr.Z, ilqr.Z̄)
+    end
+end
+
+gettime(ctrl::AltroController) = ctrl.Tref
+
+function getcontrol(ctrl::AltroController, x, t)
+    k = get_k(ctrl, t)
+    update!(ctrl, x, k)
+    Altro.solve!(ctrl.solver)
+    Z = TO.get_trajectory(ctrl.solver)
+    return TO.control(Z[1])
+end
+
 
 function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
     N = round(Int, tf / dt) + 1

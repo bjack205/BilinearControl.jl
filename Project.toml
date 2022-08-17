@@ -4,6 +4,7 @@ authors = ["Brian Jackson <bjack205@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+Altro = "5dcf52e5-e2fb-48e0-b826-96f46d2e3e73"
 COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
 COSMOAccelerators = "bbd8fffe-5ad0-4d78-a55e-85575421b4ac"
 Convex = "f65535da-76fb-5f13-bab9-19810c17039a"

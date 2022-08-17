@@ -45,8 +45,7 @@ function LinearMPC(model, Xref, Uref, Tref, Qk, Rk, Qf; Nt=length(Xref),
     R = [copy(Rk) for k = 1:Nt-1]
     q = [zeros(n) for k = 1:Nt]
     r = [zeros(m) for k = 1:Nt-1]
-    push!(Q,Qf)
-    f = map(1:N-1) do k
+    f = map(1:N) do k
         dt = k < N ? Tref[k+1] - Tref[k] : Tref[k] - Tref[k-1] 
         xn = k < N ? copy(Xref[k+1]) : copy(Xref[k])
         Vector(RD.discrete_dynamics(model, Xref[k], Uref[k], Tref[k], dt) - xn)
@@ -58,24 +57,23 @@ end
 
 gettime(ctrl::LinearMPC) = ctrl.Tref
 
-function getcontrol(mpc::LinearMPC, x, t)
+function solve!(mpc::LinearMPC, x, k=1)
     N_ref = length(mpc.Xref)
     Nt = mpc.Nt
-    k = get_k(mpc, t)
 
     Nh = min(Nt, N_ref - k)     # actual MPC length (shrinks at the end of the horizon)
     # if there's only one step left, use control from the previous step
     if Nh == 1
         return mpc.U[1] + mpc.Uref[k]
     end
-    mpc_inds = k-1 .+ (1:Nh)
+    mpc_inds = get_ref_inds(mpc, k) 
     A = mpc.Aref[mpc_inds[1:end-1]]
     B = mpc.Bref[mpc_inds[1:end-1]]
-    f = mpc.fref[(Nt-Nh) .+ (1:Nh-1)]
-    Q = mpc.Q[(Nt-Nh) .+ (1:Nh)]
-    R = mpc.R[(Nt-Nh) .+ (1:Nh-1)]
-    q = mpc.q[(Nt-Nh) .+ (1:Nh)]
-    r = mpc.r[(Nt-Nh) .+ (1:Nh-1)]
+    f = mpc.fref[mpc_inds[1:end-1]]
+    Q = mpc.Q
+    R = mpc.R
+    q = mpc.q
+    r = mpc.r
     xmax,xmin = mpc.xmax, mpc.xmin
     umax,umin = mpc.umax, mpc.umin
 
@@ -85,16 +83,32 @@ function getcontrol(mpc::LinearMPC, x, t)
     dx = x - mpc.Xref[k]
     dX,dU,_,solved = EDMD.solve_lqr_osqp(Q,R,q,r,A,B,f,dx; xmin, xmax, umin, umax)
     if !solved
-        # @warn "OSQP solve failed"
+        @warn "OSQP solve failed"
         mpc.num_fails[1] += 1
         i = mpc.num_fails[1] + 1  # 0-to-1 based index shift
-        return mpc.U[i] + mpc.Uref[k]
+        return mpc.U[i] + mpc.Uref[k+i]
     else
         mpc.num_fails[1]
-        mpc.X[1:Nh] .= dX
-        mpc.U[1:Nh-1] .= dU
-        return dU[1] + mpc.Uref[k]
+        mpc.X[1:Nt] .= dX
+        mpc.U[1:Nt-1] .= dU
+        return mpc.U[1] + mpc.Uref[k]
     end
+end
+
+function get_ref_inds(mpc::LinearMPC, k)
+    N_ref = length(mpc.Xref)
+    Nt = mpc.Nt
+    mpc_inds = zeros(Int, Nt)
+    for i = 1:Nt
+        mpc_inds[i] = min((k-1) + i, N_ref)
+    end
+    return mpc_inds
+end
+
+function getcontrol(mpc::LinearMPC, x, t)
+    k = get_k(mpc, t)
+    u = solve!(mpc, x, k)
+    return u 
 end
 
 function solve_lqr_osqp(Q,R,q,r,A,B,f,x0;
@@ -116,7 +130,7 @@ function solve_lqr_osqp(Q,R,q,r,A,B,f,x0;
     @assert length(r) == Nt-1
     P_qp = spdiagm(vcat(mapreduce(diag, vcat, Q), mapreduce(diag, vcat, R)))
     q_qp = vcat(reduce(vcat, q), reduce(vcat, r))
-    b = [-x0; reduce(vcat, f)]
+    b = [-x0; -reduce(vcat, f)]
     D = spzeros(Nd,Np)
     D[1:n,1:n] .= -I(n)
     for k = 1:Nt-1
@@ -131,7 +145,9 @@ function solve_lqr_osqp(Q,R,q,r,A,B,f,x0;
     lp = [repeat(xmin, Nt); repeat(umin, Nt-1)]
     up = [repeat(xmax, Nt); repeat(umax, Nt-1)]
     osqp = OSQP.Model()
-    OSQP.setup!(osqp, P=P_qp, q=q_qp, A=[D; C], l=[b;lp], u=[b;up], verbose=false)
+    OSQP.setup!(osqp, P=P_qp, q=q_qp, A=[D; C], l=[b;lp], u=[b;up], verbose=false, 
+        eps_abs=1e-6, eps_rel=1e-6,
+    )
     res = OSQP.solve!(osqp)
     success = res.info.status == :Solved
     X = [x for x in eachcol(reshape(res.x[1:n*Nt], n,:))]
