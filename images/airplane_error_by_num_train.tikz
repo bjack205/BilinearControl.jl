@@ -1,7 +1,7 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Number of training trajectories}, ylabel={Tracking Error}, legend style={{at={(0.97,0.65)},anchor=east}}]
-    \addplot+[no marks, very thick, color={black}]
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Number of Training Trajectories}, ylabel={Tracking Error}, legend style={{at={(0.97,0.5)},anchor=east}}, ymax={0.11}]
+    \addplot+[no marks, very thick, color={black}, solid, thick]
         coordinates {
             (2,0.0956525264756359)
             (5,0.09565255515777206)
@@ -16,7 +16,40 @@
             (50,0.09565291306205415)
         }
         ;
-    \addplot+[no marks, very thick, color={orange}]
+    \addplot+[no marks, very thick, name path=A, black!10, forget plot, solid, line width={0.1}]
+        coordinates {
+            (2,0.08887798626290704)
+            (5,0.08887798626290704)
+            (10,0.08887798626290704)
+            (15,0.08887798626290704)
+            (20,0.08887798626290704)
+            (25,0.08887798626290704)
+            (30,0.08887798626290704)
+            (35,0.08887798626290704)
+            (40,0.08887798626290704)
+            (45,0.08887798626290704)
+            (50,0.08887798626290704)
+        }
+        ;
+    \addplot+[no marks, very thick, name path=B, black!10, forget plot, solid, line width={0.1}]
+        coordinates {
+            (2,0.10373825910211656)
+            (5,0.10373825910211656)
+            (10,0.10373825910211656)
+            (15,0.10373825910211656)
+            (20,0.1037377185097802)
+            (25,0.10373825910211656)
+            (30,0.10373825910211656)
+            (35,0.10373825910211656)
+            (40,0.10373825910211656)
+            (45,0.10373825910211656)
+            (50,0.10373825910211656)
+        }
+        ;
+    \addplot+[no marks, very thick, black!10, forget plot]
+        fill between [of=A and B]
+        ;
+    \addplot+[no marks, very thick, color={orange}, solid, thick]
         coordinates {
 
 
@@ -31,7 +64,40 @@
             (50,0.005649957131431781)
         }
         ;
-    \addplot+[no marks, very thick, color={cyan}]
+    \addplot+[no marks, very thick, name path=C, orange!10, forget plot, solid, line width={0.1}]
+        coordinates {
+
+
+            (10,0.00790744970412749)
+            (15,0.00847510386375639)
+            (20,0.004450902140047002)
+            (25,0.004206082508283245)
+            (30,0.0045801964072764165)
+            (35,0.004469872251454029)
+            (40,0.004817244978235689)
+            (45,0.004800220450152401)
+            (50,0.00449359581532153)
+        }
+        ;
+    \addplot+[no marks, very thick, name path=D, orange!10, forget plot, solid, line width={0.1}]
+        coordinates {
+
+
+            (10,0.11499933446669747)
+            (15,0.018844076801766602)
+            (20,0.00928447931726228)
+            (25,0.008608600972267798)
+            (30,0.008300635324391306)
+            (35,0.007239261531091251)
+            (40,0.008433973736196733)
+            (45,0.00883664619796736)
+            (50,0.007559178365760467)
+        }
+        ;
+    \addplot+[no marks, very thick, orange!10, forget plot]
+        fill between [of=C and D]
+        ;
+    \addplot+[no marks, very thick, color={cyan}, solid, thick]
         coordinates {
             (2,0.03258812384052574)
             (5,0.008898009242824514)
@@ -45,6 +111,39 @@
             (45,0.005088097900089297)
             (50,0.00455643872079049)
         }
+        ;
+    \addplot+[no marks, very thick, name path=E, cyan!10, forget plot, solid, line width={0.1}]
+        coordinates {
+            (2,0.005611086541472628)
+            (5,0.0031969299516158493)
+            (10,0.0042447979704548335)
+            (15,0.004005335720686007)
+            (20,0.004341857959252293)
+            (25,0.003681165915213725)
+            (30,0.0038508903858950126)
+            (35,0.003865481704910941)
+            (40,0.0029501350806490916)
+            (45,0.002845869613586417)
+            (50,0.0026180964253375945)
+        }
+        ;
+    \addplot+[no marks, very thick, name path=F, cyan!10, forget plot, solid, line width={0.1}]
+        coordinates {
+            (2,0.061012312683631546)
+            (5,0.020017601702253963)
+            (10,0.011686970115051997)
+            (15,0.010421397236792017)
+            (20,0.009642565854872335)
+            (25,0.011057906508429464)
+            (30,0.010726006119402049)
+            (35,0.010576060693982906)
+            (40,0.009241006349100522)
+            (45,0.00948653452500658)
+            (50,0.008487666804860957)
+        }
+        ;
+    \addplot+[no marks, very thick, cyan!10, forget plot]
+        fill between [of=E and F]
         ;
     \legend{{Nominal MPC},{EDMD},{JDMD}}
 \end{axis}

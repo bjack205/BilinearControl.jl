@@ -380,6 +380,21 @@
   abstract = {Online planning of whole-body motions for legged robots is challenging due to the inherent nonlinearity in the robot dynamics. In this work, we propose a nonlinear MPC framework, the BiConMP which can generate whole body trajectories online by efficiently exploiting the structure of the robot dynamics. BiConMP is used to generate various cyclic gaits on a real quadruped robot and its performance is evaluated on different terrain, countering unforeseen pushes and transitioning online between different gaits. Further, the ability of BiConMP to generate non-trivial acyclic whole-body dynamic motions on the robot is presented. Finally, an extensive empirical analysis on the effects of planning horizon and frequency on the nonlinear MPC framework is reported and discussed.}
 }
 
+@article{Moore2014,
+	title = {Robust post-stall perching with a simple fixed-wing glider using {LQR}-{Trees}},
+	volume = {9},
+	url = {https://doi.org/10.1088/1748-3182/9/2/025013},
+	doi = {10.1088/1748-3182/9/2/025013},
+	abstract = {Birds routinely execute post-stall maneuvers with a speed and precision far beyond the capabilities of our best aircraft control systems. One remarkable example is a bird exploiting post-stall pressure drag in order to rapidly decelerate to land on a perch. Stall is typically associated with a loss of control authority, and it is tempting to attribute this agility of birds to the intricate morphology of the wings and tail, to their precision sensing apparatus, or their ability to perform thrust vectoring. Here we ask whether an extremely simple fixed-wing glider (no propeller) with only a single actuator in the tail is capable of landing precisely on a perch from a large range of initial conditions. To answer this question, we focus on the design of the flight control system; building upon previous work which used linear feedback control design based on quadratic regulators (LQR), we develop nonlinear feedback control based on nonlinear model-predictive control and ‘LQR-Trees’. Through simulation using a flat-plate model of the glider, we find that both nonlinear methods are capable of achieving an accurate bird-like perching maneuver from a large range of initial conditions; the ‘LQR-Trees’ algorithm is particularly useful due to its low computational burden at runtime and its inherent performance guarantees. With this in mind, we then implement the ‘LQR-Trees’ algorithm on real hardware and demonstrate a 95 percent perching success rate over 147 flights for a wide range of initial speeds. These results suggest that, at least in the absence of significant disturbances like wind gusts, complex wing morphology and sensing are not strictly required to achieve accurate and robust perching even in the post-stall flow regime.},
+	number = {2},
+	journal = {Bioinspiration \&amp\${\textbackslash}mathsemicolon\$ Biomimetics},
+	author = {Moore, Joseph and Cory, Rick and Tedrake, Russ},
+	month = may,
+	year = {2014},
+	note = {Publisher: IOP Publishing},
+	pages = {025013},
+}
+
 @article{Narasingam2022,
   title = {Data-Driven Feedback Stabilization of Nonlinear Systems: {{Koopman-based}} Model Predictive Control},
   author = {Narasingam, Abhinav and Sang, Joseph and Kwon, Il},

@@ -87,17 +87,51 @@ results = load(CARTPOLE_MPC_RESULTS)["results"]
 fields = keys(results[1])
 res = Dict(Pair.(fields, map(x->getfield.(results, x), fields)))
 
+nom_err = res[:nom_err]
+eDMD_err = res[:eDMD_err]
+jDMD_err = res[:jDMD_err]
+
+function get_error_quantile(results; p=0.05)
+    quantile_empty(x, i) = if isempty(x) 0 else quantile(x, i) end
+
+    min_quant = map(x->quantile_empty(x, p), results)
+    max_quant = map(x->quantile_empty(x, 1-p), results)
+    return min_quant, max_quant
+end
+
+quant_min_nom, quant_max_nom  = get_error_quantile(nom_err) 
+quant_min_eDMD, quant_max_eDMD = get_error_quantile(eDMD_err) 
+quant_min_jDMD, quant_max_jDMD = get_error_quantile(jDMD_err) 
+
+
+lineopts_thick_bars = @pgf{lineopts..., "error bars/error bar style={thick}"}
+
 p = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel = "Number of training trajectories",
-        ylabel = "Tracking error",
+        xlabel = "Number of Training Trajectories",
+        ylabel = "Tracking Error",
+        ymin=1e-2,
         ymax=0.2,
     },
-    PlotInc({lineopts..., color=color_nominal}, Coordinates(res[:num_swingup], res[:nom_err_avg])),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(res[:num_swingup], res[:eDMD_err_avg])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(res[:num_swingup], res[:jDMD_err_avg])),
+    PlotInc({lineopts_thick_bars..., color=color_nominal}, Coordinates(res[:num_swingup], res[:nom_err_avg])),
+
+    PlotInc({lineopts..., "name path=A", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_min_nom)),
+    PlotInc({lineopts..., "name_path=B", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_max_nom)),
+    PlotInc({lineopts..., "black!10", "forget plot"}, "fill between [of=A and B]"),
+
+    PlotInc({lineopts_thick_bars..., color=color_eDMD}, Coordinates(res[:num_swingup], res[:eDMD_err_avg])),
+    
+    PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_min_eDMD)),
+    PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_max_eDMD)),
+    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
+
+    PlotInc({lineopts_thick_bars..., color=color_jDMD}, Coordinates(res[:num_swingup], res[:jDMD_err_avg])),
+    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_min_jDMD)),
+    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_max_jDMD)),
+    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+
     # Legend(["Nominal", "eDMD", "jDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)

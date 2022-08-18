@@ -1,7 +1,5 @@
 import Pkg; Pkg.activate(joinpath(@__DIR__)); Pkg.instantiate();
 using BilinearControl
-using BilinearControl.Problems
-using BilinearControl.EDMD
 import RobotDynamics as RD
 using LinearAlgebra
 using RobotZoo
@@ -16,8 +14,7 @@ using StaticArrays
 using Test 
 import TrajectoryOptimization as TO
 using Altro
-import BilinearControl.Problems
-import BilinearControl.Problems: orientation, translation
+import BilinearControl: orientation, translation
 using Test
 using Rotations
 using RobotDynamics
@@ -25,9 +22,8 @@ using GeometryBasics, CoordinateTransformations
 using Colors
 using MeshCat
 
-include("constants.jl")
-const QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_results.jld2")
-const QUADROTOR_MODELS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_models.jld2")
+const QUADROTOR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_results.jld2")
+const QUADROTOR_MODELS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_models.jld2")
 
 #############################################
 ## Functions
@@ -35,7 +31,7 @@ const QUADROTOR_MODELS_FILE = joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc
 
 function set_quadrotor!(vis, model::L;
     scaling=1.0, color=colorant"black"
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, Problems.Quadrotor, Problems.RexQuadrotor, Problems.RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.Quadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
      
     # urdf_folder = @__DIR__
     # if scaling != 1.0
@@ -51,7 +47,7 @@ function set_quadrotor!(vis, model::L;
     settransform!(vis["robot"]["geom"], LinearMap(RotXYZ(pi/2, 0, 0)))
 end
 
-function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{Problems.Quadrotor, Problems.RexQuadrotor}}
+function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{BilinearControl.Quadrotor, BilinearControl.RexQuadrotor}}
     px, py,pz = x[1], x[2], x[3]
     rx, ry, rz = x[4], x[5], x[6]
     settransform!(vis, compose(Translation(px,py,pz), LinearMap(MRP(rx, ry, rz))))
@@ -71,7 +67,7 @@ end
 
 function waypoints!(vis, model::L, Z::AbstractVector;
     interval=20, color=nothing
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, Problems.Quadrotor, Problems.RexQuadrotor, Problems.RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.Quadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
     
     # N = size(Z,1)
     # if length > 0 && isempty(inds)
@@ -114,7 +110,7 @@ end
 #############################################
 
 MPC_test_results = load(QUADROTOR_RESULTS_FILE)["MPC_test_results"]
-mpc_lqr_traj = load(joinpath(Problems.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
+mpc_lqr_traj = load(joinpath(BilinearControl.DATADIR, "rex_full_quadrotor_mpc_tracking_data.jld2"))
 
 tf = mpc_lqr_traj["tf"]
 dt = mpc_lqr_traj["dt"]
@@ -134,7 +130,7 @@ T_mpc_vecs = MPC_test_results[:T_mpc]
 ## Visualize a trajectory
 #############################################
 
-model = Problems.RexQuadrotor()
+model = BilinearControl.RexQuadrotor()
 vis = Visualizer()
 delete!(vis)
 render(vis)
@@ -163,7 +159,7 @@ println("")
 ## Plot layout of all initial conditions
 #############################################
 
-model = Problems.RexQuadrotor()
+model = BilinearControl.RexQuadrotor()
 vis = Visualizer()
 delete!(vis)
 render(vis)
@@ -186,7 +182,7 @@ end
 ## Trajectory plotting with waypoints
 #############################################
 
-model = Problems.RexQuadrotor()
+model = BilinearControl.RexQuadrotor()
 vis = Visualizer()
 delete!(vis)
 render(vis)
@@ -214,7 +210,7 @@ waypoints!(vis, model, jDMD_MPC; color=colorant"rgb(70,70,70)", interval=15)
 ## Trajectory plotting with moving quad
 #############################################
 
-model = Problems.RexQuadrotor()
+model = BilinearControl.RexQuadrotor()
 vis = Visualizer()
 delete!(vis)
 render(vis)
@@ -265,7 +261,7 @@ p_equilibrium_err = @pgf Axis(
 
     Legend(["nominal MPC", "eDMD", "jDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_error_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_mpc_error_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
 
 p_equilibrium_err = @pgf Axis(
     {
@@ -283,7 +279,7 @@ p_equilibrium_err = @pgf Axis(
 
     Legend(["nominal MPC", "eDMD", "jDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_success_rate_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_mpc_success_rate_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
 
 #############################################
 ## Plot tracking performance vs test window
@@ -310,7 +306,7 @@ p_window_error = @pgf Axis(
 
     Legend(["nominal MPC", "eDMD", "jDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_error_by_training_range.tikz"), p_window_error, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_mpc_error_by_training_range.tikz"), p_window_error, include_preamble=false)
 
 p_window_success = @pgf Axis(
     {
@@ -328,4 +324,4 @@ p_window_success = @pgf Axis(
 
     Legend(["nominal MPC", "eDMD", "jDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_success_rate_by_training_range.tikz"), p_window_success, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_success_rate_by_training_range.tikz"), p_window_success, include_preamble=false)

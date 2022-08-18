@@ -1,7 +1,5 @@
 import Pkg; Pkg.activate(joinpath(@__DIR__)); Pkg.instantiate();
 using BilinearControl
-using BilinearControl.Problems
-using BilinearControl.EDMD
 import RobotDynamics as RD
 using LinearAlgebra
 using RobotZoo
@@ -17,8 +15,17 @@ using PGFPlotsX
 using Statistics
 using LaTeXStrings
 
-include("constants.jl")
-const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(Problems.DATADIR, "rex_planar_quadrotor_lqr_results.jld2")
+include("plotting_constants.jl")
+
+const REX_PLANAR_QUADROTOR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "rex_planar_quadrotor_lqr_results.jld2")
+
+function get_error_quantile(results; p=0.05)
+    quantile_empty(x, i) = if isempty(x) 0 else quantile(x, i) end
+
+    min_quant = quantile_empty(results, p)
+    max_quant = quantile_empty(results, 1-p)
+    return min_quant, max_quant
+end
 
 function test_initial_conditions(model, controller, xg, ics, tf, dt)
     map(ics) do x0
@@ -35,23 +42,23 @@ function test_initial_conditions_offset(model, controller, xg, ics, tf, dt)
 end
 
 ## Visualizer
-model = Problems.RexPlanarQuadrotor()
-include(joinpath(Problems.VISDIR, "visualization.jl"))
-vis = Visualizer()
-delete!(vis)
-set_quadrotor!( vis, model)
-render(vis)
+model = BilinearControl.RexPlanarQuadrotor()
+include(joinpath(BilinearControl.VISDIR, "visualization.jl"))
+# vis = Visualizer()
+# delete!(vis)
+# set_quadrotor!( vis, model)
+# render(vis)
 
 #############################################
 ## Define the models 
 #############################################
 
 # Define Nominal Simulated REx Planar Quadrotor Model
-model_nom = Problems.NominalPlanarQuadrotor()
+model_nom = BilinearControl.NominalPlanarQuadrotor()
 dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
 
 # Define Mismatched "Real" REx Planar Quadrotor Model
-model_real = Problems.SimulatedPlanarQuadrotor()  # this model has aero drag
+model_real = BilinearControl.SimulatedPlanarQuadrotor()  # this model has aero drag
 dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
 #############################################
@@ -70,7 +77,7 @@ num_train = 30
 Qlqr = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0])
 Rlqr = Diagonal([1e-4, 1e-4])
 xe = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-ue = Problems.trim_controls(model_real)
+ue = BilinearControl.trim_controls(model_real)
 ctrl_lqr_nom = LQRController(dmodel_nom, Qlqr, Rlqr, xe, ue, dt)
 
 # Sample a bunch of initial conditions for the LQR controller
@@ -86,7 +93,7 @@ x0_train_sampler = Product([
 initial_conditions_lqr = [rand(x0_train_sampler) for _ in 1:num_train]
 
 # Create data set
-X_train, U_train = create_data(dmodel_real, ctrl_lqr_nom, initial_conditions_lqr, tf, dt)
+X_train, U_train = BilinearControl.create_data(dmodel_real, ctrl_lqr_nom, initial_conditions_lqr, tf, dt)
 
 #############################################
 ## Define basis functions
@@ -118,7 +125,7 @@ Rlqr = Diagonal([1e-4, 1e-4])
 regularizers = vcat(0.0, exp10.(-5:2))
 errors = map(regularizers) do reg
     model_eDMD = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=reg, name="planar_quadrotor_eDMD")
-    model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
+    model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
     lqr_eDMD_projected = LQRController(
     model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
     )
@@ -128,7 +135,7 @@ errors = map(regularizers) do reg
         error_jDMD_projected = NaN
     else
         model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=reg, name="planar_quadrotor_jDMD")
-        model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+        model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
         lqr_jDMD_projected = LQRController(
             model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
         )
@@ -150,10 +157,10 @@ model_eDMD_unreg = run_eDMD(X_train, U_train, dt, eigfuns, eigorders, reg=0.0, n
 model_jDMD = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-5, name="planar_quadrotor_jDMD")
 model_jDMD2 = run_jDMD(X_train, U_train, dt, eigfuns, eigorders, dmodel_nom, reg=1e-1, name="planar_quadrotor_jDMD")
 
-model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-model_eDMD_projected_unreg = EDMD.ProjectedEDMDModel(model_eDMD_unreg)
-model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
-model_jDMD_projected2 = EDMD.ProjectedEDMDModel(model_jDMD2)
+model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
+model_eDMD_projected_unreg = BilinearControl.ProjectedEDMDModel(model_eDMD_unreg)
+model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
+model_jDMD_projected2 = BilinearControl.ProjectedEDMDModel(model_jDMD2)
 
 n,m = RD.dims(model_eDMD)
 n0, = RD.dims(model_real)
@@ -163,23 +170,23 @@ n0, = RD.dims(model_real)
 #############################################
 
 # ze = RD.KnotPoint{n0,m}(xe,ue,0.0,dt)
-# ye = EDMD.expandstate(model_eDMD, xe)
+# ye = BilinearControl.expandstate(model_eDMD, xe)
 
-# ## Create LQR controllers
-# ctrl_lqr_real = EDMD.LQRController(dmodel_real, Qlqr, Rlqr, xe, ue, dt)
-# ctrl_lqr_nom = EDMD.LQRController(dmodel_nom, Qlqr, Rlqr, xe, ue, dt)
-# ctrl_lqr_eDMD = EDMD.LQRController(model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt)
-# ctrl_lqr_jDMD = EDMD.LQRController(model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt)
+# # Create LQR controllers
+# ctrl_lqr_real = BilinearControl.LQRController(dmodel_real, Qlqr, Rlqr, xe, ue, dt)
+# ctrl_lqr_nom = BilinearControl.LQRController(dmodel_nom, Qlqr, Rlqr, xe, ue, dt)
+# ctrl_lqr_eDMD = BilinearControl.LQRController(model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt)
+# ctrl_lqr_jDMD = BilinearControl.LQRController(model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt)
 
-# ## Simulate with specified initial condition
+# # Simulate with specified initial condition
 # tf_sim = 5.0
 # Tsim_lqr = range(0,tf_sim,step=dt)
 # x0 = [-0.5, 0.5, -deg2rad(20),-1.0,1.0,0.0]
 
-# Xsim_lqr_real, = EDMD.simulatewithcontroller(dmodel_real, ctrl_lqr_real, x0, tf_sim, dt)
-# Xsim_lqr_nom, = EDMD.simulatewithcontroller(dmodel_real, ctrl_lqr_nom, x0, tf_sim, dt)
-# Xsim_lqr_eDMD, = EDMD.simulatewithcontroller(dmodel_real, ctrl_lqr_eDMD, x0, tf_sim, dt)
-# Xsim_lqr_jDMD, = EDMD.simulatewithcontroller(dmodel_real, ctrl_lqr_jDMD, x0, tf_sim, dt)
+# Xsim_lqr_real, = BilinearControl.simulatewithcontroller(dmodel_real, ctrl_lqr_real, x0, tf_sim, dt)
+# Xsim_lqr_nom, = BilinearControl.simulatewithcontroller(dmodel_real, ctrl_lqr_nom, x0, tf_sim, dt)
+# Xsim_lqr_eDMD, = BilinearControl.simulatewithcontroller(dmodel_real, ctrl_lqr_eDMD, x0, tf_sim, dt)
+# Xsim_lqr_jDMD, = BilinearControl.simulatewithcontroller(dmodel_real, ctrl_lqr_jDMD, x0, tf_sim, dt)
 
 # plotstates(Tsim_lqr, Xsim_lqr_real, inds=1:3, xlabel="time (s)", ylabel="states",
 #             label=["x (true LQR)" "y (true LQR)" "θ (true LQR)"], legend=:topright, lw=2,
@@ -202,8 +209,8 @@ n0, = RD.dims(model_real)
 
 # Equilibrium position
 xe = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-ue = Problems.trim_controls(model_real)
-ye = EDMD.expandstate(model_eDMD, xe)
+ue = BilinearControl.trim_controls(model_real)
+ye = BilinearControl.expandstate(model_eDMD, xe)
 
 Qlqr = Diagonal([10.0, 10.0, 10.0, 1.0, 1.0, 1.0])
 Rlqr = Diagonal([1e-4, 1e-4])
@@ -217,8 +224,8 @@ lqr_nominal = LQRController(
 )
 
 # Projected LQR Controllers
-model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
+model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
 lqr_eDMD_projected = LQRController(
     model_eDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true
 )
@@ -263,6 +270,9 @@ res_lqr_perf = (;errors_nominal, errors_eDMD_projected, errors_jDMD_projected, e
 #############################################
 ## LQR Stabilization Performance vs Training Window
 #############################################
+
+Random.seed!(5)
+
 percentages = 0.1:0.05:2.5
 errors = map(percentages) do perc
 
@@ -288,12 +298,36 @@ errors = map(percentages) do perc
     lqr_jDMD_projected2 = LQRController(
         model_jDMD_projected2, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true)
 
-    error_eDMD_projected = mean(test_initial_conditions(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt))
-    error_eDMD_projected_unreg = mean(test_initial_conditions(dmodel_real, lqr_eDMD_projected_unreg, xe, x0_test, t_sim, dt))
-    error_jDMD_projected = mean(test_initial_conditions(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt))
-    error_jDMD_projected2 = mean(test_initial_conditions(dmodel_real, lqr_jDMD_projected2, xe, x0_test, t_sim, dt))
 
-    (;error_eDMD_projected, error_eDMD_projected_unreg, error_jDMD_projected, error_jDMD_projected2)
+    error_eDMD_projected = test_initial_conditions(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt)
+    error_eDMD_projected_mean = mean(error_eDMD_projected)
+    error_eDMD_projected_ci = 1.959964 .* (stdm(error_eDMD_projected, error_eDMD_projected_mean) ./ sqrt(length(error_eDMD_projected)))
+    error_eDMD_projected_quanti_min, error_eDMD_projected_quanti_max = get_error_quantile(error_eDMD_projected; p=0.05)
+    
+    error_eDMD_projected_unreg = test_initial_conditions(dmodel_real, lqr_eDMD_projected_unreg, xe, x0_test, t_sim, dt)
+    error_eDMD_projected_unreg_mean = mean(error_eDMD_projected_unreg)
+    error_eDMD_projected_unreg_ci = 1.959964 .* (stdm(error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean) ./ sqrt(length(error_eDMD_projected_unreg)))
+    error_eDMD_projected_unreg_quanti_min, error_eDMD_projected_unreg_quanti_max = get_error_quantile(error_eDMD_projected_unreg; p=0.05)
+
+    error_jDMD_projected = test_initial_conditions(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt)
+    error_jDMD_projected_mean = mean(error_jDMD_projected)
+    error_jDMD_projected_ci = 1.959964 .* (stdm(error_jDMD_projected, error_jDMD_projected_mean) ./ sqrt(length(error_jDMD_projected)))
+    error_jDMD_projected_quanti_min, error_jDMD_projected_quanti_max = get_error_quantile(error_jDMD_projected; p=0.05)
+
+    error_jDMD_projected2 = test_initial_conditions(dmodel_real, lqr_jDMD_projected2, xe, x0_test, t_sim, dt)
+    error_jDMD_projected2_mean = mean(error_jDMD_projected2)
+    error_jDMD_projected2_ci = 1.959964 .* (stdm(error_jDMD_projected2, error_jDMD_projected2_mean) ./ sqrt(length(error_jDMD_projected2)))
+    error_jDMD_projected2_quanti_min, error_jDMD_projected2_quanti_max = get_error_quantile(error_jDMD_projected2; p=0.05)
+
+    (;error_eDMD_projected, error_eDMD_projected_mean, error_eDMD_projected_ci,
+        error_eDMD_projected_quanti_min, error_eDMD_projected_quanti_max,
+        error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean, error_eDMD_projected_unreg_ci,
+        error_eDMD_projected_unreg_quanti_min, error_eDMD_projected_unreg_quanti_max,
+        error_jDMD_projected, error_jDMD_projected_mean, error_jDMD_projected_ci,
+        error_jDMD_projected_quanti_min, error_jDMD_projected_quanti_max,
+        error_jDMD_projected2, error_jDMD_projected2_mean, error_jDMD_projected2_ci,
+        error_jDMD_projected2_quanti_min, error_jDMD_projected2_quanti_max
+    )
 
 end
 
@@ -309,17 +343,25 @@ res_lqr_window = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
 #         legend_pos = "north west",
 #         ymax = 20,
 #     },
-#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg])),
-#     PlotInc({lineopts..., color="teal"}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected])),
-#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected])),
-#     PlotInc({lineopts..., color="purple"}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected2])),
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected_mean];
+#         yerror = res_lqr_window[:error_eDMD_projected_ci])),
+#     PlotInc({lineopts..., color="teal"}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_mean];
+#         yerror = res_lqr_window[:error_eDMD_projected_unreg_ci])),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected_mean];
+#         yerror = res_lqr_window[:error_jDMD_projected_ci])),
+#     PlotInc({lineopts..., color="purple"}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_mean];
+#         yerror = res_lqr_window[:error_jDMD_projected2_ci])),
 
 #     Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
 # )
 
+# display(p_lqr_window)
+
 #############################################
 ## LQR stabilization performance vs equilibrium change
 #############################################
+
+Random.seed!(6)
 
 distances = 0:0.1:4
 errors = map(distances) do dist
@@ -357,34 +399,50 @@ errors = map(distances) do dist
             model_jDMD_projected, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true)
         lqr_jDMD_projected2 = LQRController(
             model_jDMD_projected2, Qlqr, Rlqr, xe, ue, dt, max_iters=10000, verbose=true)
-    
-        error_eDMD_projected_x0s = mean(test_initial_conditions_offset(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt))
-        error_eDMD_projected_unreg_x0s = mean(test_initial_conditions_offset(dmodel_real, lqr_eDMD_projected_unreg, xe, x0_test, t_sim, dt))
-        error_jDMD_projected_x0s = mean(test_initial_conditions_offset(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt))
-        error_jDMD_projected2_x0s = mean(test_initial_conditions_offset(dmodel_real, lqr_jDMD_projected2, xe, x0_test, t_sim, dt))
 
-        if error_eDMD_projected_x0s > 1e3
-            error_eDMD_projected_x0s = NaN
-        end
-        if error_eDMD_projected_unreg_x0s > 1e3
-            error_eDMD_projected_unreg_x0s = NaN
-        end
-        if error_jDMD_projected_x0s > 1e3
-            error_jDMD_projected_x0s = NaN
-        end
-        if error_jDMD_projected2_x0s > 1e3
-            error_jDMD_projected2_x0s = NaN
-        end
+        error_eDMD_projected_x0s = test_initial_conditions_offset(dmodel_real, lqr_eDMD_projected, xe, x0_test, t_sim, dt)
+        error_eDMD_projected_unreg_x0s = test_initial_conditions_offset(dmodel_real, lqr_eDMD_projected_unreg, xe, x0_test, t_sim, dt)
+        error_jDMD_projected_x0s = test_initial_conditions_offset(dmodel_real, lqr_jDMD_projected, xe, x0_test, t_sim, dt)
+        error_jDMD_projected2_x0s = test_initial_conditions_offset(dmodel_real, lqr_jDMD_projected2, xe, x0_test, t_sim, dt)
+
+        error_eDMD_projected_x0s[error_eDMD_projected_x0s .> 1e3] .= NaN
+        error_eDMD_projected_unreg_x0s[error_eDMD_projected_unreg_x0s .> 1e3] .= NaN
+        error_jDMD_projected_x0s[error_jDMD_projected_x0s .> 1e3] .= NaN
+        error_jDMD_projected2_x0s[error_jDMD_projected2_x0s .> 1e3] .= NaN
+        
         (;error_eDMD_projected_x0s, error_eDMD_projected_unreg_x0s, error_jDMD_projected_x0s, error_jDMD_projected2_x0s)
     end
     
-    error_eDMD_projected = mean(filter(isfinite, map(x->x.error_eDMD_projected_x0s, xe_results)))
-    error_eDMD_projected_unreg = mean(filter(isfinite, map(x->x.error_eDMD_projected_unreg_x0s, xe_results)))
-    error_jDMD_projected = mean(filter(isfinite, map(x->x.error_jDMD_projected_x0s, xe_results)))
-    error_jDMD_projected2 = mean(filter(isfinite, map(x->x.error_jDMD_projected2_x0s, xe_results)))
+    error_eDMD_projected = filter(isfinite, reduce(vcat, map(x->x.error_eDMD_projected_x0s, xe_results)))
+    error_eDMD_projected_mean = mean(error_eDMD_projected)
+    error_eDMD_projected_ci = 1.959964 .* (stdm(error_eDMD_projected, error_eDMD_projected_mean) ./ sqrt(length(error_eDMD_projected)))
+    error_eDMD_projected_quanti_min, error_eDMD_projected_quanti_max = get_error_quantile(error_eDMD_projected; p=0.05)
 
-    (;error_eDMD_projected, error_eDMD_projected_unreg, error_jDMD_projected, error_jDMD_projected2)
+    error_eDMD_projected_unreg = filter(isfinite, reduce(vcat, map(x->x.error_eDMD_projected_unreg_x0s, xe_results)))
+    error_eDMD_projected_unreg_mean = mean(error_eDMD_projected_unreg)
+    error_eDMD_projected_unreg_ci = 1.959964 .* (stdm(error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean) ./ sqrt(length(error_eDMD_projected_unreg)))
+    error_eDMD_projected_unreg_quanti_min, error_eDMD_projected_unreg_quanti_max = get_error_quantile(error_eDMD_projected_unreg; p=0.05)
 
+    error_jDMD_projected = filter(isfinite, reduce(vcat, map(x->x.error_jDMD_projected_x0s, xe_results)))
+    error_jDMD_projected_mean = mean(error_jDMD_projected)
+    error_jDMD_projected_ci = 1.959964 .* (stdm(error_jDMD_projected, error_jDMD_projected_mean) ./ sqrt(length(error_jDMD_projected)))
+    error_jDMD_projected_quanti_min, error_jDMD_projected_quanti_max = get_error_quantile(error_jDMD_projected; p=0.05)
+
+    error_jDMD_projected2 = filter(isfinite, reduce(vcat, map(x->x.error_jDMD_projected2_x0s, xe_results)))
+    error_jDMD_projected2_mean = mean(error_jDMD_projected2)
+    error_jDMD_projected2_ci = 1.959964 .* (stdm(error_jDMD_projected2, error_jDMD_projected2_mean) ./ sqrt(length(error_jDMD_projected2)))
+    error_jDMD_projected2_quanti_min, error_jDMD_projected2_quanti_max = get_error_quantile(error_jDMD_projected2; p=0.05)
+
+    (;error_eDMD_projected, error_eDMD_projected_mean, error_eDMD_projected_ci,
+        error_eDMD_projected_quanti_min, error_eDMD_projected_quanti_max,
+        error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean, error_eDMD_projected_unreg_ci,
+        error_eDMD_projected_unreg_quanti_min, error_eDMD_projected_unreg_quanti_max,
+        error_jDMD_projected, error_jDMD_projected_mean, error_jDMD_projected_ci,
+        error_jDMD_projected_quanti_min, error_jDMD_projected_quanti_max,
+        error_jDMD_projected2, error_jDMD_projected2_mean, error_jDMD_projected2_ci,
+        error_jDMD_projected2_quanti_min, error_jDMD_projected2_quanti_max
+    )
+    
 end
 
 fields = keys(errors[1])
@@ -400,13 +458,19 @@ res_equilibrium = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
 #         ymax = 150,
         
 #     },
-#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg])),
-#     PlotInc({lineopts..., color="teal"}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
-#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
-#     PlotInc({lineopts..., color="purple"}, Coordinates(distances, res_equilibrium[:error_jDMD_projected2])),
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected_mean];
+#         yerror = res_equilibrium[:error_eDMD_projected_ci])),
+#     PlotInc({lineopts..., color="teal"}, Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_mean];
+#         yerror = res_equilibrium[:error_eDMD_projected_unreg_ci])),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected_mean];
+#         yerror = res_equilibrium[:error_jDMD_projected_ci])),
+#     PlotInc({lineopts..., color="purple"}, Coordinates(distances, res_equilibrium[:error_jDMD_projected2_mean];
+#         yerror = res_equilibrium[:error_jDMD_projected2_ci])),
 
 #     Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
 # )
+
+# display(p_lqr_equilibrium)
 
 #############################################
 ## MPC Stabilization Performance 
@@ -433,8 +497,8 @@ mpc_nominal = TrackingMPC(dmodel_nom,
 )
 
 # Projected MPC controllers
-model_eDMD_projected = EDMD.ProjectedEDMDModel(model_eDMD)
-model_jDMD_projected = EDMD.ProjectedEDMDModel(model_jDMD)
+model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
+model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
 mpc_eDMD_projected = TrackingMPC(model_eDMD_projected, 
     X_ref, U_ref, Vector(T_ref), Qmpc, Rmpc, Qfmpc; Nt=Nt
 )
@@ -494,28 +558,30 @@ res_lqr_window = results["res_lqr_window"]
 res_equilibrium = results["res_equilibrium"]
 res_mpc_tracking = results["res_mpc_tracking"]
 
+# plot regularization study
 p_lqr_reg = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
         xmode = "log",
         ymode = "log",
-        xlabel = "Regularization value",
-        ylabel = "Stabilization error",
+        xlabel = "Regularization Value",
+        ylabel = "Stabilization Error",
         legend_pos = "north west"
     },
     PlotInc({lineopts..., color=color_eDMD}, Coordinates(regularizers, res_reg[:error_eDMD_projected])),
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(regularizers, res_reg[:error_jDMD_projected])),
-    Legend(["eDMD", "jDMD"])
+    Legend(["EDMD", "JDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_reg.tikz"), p_lqr_reg, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_lqr_error_by_reg.tikz"), p_lqr_reg, include_preamble=false)
 
+# plot lqr performance
 p_lqr_perf = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel="Percent of samples",
-        ylabel="Tracking error",
+        xlabel="Percent of Samples",
+        ylabel="Tracking Error",
         legend_cell_align={left},
         legend_pos="north west",
         ymax=15e-2,
@@ -526,55 +592,217 @@ p_lqr_perf = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, res_lqr_perf[:errors_jDMD_projected])),
     PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, res_lqr_perf[:errors_eDMD])),
     PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, res_lqr_perf[:errors_jDMD])),
-    # Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+    # Legend(["Nominal", "EDMD (Projected)", "JDMD (Projected)", "EDMD (Lifted)", "JDMD (Lifted)"])
 )
-#display(p_lqr_perf)
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_stabilization_performance.tikz"), 
-#     p_lqr_perf, include_preamble=false)
+
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_lqr_stabilization_performance.tikz"), 
+    p_lqr_perf, include_preamble=false)
+
+# plot training window study
 
 p_lqr_window = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
         xlabel = "Fraction of Training Range",
-        ylabel = "Stabilization error",
+        ylabel = "Stabilization Error",
         legend_pos = "north west",
         ymax = 20,
     },
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg])),
-    PlotInc({lineopts..., color="teal"}, Coordinates(percentages, res_lqr_window[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected])),
-    PlotInc({lineopts..., color="purple"}, Coordinates(percentages, res_lqr_window[:error_jDMD_projected2])),
+    
+    PlotInc({lineopts..., "name path=A", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_quanti_min])),
+    PlotInc({lineopts..., "name_path=B", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_quanti_max])),
+    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=A and B]"),
 
-    # Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
+    PlotInc({lineopts..., "name_path=C", "orange!20", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=D", "orange!20", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "orange!20", "forget plot"}, "fill between [of=C and D]"),
+    
+    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+
+    PlotInc({lineopts..., "name_path=G", "cyan!20", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_quanti_min])),
+    PlotInc({lineopts..., "name_path=H","cyan!20", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_quanti_max])),
+    PlotInc({lineopts..., "cyan!20", "forget plot"}, "fill between [of=G and H]"),
+
+    PlotInc({lineopts..., "orange!50", line_width=1.5},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_mean])),
+    PlotInc({lineopts..., color=color_eDMD, dashed, line_width=2},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_mean])),
+    PlotInc({lineopts..., "cyan!50", line_width=1.5},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected_mean])),
+    PlotInc({lineopts..., color=color_jDMD, dashed, line_width=2},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_mean])),
+
+    # Legend(["EDMD" * L"(\lambda = 0.0)", "EDMD" * L"(\lambda = 0.1)", "JDMD" * L"(\lambda = 10^{-5})", "JDMD" * L"(\lambda = 0.1)"])
 )
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_training_window.tikz"), p_lqr_window, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_lqr_error_by_training_window.tikz"), p_lqr_window, include_preamble=false)
+
+# plot training window study without regularization
+
+p_lqr_window = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Fraction of Training Range",
+        ylabel = "Stabilization Error",
+        legend_pos = "north west",
+        ymax = 20,
+    },
+
+    # PlotInc({lineopts..., "name path=A", "orange!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_quanti_min])),
+    # PlotInc({lineopts..., "name_path=B", "orange!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_quanti_max])),
+    # PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=A and B]"),
+
+    PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
+    
+    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+
+    # PlotInc({lineopts..., "name_path=G", "cyan!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_quanti_min])),
+    # PlotInc({lineopts..., "name_path=H","cyan!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_quanti_max])),
+    # PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=G and H]"),
+
+    # PlotInc({lineopts..., color=color_eDMD, solid, thick},
+    #     Coordinates(percentages, res_lqr_window[:error_eDMD_projected_unreg_mean])),
+    PlotInc({lineopts..., color=color_eDMD, solid, thick},
+        Coordinates(percentages, res_lqr_window[:error_eDMD_projected_mean])),
+    PlotInc({lineopts..., color=color_jDMD, solid, thick},
+        Coordinates(percentages, res_lqr_window[:error_jDMD_projected_mean])),
+    # PlotInc({lineopts..., color=color_jDMD, solid, thick},
+    #     Coordinates(percentages, res_lqr_window[:error_jDMD_projected2_mean])),
+
+    # Legend(["EDMD", "JDMD"])
+)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_lqr_error_by_training_window_without_regularization.tikz"), p_lqr_window, include_preamble=false)
+
+# plot equilibrium shift study
 
 p_lqr_equilibrium = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel = "Equilibrium offset",
-        ylabel = "Stabilization error",
+        xlabel = "Equilibrium Offset",
+        ylabel = "Stabilization Error",
         legend_pos = "north west",
-        ymax = 200,
+        ymax = 150,
         
     },
-    PlotInc({no_marks, color=color_eDMD, thick}, Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg])),
-    PlotInc({lineopts..., color=color_eDMD, line_width=2}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
-    PlotInc({no_marks, color=color_jDMD, thick}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD, line_width=2}, Coordinates(distances, res_equilibrium[:error_jDMD_projected2])),
 
-    # Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
+    PlotInc({lineopts..., "name_path=C", "orange!20", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=D", "orange!20", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "orange!20", "forget plot"}, "fill between [of=C and D]"),
+
+    PlotInc({lineopts..., "name path=A", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_quanti_min])),
+    PlotInc({lineopts..., "name_path=B", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_quanti_max])),
+    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=A and B]"),
+    
+    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+
+    PlotInc({lineopts..., "name_path=G", "cyan!20", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected2_quanti_min])),
+    PlotInc({lineopts..., "name_path=H","cyan!20", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected2_quanti_max])),
+    PlotInc({lineopts..., "cyan!20", "forget plot"}, "fill between [of=G and H]"),
+
+    PlotInc({lineopts..., "orange!50", line_width=1.5},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_mean])),
+    PlotInc({lineopts..., color=color_eDMD, dashed, line_width=2},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_mean])),
+    PlotInc({lineopts..., "cyan!50", line_width=1.5},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected_mean])),
+    PlotInc({lineopts..., color=color_jDMD, dashed, line_width=2},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected2_mean])),
+
+    # Legend(["EDMD" * L"(\lambda = 0.0)", "EDMD" * L"(\lambda = 0.1)", "JDMD" * L"(\lambda = 10^{-5})", "JDMD" * L"(\lambda = 0.1)"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz"), p_lqr_equilibrium, include_preamble=false)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_lqr_error_by_equilibrium_change.tikz"), p_lqr_equilibrium, include_preamble=false)
 
+# plot equilibrium shift study without regularization
+
+p_lqr_equilibrium = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Equilibrium Offset",
+        ylabel = "Stabilization Error",
+        legend_pos = "north west",
+        ymax = 100,
+        
+    },
+
+    PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
+
+    # PlotInc({lineopts..., "name path=A", "orange!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_quanti_min])),
+    # PlotInc({lineopts..., "name_path=B", "orange!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_quanti_max])),
+    # PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=A and B]"),
+    
+    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+
+    # PlotInc({lineopts..., "name_path=G", "cyan!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(distances, res_equilibrium[:error_jDMD_projected2_quanti_min])),
+    # PlotInc({lineopts..., "name_path=H","cyan!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(distances, res_equilibrium[:error_jDMD_projected2_quanti_max])),
+    # PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=G and H]"),
+
+    # PlotInc({lineopts..., color=color_eDMD, solid, thick},
+    #     Coordinates(distances, res_equilibrium[:error_eDMD_projected_unreg_mean])),
+    PlotInc({lineopts..., color=color_eDMD, solid, thick},
+        Coordinates(distances, res_equilibrium[:error_eDMD_projected_mean])),
+    PlotInc({lineopts..., color=color_jDMD, solid, thick},
+        Coordinates(distances, res_equilibrium[:error_jDMD_projected_mean])),
+    # PlotInc({lineopts..., color=color_jDMD, solid, thick},
+    #     Coordinates(distances, res_equilibrium[:error_jDMD_projected2_mean])),
+
+    # Legend(["EDMD", "JDMD"])
+)
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_lqr_error_by_equilibrium_change_without_regularization.tikz"), p_lqr_equilibrium, include_preamble=false)
+
+# plot mpc study
 p_mpc = @pgf Axis(
     {
         xmajorgrids,
         ymajorgrids,
-        xlabel="Percent of samples",
-        # ylabel="Tracking error",
+        xlabel="Percent of Samples",
+        ylabel="Tracking Error",
         legend_cell_align={left},
         legend_pos="outer north east",
         ymax=15e-2,
@@ -585,8 +813,8 @@ p_mpc = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD, style="solid"}, Coordinates(1:100, res_mpc_tracking[:errors_jDMD_projected])),
     PlotInc({lineopts..., color=color_eDMD, style="dashed"}, Coordinates(1:100, res_mpc_tracking[:errors_eDMD])),
     PlotInc({lineopts..., color=color_jDMD, style="dashed"}, Coordinates(1:100, res_mpc_tracking[:errors_jDMD])),
-    Legend(["nominal", "eDMD (projected)", "jDMD (projected)", "eDMD (lifted)", "jDMD (lifted)"])
+    Legend(["Nominal", "EDMD (Projected)", "JDMD (Projected)", "EDMD (Lifted)", "JDMD (Lifted)"])
 )
-# display(p_mpc)
-# pgfsave(joinpath(Problems.FIGDIR, "rex_planar_quadrotor_mpc_stabilization_performance.tikz"), 
-    # p_mpc, include_preamble=false)
+
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_mpc_stabilization_performance.tikz"), 
+    p_mpc, include_preamble=false)

@@ -1,6 +1,6 @@
 % Recommended preamble:
 \begin{tikzpicture}
-\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Percent of samples}, legend cell align={left}, legend pos={outer north east}, ymax={0.15}, xmax={100}]
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Percent of Samples}, ylabel={Tracking Error}, legend cell align={left}, legend pos={outer north east}, ymax={0.15}, xmax={100}]
     \addplot+[no marks, very thick, color={black}, style={solid}]
         coordinates {
             (1,1.181678025986697)
@@ -521,6 +521,6 @@
 
         }
         ;
-    \legend{{nominal},{eDMD (projected)},{jDMD (projected)},{eDMD (lifted)},{jDMD (lifted)}}
+    \legend{{Nominal},{EDMD (Projected)},{JDMD (Projected)},{EDMD (Lifted)},{JDMD (Lifted)}}
 \end{axis}
 \end{tikzpicture}

@@ -17,7 +17,7 @@ function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, t
     dt=0.05, constrained=true, μ=0.0)
 
     # NOTE: this should exactly match RobotZoo.Cartpole() when μ = 0.0
-    model = BinlinearControl.NominalCartpole(; μ=μ)
+    model = BilinearControl.NominalCartpole(; μ=μ)
     dmodel = RD.DiscretizedDynamics{RD.RK4}(model) 
     n,m = RD.dims(model)
     N = round(Int, tf/dt) + 1
@@ -361,15 +361,25 @@ function train_cartpole_models(num_lqr, num_swingup; α=0.5, learnB=true, β=1.0
         (; err_nom, err_eDMD, err_jDMD) #, t_train_eDMD, t_train_jDMD, num_lqr, num_swingup, nsamples=length(X_train)) end
     end
 
-    nom_err_avg  = mean(filter(isfinite, map(x->x.err_nom, test_results)))
-    eDMD_err_avg = mean(filter(isfinite, map(x->x.err_eDMD, test_results)))
-    jDMD_err_avg = mean(filter(isfinite, map(x->x.err_jDMD, test_results)))
+    nom_err = filter(isfinite, map(x->x.err_nom, test_results))
+    nom_err_avg  = mean(nom_err)
+    nom_err_ci = 1.959964 .* (stdm(nom_err, nom_err_avg) ./ sqrt(length(nom_err)))
+
+    eDMD_err = filter(isfinite, map(x->x.err_eDMD, test_results))
+    eDMD_err_avg = mean(eDMD_err)
+    eDMD_err_ci = 1.959964 .* (stdm(eDMD_err, eDMD_err_avg) ./ sqrt(length(eDMD_err)))
+
+    jDMD_err = filter(isfinite, map(x->x.err_jDMD, test_results))
+    jDMD_err_avg = mean(jDMD_err)
+    jDMD_err_ci = 1.959964 .* (stdm(jDMD_err, jDMD_err_avg) ./ sqrt(length(jDMD_err)))
+
     eDMD_success = count(isfinite, map(x->x.err_eDMD, test_results))
     jDMD_success = count(isfinite, map(x->x.err_jDMD, test_results))
 
-    (;nom_err_avg, eDMD_err_avg, eDMD_success, jDMD_err_avg, jDMD_success, 
-        t_train_eDMD, t_train_jDMD, num_lqr, num_swingup, nsamples=length(X_train), 
-        )
+    (;nom_err, nom_err_avg, nom_err_ci, eDMD_err, eDMD_err_avg, eDMD_err_ci, eDMD_success,
+        jDMD_err, jDMD_err_avg, jDMD_err_ci, jDMD_success,  t_train_eDMD, t_train_jDMD,
+        num_lqr, num_swingup, nsamples=length(X_train), 
+    )
 end
 
 function test_sample_size(;
