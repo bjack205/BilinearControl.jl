@@ -693,7 +693,7 @@ function simulatewithcontroller(sig::RD.FunctionSignature,
             U[k] .= umod(u)
             RD.discrete_dynamics!(model, X[k+1], X[k], U[k], times[k], dt)
         catch e
-            rethrow(e)
+            # rethrow(e)
             break
         end
     end

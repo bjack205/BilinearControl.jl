@@ -36,10 +36,10 @@ function (mlp::MLP)(x, u)
     mlp([x;u])
 end
 
-function (mlp::MLP)(y)
-    for i = 1:3
-        y = tanh.(mlp.W[i] * y .+ mlp.b[i])
-    end
+function (mlp::MLP)(z)
+    y1 = tanh.(mlp.W[1] * z .+ mlp.b[1])
+    y2 = tanh.(mlp.W[2] * y1 .+ mlp.b[2])
+    y = mlp.W[3] * y2 .+ mlp.b[3]
     y 
 end
 
