@@ -27,6 +27,6 @@
             (100.0,0.6370682494160405)
         }
         ;
-    \legend{{eDMD},{jDMD}}
+    \legend{{EDMD},{JDMD}}
 \end{axis}
 \end{tikzpicture}

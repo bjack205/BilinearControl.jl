@@ -521,6 +521,6 @@
 
         }
         ;
-    \legend{{nominal},{eDMD (projected)},{jDMD (projected)},{eDMD (lifted)},{jDMD (lifted)}}
+    \legend{{Nominal},{EDMD (Projected)},{JDMD (Projected)},{EDMD (Lifted)},{JDMD (Lifted)}}
 \end{axis}
 \end{tikzpicture}

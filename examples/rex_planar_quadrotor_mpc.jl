@@ -758,7 +758,55 @@ p_tracking = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD, dashed, line_width=2},
         Coordinates(percentages, res_training_range[:error_jDMD_projected2_mean])),
     
-    Legend(["eDMD" * L"(\lambda = 0.0)", "eDMD" * L"(\lambda = 0.1)", "jDMD" * L"(\lambda = 10^{-5})", "jDMD" * L"(\lambda = 0.1)"])
+    Legend(["EDMD" * L"(\lambda = 0.0)", "EDMD" * L"(\lambda = 0.1)", "JDMD" * L"(\lambda = 10^{-5})", "JDMD" * L"(\lambda = 0.1)"])
 
 );
 pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_mpc_error_by_training_window.tikz"), p_tracking, include_preamble=false)
+
+p_tracking = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel = "Fraction of Training Range",
+        ylabel = "Tracking Error",
+        legend_pos = "north west",
+        ymax = 0.5
+    },
+
+    PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_training_range[:error_eDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_training_range[:error_eDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
+
+    # PlotInc({lineopts..., "name_path=G", "cyan!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_training_range[:error_jDMD_projected2_quanti_min])),
+    # PlotInc({lineopts..., "name_path=H","cyan!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_training_range[:error_jDMD_projected2_quanti_max])),
+    # PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=G and H]"),
+
+    # PlotInc({lineopts..., "name path=A", "orange!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_quanti_min])),
+    # PlotInc({lineopts..., "name_path=B", "orange!10", "forget plot", solid, line_width=0.1},
+    #     Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_quanti_max])),
+    # PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=A and B]"),
+
+    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_training_range[:error_jDMD_projected_quanti_min])),
+    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1},
+        Coordinates(percentages, res_training_range[:error_jDMD_projected_quanti_max])),
+    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+
+    # PlotInc({lineopts..., color=color_eDMD, thick},
+    #     Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_mean])),
+    PlotInc({lineopts..., color=color_eDMD, thick},
+        Coordinates(percentages, res_training_range[:error_eDMD_projected_mean])),
+    PlotInc({lineopts..., color=color_jDMD, thick},
+        Coordinates(percentages, res_training_range[:error_jDMD_projected_mean])),
+    # PlotInc({lineopts..., color=color_jDMD, thick},
+    #     Coordinates(percentages, res_training_range[:error_jDMD_projected2_mean])),
+    
+    Legend(["EDMD", "JDMD"])
+
+);
+pgfsave(joinpath(BilinearControl.FIGDIR, "rex_planar_quadrotor_mpc_error_by_training_window_without_regularization.tikz"), p_tracking, include_preamble=false)
