@@ -99,6 +99,15 @@ function get_error_quantile(results; p=0.05)
     return min_quant, max_quant
 end
 
+function get_median_error(results)
+    median_empty(x) = if isempty(x) NaN else median(sort(x)) end
+    map(x->median_empty(x), results)
+end
+
+nom_err_median = get_median_error(nom_err) 
+eDMD_err_median = get_median_error(eDMD_err)
+jDMD_err_median = get_median_error(jDMD_err) 
+
 quant_min_nom, quant_max_nom  = get_error_quantile(nom_err) 
 quant_min_eDMD, quant_max_eDMD = get_error_quantile(eDMD_err) 
 quant_min_jDMD, quant_max_jDMD = get_error_quantile(jDMD_err) 
@@ -115,19 +124,19 @@ p = @pgf Axis(
         ymin=1e-2,
         ymax=0.2,
     },
-    PlotInc({lineopts_thick_bars..., color=color_nominal}, Coordinates(res[:num_swingup], res[:nom_err_avg])),
+    PlotInc({lineopts_thick_bars..., color=color_nominal}, Coordinates(res[:num_swingup], nom_err_median)),
 
     PlotInc({lineopts..., "name path=A", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_min_nom)),
     PlotInc({lineopts..., "name_path=B", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_max_nom)),
     PlotInc({lineopts..., "black!10", "forget plot"}, "fill between [of=A and B]"),
 
-    PlotInc({lineopts_thick_bars..., color=color_eDMD}, Coordinates(res[:num_swingup], res[:eDMD_err_avg])),
+    PlotInc({lineopts_thick_bars..., color=color_eDMD}, Coordinates(res[:num_swingup], eDMD_err_median)),
     
     PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_min_eDMD)),
     PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_max_eDMD)),
     PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
 
-    PlotInc({lineopts_thick_bars..., color=color_jDMD}, Coordinates(res[:num_swingup], res[:jDMD_err_avg])),
+    PlotInc({lineopts_thick_bars..., color=color_jDMD}, Coordinates(res[:num_swingup], jDMD_err_median)),
     PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_min_jDMD)),
     PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(res[:num_swingup], quant_max_jDMD)),
     PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
