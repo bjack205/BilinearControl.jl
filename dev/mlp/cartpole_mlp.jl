@@ -9,6 +9,7 @@ using JLD2
 
 include("mlp.jl")
 include(joinpath(@__DIR__, "../../examples/cartpole/cartpole_utils.jl"))
+include(joinpath(@__DIR__, "mlp_utils.jl"))
 
 
 ##
@@ -142,16 +143,6 @@ function gen_mpc_controller(model, Xref, Uref, Tref)
     TrackingMPC(model, Xref, Uref, collect(Tref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
 end
 
-function train_model(datafile, outfile; epochs=100, alpha=0.5, hidden=32)
-    mainfile = joinpath(@__DIR__, "main.py")
-    outbase,ext = splitext(outfile)
-    outfile_jac = outbase * "_jacobian" * ext
-    cmd = `python3 $mainfile $datafile -o $outfile --epochs $epochs --alpha $alpha --hidden $hidden`
-    cmd_jac = `python3 $mainfile $datafile -o $outfile_jac --jacobian --epochs $epochs --alpha $alpha --hidden $hidden`
-    run(cmd)
-    run(cmd_jac)
-end
-
 function run_sample_efficiency_analysis()
     num_test = 10
     data = load(CARTPOLE_DATAFILE)
@@ -189,18 +180,19 @@ function run_sample_efficiency_analysis()
         test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim)
     end
 end
+
+##
 cartpole_res2 = run_sample_efficiency_analysis()
-cartpole_res2
 cartpole_res_combined = [cartpole_res; cartpole_res2]
 sample_sizes_combined = [sample_sizes; sample_sizes .+ sample_sizes[end]]
 
 jldsave(joinpath(@__DIR__, "cartpole_sample_efficiency.jld2"); 
     sample_sizes=sample_sizes_combined, alpha5=cartpole_res_combined, alpha9=cartpole_res2
 )
-res = jldopen(joinpath(@__DIR__, "cartpole_sample_efficiency.jld2"))
-sample_sizes
-sample_sizes_combined = res["sample_sizes"]
-cartpole_res_combined = [res["alpha9"][1:7]; res["alpha5"][8:end]]
+##
+resfile = jldopen(joinpath(@__DIR__, "cartpole_sample_efficiency.jld2"))
+sample_sizes_combined = resfile["sample_sizes"]
+cartpole_res_combined = [resfile["alpha9"][1:7]; resfile["alpha5"][8:end]]
 
 function getstats(results, field) 
     med = map(results) do res
@@ -236,12 +228,25 @@ end
 nom = getstats(cartpole_res_combined, :err_nom)
 mlp = getstats(cartpole_res_combined, :err_mlp)
 mlp_jac = getstats(cartpole_res_combined, :err_mlp_jac)
+
 mlp_inds = mlp.cnt .< 9
 jac_inds = mlp_jac.cnt .< 9
-setnan(x,i) = begin x2 = copy(x); x2[i] .= NaN; x2 end
+function setnan(x,i)
+    x2 = copy(x)
+    x2[i] .= NaN
+    # Remove singleton finite values
+    for j = 2:length(x)-1
+        if !isnan(x2[j]) && (isnan(x2[j-1]) && isnan(x2[j+1]))
+            x2[j] = NaN
+        end
+    end
+    x2
+end
 
 using Plots
-plot(sample_sizes_combined, nom.median, label="MPC", lw=2, c=:black, yscale=:log10, xlabel="training trajectories", ylabel="tracking error")
+plot(sample_sizes_combined, nom.median, label="MPC", lw=2, c=:black, yscale=:log10, 
+    xlabel="training trajectories", ylabel="tracking error", ylim=(0.03,1.2)
+)
 plot!(sample_sizes_combined, nom.up, label="", s=:dash, c=:black, yscale=:log10)
 plot!(sample_sizes_combined, nom.lo, label="", s=:dash, c=:black, yscale=:log10)
 plot!(sample_sizes_combined, setnan(mlp.median, mlp_inds), lw=2, label="MLP", c=1)
@@ -251,6 +256,44 @@ plot!(sample_sizes_combined, setnan(mlp_jac.median, jac_inds), lw=2, label="JMLP
 plot!(sample_sizes_combined, setnan(mlp_jac.up, jac_inds), s=:dash, label="", c= 2)
 plot!(sample_sizes_combined, setnan(mlp_jac.lo, jac_inds), s=:dash, label="", c= 2)
 
+using PGFPlotsX
+using LaTeXStrings
+include(joinpath(@__DIR__, "../../examples/plotting_constants.jl"))
+p_err = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        ymode="log",
+        xlabel = "Number of Training Trajectories",
+        ylabel = "Tracking Error",
+        legend_pos = "north west",
+    },
+    PlotInc({lineopts..., color=color_nominal, solid, thick}, 
+        Coordinates(sample_sizes_combined, nom.median)),
+    PlotInc({lineopts..., "name_path=E", "black!20", "forget plot", solid, line_width=0.1}, 
+        Coordinates(sample_sizes_combined, nom.up)),
+    PlotInc({lineopts..., "name_path=F","black!20", "forget plot", solid, line_width=0.1}, 
+        Coordinates(sample_sizes_combined, nom.lo)),
+    PlotInc({lineopts..., color=color_eDMD, solid, thick}, 
+        Coordinates(sample_sizes_combined, setnan(mlp.median, mlp_inds))),
+    PlotInc({lineopts..., "name_path=G", color="$(color_eDMD)!10", "forget plot", solid, line_width=0.1}, 
+        Coordinates(sample_sizes_combined, setnan(mlp.up, mlp_inds))),
+    PlotInc({lineopts..., "name_path=H", color="$(color_eDMD)!10", "forget plot", solid, line_width=0.1}, 
+        Coordinates(sample_sizes_combined, setnan(mlp.lo, mlp_inds))),
+    PlotInc({lineopts..., color=color_jDMD, solid, thick}, 
+        Coordinates(sample_sizes_combined, setnan(mlp_jac.median, jac_inds))),
+    PlotInc({lineopts..., "name_path=I", color="$(color_jDMD)!10", "forget plot", solid, line_width=0.1}, 
+        Coordinates(sample_sizes_combined, setnan(mlp_jac.up, jac_inds))),
+    PlotInc({lineopts..., "name_path=J",color="$(color_jDMD)!10", "forget plot", solid, line_width=0.1}, 
+        Coordinates(sample_sizes_combined, setnan(mlp_jac.lo, jac_inds))),
+    # PlotInc({lineopts..., "cyan!20", "forget plot"}, "fill between [of=E and F]"),
+    # PlotInc({lineopts..., "cyan!50", dashed, thick}, Coordinates(alpha, jdmd_err_ol)),
+    # PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_min_ol)),
+    # PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_max_ol)),
+    # PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+    Legend(["Nominal", "MLP", "JMLP"])
+);
+pgfsave(joinpath(BilinearControl.FIGDIR, "cartpole_mlp.tikz"), p_err, include_preamble=false)
 nom = getstats(cartpole_res2, :err_nom)
 mlp = getstats(cartpole_res2, :err_mlp)
 mlp_jac2 = getstats(res["alpha9"], :err_mlp_jac)
@@ -262,7 +305,7 @@ mlp_jac.median[end]
 mlp
 
 ##
-res = let sample_size = 300
+res = let sample_size = 100, use_relu = true
     num_test = 10
     data = load(CARTPOLE_DATAFILE)
     X_ref = data["X_ref"][:,end-num_test+1:end]
@@ -277,25 +320,27 @@ res = let sample_size = 300
     train_model(
         joinpath(@__DIR__,"cartpole_data.json"), 
         joinpath(@__DIR__,"cartpole_model.json"), 
-        epochs=300,
-        alpha=0.1,
+        epochs=600,
+        hidden=64,
+        alpha=0.9;
+        use_relu,
     )
 
     # build the models
     modelfile = joinpath(@__DIR__, "cartpole_model.json")
     modelfile_jac = joinpath(@__DIR__, "cartpole_model_jacobian.json")
 
-    mlp = MLP(modelfile)
-    mlp_jac = MLP(modelfile_jac)
+    mlp = MLP(modelfile; use_relu)
+    mlp_jac = MLP(modelfile_jac; use_relu)
 
     # run the analysis
     test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim)
 end
-sample_sizes_combined[end]
+sample_sizes_combined[10]
 res
-cartpole_res_combined[end]
-median(getfield.(res, :err_mlp_jac))
-median(getfield.(res, :err_mlp_jac))
+cartpole_res_combined[8]
+median(filter(isfinite,getfield.(res, :err_mlp_jac)))
+median(filter(isfinite,getfield.(cartpole_res_combined[8], :err_mlp_jac)))
 
 
 ##

@@ -25,7 +25,7 @@ class Spaces:
         return np.random.rand(*self.shape)*(self.high-self.low) + self.low
 
 class DeterministicNetwork(nn.Module):
-    def __init__(self, num_state, num_actions, num_outs, hidden_dim, out_space=None):
+    def __init__(self, num_state, num_actions, num_outs, hidden_dim, out_space=None, use_relu=False):
         super(DeterministicNetwork, self).__init__()
         num_inputs = num_state + num_actions
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
@@ -36,6 +36,11 @@ class DeterministicNetwork(nn.Module):
 
         self.apply(weights_init_)
         self.use_tanh = False
+        if use_relu:
+            self.activatation = torch.relu
+        else:
+            self.activatation = torch.tanh
+
         # action rescaling
         # ipdb.set_trace()
         if out_space is None:
@@ -50,8 +55,8 @@ class DeterministicNetwork(nn.Module):
                 (out_space.high + out_space.low) / 2.)
 
     def forward(self, input):
-        x = torch.tanh(self.linear1(input))
-        x = torch.tanh(self.linear2(x))
+        x = self.activatation(self.linear1(input))
+        x = self.activatation(self.linear2(x))
         if self.use_tanh:
             mean = torch.tanh(self.mean(x)) * self.out_scale + self.out_bias
         else:

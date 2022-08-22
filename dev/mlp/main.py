@@ -57,7 +57,7 @@ def read_data(filename, num_lqr=0, num_ref=0):
 
 
 def train_model(filename='double_integrator.json', outfile="model_data.json", 
-		num_epochs=100, alpha=0.5, num_lqr=0, num_ref=0,
+		num_epochs=100, alpha=0.5, num_lqr=0, num_ref=0, use_relu=False,
 		use_jacobian_regularization=False, hidden_dim=64, verbose=False):
 
 	bsz = 512
@@ -69,6 +69,7 @@ def train_model(filename='double_integrator.json', outfile="model_data.json",
 	num_outs = num_state
 
 	print("Training MLP")
+	print("  Use ReLu? ", use_relu)
 	print("  Using data from \"{}\"".format(filename))
 	print("  Use Jacobian regularization? {}".format(use_jacobian_regularization))
 	print("  Alpha = {}".format(alpha))
@@ -84,7 +85,7 @@ def train_model(filename='double_integrator.json', outfile="model_data.json",
 	out_space = Spaces((num_outs,), next_states.max(dim=0)[0], next_states.min(dim=0)[0])
 
 	# Create Model
-	model = DeterministicNetwork(num_state, num_actions, num_outs, hidden_dim, out_space)
+	model = DeterministicNetwork(num_state, num_actions, num_outs, hidden_dim, out_space, use_relu)
 		
 	optim = torch.optim.Adam(model.parameters(), lr=lr)
 	num_batches = states.shape[0]//bsz
@@ -134,6 +135,11 @@ if __name__ == "__main__":
 		help="Print out loss at each epoch",
 		default=False
 	)
+	parser.add_argument('--relu',
+		action="store_true",
+		help="Use relu instead of tanh",
+		default=False
+	)
 	parser.add_argument('--alpha', type=float, default=0.5)
 	parser.add_argument('--epochs', type=int, default=100)
 	parser.add_argument('--hidden', type=int, default=64)
@@ -149,10 +155,12 @@ if __name__ == "__main__":
 	num_lqr = args.lqr
 	num_ref = args.ref
 	verbose = args.verbose
+	use_relu = args.relu
 
 	train_model(filename, outfile, num_epochs=epochs, alpha=alpha, 
 		use_jacobian_regularization=use_jacobian_regularization, 
 		hidden_dim=hidden_dim,
 		num_lqr=num_lqr, num_ref=num_ref,
-		verbose=verbose
+		verbose=verbose,
+		use_relu=use_relu
 	)

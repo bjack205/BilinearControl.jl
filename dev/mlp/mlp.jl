@@ -1,14 +1,18 @@
 import RobotDynamics
 import RobotDynamics as RD
 
+relu(x) = max(0,x)
+
 RD.@autodiff struct MLP{T} <: RD.DiscreteDynamics
     n::Int
     m::Int
     W::Vector{Matrix{T}}
     b::Vector{Vector{T}}
+    activation::Function
 end
 
-function MLP(filename)
+function MLP(filename; use_relu=false)
+    activation = use_relu ? relu : tanh
     data = JSON.parsefile(filename)
     W1 = Matrix{Float64}(reduce(hcat, data["W1"])')
     W2 = Matrix{Float64}(reduce(hcat, data["W2"])')
@@ -21,7 +25,7 @@ function MLP(filename)
     m = nm - n
     W = [W1,W2,W3]
     b = [b1,b2,b3]
-    MLP{Float64}(n,m,W,b)
+    MLP{Float64}(n,m,W,b,activation)
 end
 
 RD.state_dim(model::MLP) = model.n
@@ -37,8 +41,8 @@ function (mlp::MLP)(x, u)
 end
 
 function (mlp::MLP)(z)
-    y1 = tanh.(mlp.W[1] * z .+ mlp.b[1])
-    y2 = tanh.(mlp.W[2] * y1 .+ mlp.b[2])
+    y1 = mlp.activation.(mlp.W[1] * z .+ mlp.b[1])
+    y2 = mlp.activation.(mlp.W[2] * y1 .+ mlp.b[2])
     y = mlp.W[3] * y2 .+ mlp.b[3]
     y 
 end

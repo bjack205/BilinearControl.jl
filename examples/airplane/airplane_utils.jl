@@ -8,6 +8,7 @@ using Distributions
 using StaticArrays
 using Rotations
 using JLD2
+using ProgressMeter
 import RobotDynamics as RD
 const TO = TrajectoryOptimization
 
@@ -98,8 +99,9 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
     Random.seed!(2)
     dp_sampler = Product(collect(Uniform(-x,+x) for x in dp_window))
     max_attempts = 5
+    prog = Progress(num_train + num_test, desc="Airplane Trajectory", showspeed=true, dt=0.01)
     plane_data = ThreadsX.map(1:num_train+num_test) do i
-        println("Generating trajectory $i / $(num_train + num_test)")
+        # println("Generating trajectory $i / $(num_train + num_test)")
         Xref = Vector{Float64}[]
         Uref = Vector{Float64}[]
         Tref = Vector{Float64}()
@@ -131,6 +133,7 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
             end
         end
 
+        next!(prog)
         Vector.(Xsim), Vector.(Usim), Vector.(Xref), Vector.(Uref), Vector(Tref)
     end
     T_ref = range(0,tf,step=dt)
