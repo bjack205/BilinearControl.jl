@@ -41,6 +41,8 @@ class DeterministicNetwork(nn.Module):
         else:
             self.activatation = torch.tanh
 
+        self.loss_history = []
+        self.vloss_history = []
         # action rescaling
         # ipdb.set_trace()
         if out_space is None:
@@ -70,7 +72,7 @@ class DeterministicNetwork(nn.Module):
         self.noise = self.noise.to(device)
         return super(DeterministicNetwork, self).to(device)
 
-    def save_wts(self, outfile):
+    def save_wts(self, alpha, outfile):
         W1 = self.linear1.weight.data.cpu().numpy()
         b1 = self.linear1.bias.data.cpu().numpy()
         W2 = self.linear2.weight.data.cpu().numpy()
@@ -86,6 +88,9 @@ class DeterministicNetwork(nn.Module):
             "b2": b2.tolist(),
             "W3": W3.tolist(),
             "b3": b3.tolist(),
+            "loss": self.loss_history,
+            "vloss": self.vloss_history,
+            "alpha": alpha,
         }
         f = open(outfile, "w")
         json.dump(data, f, indent=2)

@@ -68,6 +68,10 @@ def train_model(filename='double_integrator.json', outfile="model_data.json",
 	num_actions = actions.shape[-1]
 	num_outs = num_state
 
+	num_samples = states.shape[0]
+	num_train = num_samples // 10 * 9
+	num_batches = num_train//bsz
+
 	print("Training MLP")
 	print("  Use ReLu? ", use_relu)
 	print("  Using data from \"{}\"".format(filename))
@@ -78,7 +82,10 @@ def train_model(filename='double_integrator.json', outfile="model_data.json",
 	print("  Num lqr = {}".format(num_lqr))
 	print("  Num ref = {}".format(num_ref))
 	print("  Num states = {}\n  Num inputs = {}".format(num_state, num_actions))
-	print("  Num samples = {}".format(states.shape[0]))
+	print("  Num samples = {}".format(num_samples))
+	print("  Num train = {}".format(num_train))
+	print("  Num batches = {}".format(num_batches))
+	print("  Batch size = {}".format(bsz))
 	print("  Saving to \"{}\"".format(outfile))
 
 	states, actions, next_states, jacobians = torch.tensor(states), torch.tensor(actions), torch.tensor(next_states), torch.tensor(jacobians)
@@ -88,31 +95,52 @@ def train_model(filename='double_integrator.json', outfile="model_data.json",
 	model = DeterministicNetwork(num_state, num_actions, num_outs, hidden_dim, out_space, use_relu)
 		
 	optim = torch.optim.Adam(model.parameters(), lr=lr)
-	num_batches = states.shape[0]//bsz
+	next_state_valid = next_states[num_train:]
+	states_valid = states[num_train:]
+	actions_valid = actions[num_train:]
+	state_action_valid = torch.cat([states_valid, actions_valid], dim=-1).requires_grad_(True)
+	jacobians_valid = jacobians[num_train:]
 	print("starting training")
 	loss = 0.0
+	vloss_prev = float('inf') 
+	loss_increase_count = 0
 	for j in range(num_epochs):
 		loss_average = 0.0
+		vloss_average = 0.0
 		for i in range(num_batches):
 			state_batch = states[i*bsz:(i+1)*bsz]
 			action_batch = actions[i*bsz:(i+1)*bsz]
 			next_state_batch = next_states[i*bsz:(i+1)*bsz]
 			jacobians_batch = jacobians[i*bsz:(i+1)*bsz]
-			state_action = torch.cat([state_batch, action_batch], dim=-1).requires_grad_(True)
-			pred_next_state = model(state_action)
-			pred_jacobians = torch.stack([torch.autograd.grad(pred_next_state[:,i].sum(), state_action, retain_graph=True, create_graph=True)[0] for i in range(pred_next_state.shape[1])], dim=1)
-			loss = (1 - alpha) * F.mse_loss(pred_next_state, next_state_batch)
+			state_action_train = torch.cat([state_batch, action_batch], dim=-1).requires_grad_(True)
+			pred_next_state_train = model(state_action_train)
+			pred_next_state_valid = model(state_action_valid)
+			pred_jacobians_train = torch.stack([torch.autograd.grad(pred_next_state_train[:,i].sum(), state_action_train, retain_graph=True, create_graph=True)[0] for i in range(pred_next_state_train.shape[1])], dim=1)
+			pred_jacobians_valid = torch.stack([torch.autograd.grad(pred_next_state_valid[:,i].sum(), state_action_valid, retain_graph=True, create_graph=True)[0] for i in range(pred_next_state_valid.shape[1])], dim=1)
+			loss =  (1 - alpha) * F.mse_loss(pred_next_state_train, next_state_batch)
+			vloss = (1 - alpha) * F.mse_loss(pred_next_state_valid, next_state_valid)
 			if use_jacobian_regularization:
-				loss += alpha * F.mse_loss(pred_jacobians, jacobians_batch)
+				loss  += alpha * F.mse_loss(pred_jacobians_train, jacobians_batch)
+				vloss += alpha * F.mse_loss(pred_jacobians_valid, jacobians_valid)
 			optim.zero_grad()
 			loss.backward()
 			optim.step()
 			loss_average += loss.item()
+			vloss_average += vloss.item()
 
 		loss = loss_average / num_batches
+		vloss = vloss_average / num_batches
+		if vloss > vloss_prev:
+			loss_increase_count += 1
+		vloss_prev = vloss
 		if verbose:
-			print(f"epoch : {j}, loss : {loss}")
-		model.save_wts(outfile)
+			print(f"epoch : {j}, loss : {loss} / {vloss}")
+		model.loss_history.append(loss)
+		model.vloss_history.append(vloss)
+		model.save_wts(alpha, outfile)
+		if loss_increase_count > 5:
+			print("Validation loss increasing. Terminating.")
+			break
 	print(f"Final Loss : {loss_average / num_batches}")
 
 if __name__ == "__main__":

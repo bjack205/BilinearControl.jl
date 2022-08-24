@@ -90,7 +90,7 @@ function cartpole_gendata_mlp(;num_lqr=50, num_swingup=50)
 end
 
 # tracking error analysis
-function test_mlp_models(mlp, mlp_jac, X_test, U_test, h, t_sim)
+function test_mlp_models(mlp, mlp_jac, X_test, U_test, h, t_sim, alpha)
     # models
     model_nom = BilinearControl.NominalCartpole()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom) 
@@ -122,11 +122,32 @@ function test_mlp_models(mlp, mlp_jac, X_test, U_test, h, t_sim)
         Xmlp, Umlp = BilinearControl.simulatewithcontroller(dmodel_real, mpc_mlp, x0, t_sim, h)
         Xmlp_jac, Umlp_jac = BilinearControl.simulatewithcontroller(dmodel_real, mpc_mlp_jac, x0, t_sim, h)
 
+        n,m = RD.dims(mlp)
+        jac = zeros(n,n+m)
+        jac0 = zeros(n,n+m)
+        xn = zeros(n)
+        loss = mapreduce(+,1:N_ref-1) do k
+            dx = RD.discrete_dynamics(mlp, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1]
+            0.5 * (1-alpha) * dot(dx,dx)
+        end
+        loss_jac = mapreduce(+,1:N_ref-1) do k
+            dx = RD.discrete_dynamics(mlp_jac, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1]
+            L1 = 0.5 * (1-alpha) * dot(dx, dx) 
+            z = RD.KnotPoint{n,m}(X_ref[k], U_ref[k], T_ref[k], h)
+            RD.jacobian!(RD.StaticReturn(), RD.ForwardAD(), mlp_jac, jac, xn, z)
+            RD.jacobian!(RD.InPlace(), RD.ForwardAD(), dmodel_nom, jac0, xn, z)
+            djac = vec(jac - jac0)
+            L2  = 0.5 * alpha * dot(djac, djac) 
+            L1 + L2
+        end
+        loss /= (N_ref - 1)
+        loss_jac /= (N_ref - 1)
+
         err_nom = norm(Xmpc - X_ref_full) / N_sim
         err_mlp = norm(Xmlp - X_ref_full) / N_sim
         err_mlp_jac = norm(Xmlp_jac - X_ref_full) / N_sim
 
-        (; err_nom, err_mlp, err_mlp_jac)
+        (; err_nom, err_mlp, err_mlp_jac, loss, loss_jac)
     end
 end
 
@@ -165,26 +186,55 @@ function run_sample_efficiency_analysis()
         train_model(
             joinpath(@__DIR__,"cartpole_data.json"), 
             joinpath(@__DIR__,"cartpole_model.json"), 
-            epochs=300,
+            epochs=100,
             alpha=0.9
         )
 
         # build the models
         modelfile = joinpath(@__DIR__, "cartpole_model.json")
         modelfile_jac = joinpath(@__DIR__, "cartpole_model_jacobian.json")
+        modeldata = JSON.parsefile(modelfile)
+        modeldata_jac = JSON.parsefile(modelfile_jac)
+        alpha = modeldata_jac["alpha"]
+        loss_train = Float64(modeldata["loss"])
+        loss_train_jac = Float64(modeldata_jac["loss"])
+        loss_valid = Float64(modeldata["vloss"])
+        loss_valid_jac = Float64(modeldata_jac["vloss"])
 
         mlp = MLP(modelfile)
         mlp_jac = MLP(modelfile_jac)
 
         # run the analysis
-        test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim)
+        res = test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim, alpha)
+        (;test=res, loss_train, loss_train_jac, loss_valid, loss_valid_jac)
     end
 end
 
 ##
 cartpole_res2 = run_sample_efficiency_analysis()
-cartpole_res_combined = [cartpole_res; cartpole_res2]
-sample_sizes_combined = [sample_sizes; sample_sizes .+ sample_sizes[end]]
+loss_train = map(cartpole_res2) do res
+    res.loss_train
+end
+loss_train_jac = getfield.(cartpole_res2, :loss_train_jac)
+loss_test = map(cartpole_res2) do res
+    mean(map(res.test) do test_res
+        test_res.loss
+    end)
+end
+loss_test_jac = map(cartpole_res2) do res
+    mean(map(res.test) do test_res
+        test_res.loss_jac
+    end)
+end
+loss_history = cartpole_res2[end]
+sample_sizes = 25:25:400
+plot(sample_sizes, loss_train, label="dyn")
+plot!(sample_sizes, loss_train_jac, label="jac")
+plot!(sample_sizes, loss_test, label="dyn")
+plot!(sample_sizes, loss_test_jac, label="jac")
+
+# cartpole_res_combined = [cartpole_res; cartpole_res2]
+# sample_sizes_combined = [sample_sizes; sample_sizes .+ sample_sizes[end]]
 
 jldsave(joinpath(@__DIR__, "cartpole_sample_efficiency.jld2"); 
     sample_sizes=sample_sizes_combined, alpha5=cartpole_res_combined, alpha9=cartpole_res2
@@ -305,7 +355,7 @@ mlp_jac.median[end]
 mlp
 
 ##
-res = let sample_size = 100, use_relu = true
+res = let sample_size = 200, use_relu = false, alpha=0.9
     num_test = 10
     data = load(CARTPOLE_DATAFILE)
     X_ref = data["X_ref"][:,end-num_test+1:end]
@@ -320,9 +370,10 @@ res = let sample_size = 100, use_relu = true
     train_model(
         joinpath(@__DIR__,"cartpole_data.json"), 
         joinpath(@__DIR__,"cartpole_model.json"), 
-        epochs=600,
-        hidden=64,
-        alpha=0.9;
+        epochs=100,
+        hidden=32,
+        alpha=0.9,
+        verbose=true;
         use_relu,
     )
 
@@ -334,8 +385,16 @@ res = let sample_size = 100, use_relu = true
     mlp_jac = MLP(modelfile_jac; use_relu)
 
     # run the analysis
-    test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim)
+    test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim, alpha)
 end
+modelfile = joinpath(@__DIR__, "cartpole_model.json")
+modelfile_jac = joinpath(@__DIR__, "cartpole_model_jacobian.json")
+modeldata = JSON.parsefile(modelfile)
+modeldata_jac = JSON.parsefile(modelfile_jac)
+modeldata["loss"]
+using Plots
+plot(modeldata["loss"], label="train")
+plot!(modeldata["vloss"], label="validation")
 sample_sizes_combined[10]
 res
 cartpole_res_combined[8]
