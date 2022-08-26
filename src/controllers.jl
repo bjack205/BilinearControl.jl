@@ -730,7 +730,7 @@ function simulate(model::RD.DiscreteDynamics, U, x0, tf, dt)
     sig = RD.default_signature(model)
     for k = 1:N-1 
         dt = times[k+1] - times[k]
-        RD.discrete_dynamics!(sig, model, X[k+1], X[k], U[k], times[k], dt)
+        RD.discrete_dynamics!(model, X[k+1], X[k], U[k], times[k], dt)
     end
     X,U,times
 end

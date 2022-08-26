@@ -15,6 +15,7 @@ const TO = TrajectoryOptimization
 const AIRPLANE_DATAFILE = joinpath(BilinearControl.DATADIR, "airplane_trajectory_data.jld2")
 const AIRPLANE_MODELFILE = joinpath(BilinearControl.DATADIR, "airplane_trained_models.jld2")
 const AIRPLANE_RESULTS = joinpath(BilinearControl.DATADIR, "airplane_results.jld2")
+const AIRPLANE_RESULTS_PREDICTION = joinpath(BilinearControl.DATADIR, "airplane_results_prediciont.jld2")
 
 function AirplaneProblem(;dt=0.05, dp=zeros(3), tf=2.0, Qv=10.0, Qw=Qv, pf=[5,0,1.5])
     # Discretization
@@ -326,8 +327,8 @@ function test_airplane_open_loop(model_eDMD, model_jDMD)
         X_eDMD, = simulate(model_eDMD_projected, U_ref, X_ref[1], t_ref, dt)
         X_jDMD, = simulate(model_jDMD_projected, U_ref, X_ref[1], t_ref, dt)
 
-        err_eDMD[i] = X_eDMD[end] - X_ref[end] / N
-        err_jDMD[i] = X_jDMD[end] - X_ref[end] / N
+        err_eDMD[i] = norm(X_eDMD - X_ref) / N
+        err_jDMD[i] = norm(X_jDMD - X_ref) / N
     end
     Dict(:nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD)
 end
