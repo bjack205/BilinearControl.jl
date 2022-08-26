@@ -1,0 +1,51 @@
+% Recommended preamble:
+\begin{tikzpicture}
+\begin{axis}[xmajorgrids, ymajorgrids, xlabel={Number of training trajectories}, ylabel={Tracking Error}, legend style={{at={(0.97,0.65)},anchor=east}}]
+    \addplot+[no marks, very thick, color={black}]
+        coordinates {
+            (2,0.17036867321382837)
+            (5,0.17036867321382837)
+            (10,0.17036867321382837)
+            (15,0.17036867321382837)
+            (20,0.17036867321382837)
+            (25,0.17036867321382837)
+            (30,0.17036867321382837)
+            (35,0.17036867321382837)
+            (40,0.17036867321382837)
+            (45,0.17036867321382837)
+            (50,0.17036867321382837)
+        }
+        ;
+    \addplot+[no marks, very thick, color={orange}]
+        coordinates {
+
+
+
+
+
+
+
+            (35,0.1272711314793651)
+            (40,0.045197480406651266)
+            (45,0.053088434864571876)
+            (50,0.06064588601212121)
+        }
+        ;
+    \addplot+[no marks, very thick, color={cyan}]
+        coordinates {
+
+
+            (10,0.037759983963434315)
+            (15,0.02613482248274788)
+            (20,0.021537859487537992)
+            (25,0.020188878583285816)
+            (30,0.017060328979184712)
+            (35,0.023579902153635514)
+            (40,0.019682608903615482)
+            (45,0.019666894821131632)
+            (50,0.014115950450767486)
+        }
+        ;
+    \legend{{Nominal MPC},{EDMD},{JDMD}}
+\end{axis}
+\end{tikzpicture}

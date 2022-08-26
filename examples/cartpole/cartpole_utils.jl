@@ -7,7 +7,10 @@ using Statistics
 using Distributions
 using Random
 using JLD2
+using ThreadsX
+using ProgressMeter
 
+const CARTPOLE_DATAFILE = joinpath(BilinearControl.DATADIR, "cartpole_swingup_data.jld2")
 const CARTPOLE_LQR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "cartpole_lqr_results.jld2")
 const CARTPOLE_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_results.jld2")
 const CARTPOLE_MISMATCH_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mistmatch_results.jld2")
@@ -137,7 +140,10 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
         Rmpc = Diagonal(fill(1e-3,1))
         Qfmpc = Diagonal(fill(1e2,4))
 
-        train_trajectories = map(train_params) do params
+        prog = Progress(
+                length(train_params), dt=0.1, desc="Generating training data", showspeed=true
+        )
+        train_trajectories = ThreadsX.map(train_params) do params
             solver = Altro.solve!(ALTROSolver(gencartpoleproblem(params..., dt=dt), 
                 show_summary=false, projected_newton=true))
             if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
@@ -152,6 +158,7 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
             mpc = TrackingMPC(dmodel_nom, X, U, T, Qmpc, Rmpc, Qfmpc; Nt=Nt)
             X_sim,U_sim,T_sim = simulatewithcontroller(dmodel_real, mpc, X[1], t_sim, T[2])
             
+            next!(prog)
             Vector.(X), Vector.(U[1:end-1]), Vector.(X_sim), Vector.(U_sim)
         end
 
@@ -172,7 +179,8 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
             (zeros(4), 1e3,  1e-3, 1e3, 10.0, tf)
             (zeros(4), 1e0,  1e-2, 1e2,  4.0, tf)
         ]
-        test_trajectories = map(test_params) do params
+
+        test_trajectories = ThreadsX.map(test_params) do params
             solver = Altro.solve!(ALTROSolver(gencartpoleproblem(params...; dt), show_summary=false))
             if Altro.status(solver) != Altro.SOLVE_SUCCEEDED
                 @show params
@@ -190,8 +198,12 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
             Vector.(X), Vector.(U[1:end-1]), Vector.(X_sim), Vector.(U_sim)
         end
 
-        X_ref = mapreduce(x->getindex(x,1), hcat, test_trajectories)
-        U_ref = mapreduce(x->getindex(x,2), hcat, test_trajectories)
+        X_test_swingup_ref = mapreduce(x->getindex(x,1), hcat, test_trajectories)
+        U_test_swingup_ref = mapreduce(x->getindex(x,2), hcat, test_trajectories)
+        X_ref = [X_train_swingup_ref X_test_swingup_ref]
+        U_ref = [U_train_swingup_ref U_test_swingup_ref]
+        # X_ref = mapreduce(x->getindex(x,1), hcat, test_trajectories)
+        # U_ref = mapreduce(x->getindex(x,2), hcat, test_trajectories)
         X_test_swingup = mapreduce(x->getindex(x,3), hcat, test_trajectories)
         U_test_swingup = mapreduce(x->getindex(x,4), hcat, test_trajectories)
         X_test = X_test_swingup
@@ -202,9 +214,10 @@ function generate_cartpole_data(;num_lqr=50, num_swingup=50, save_to_file=true,
         U_train = [U_train_lqr U_train_swingup]
     end
 
+
     ## Save generated training and test data
     if save_to_file
-        jldsave(joinpath(BilinearControl.DATADIR, "cartpole_swingup_data.jld2"); 
+        jldsave(CARTPOLE_DATAFILE; 
             X_train_lqr, U_train_lqr,
             X_train_swingup, U_train_swingup,
             X_test_swingup, U_test_swingup, 
