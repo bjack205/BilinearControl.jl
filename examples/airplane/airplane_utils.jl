@@ -269,9 +269,9 @@ function test_airplane(model_eDMD, model_jDMD)
         err_jDMD[i] = norm(X_jDMD - X_ref) / N
 
         # Evaluate Jacobian error
-        jerr_nom[i] = jacobian_error(dmodel_nom, X, U, T)
-        jerr_eDMD[i] = jacobian_error(model_eDMD_projected, X, U, T)
-        jerr_jDMD[i] = jacobian_error(model_jDMD_projected, X, U, T)
+        jerr_nom[i] = jacobian_error(dmodel_nom, X_ref, U_ref, T_ref)
+        jerr_eDMD[i] = jacobian_error(model_eDMD_projected, X_ref, U_ref, T_ref)
+        jerr_jDMD[i] = jacobian_error(model_jDMD_projected, X_ref, U_ref, T_ref)
     end
     Dict(
         :nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD,

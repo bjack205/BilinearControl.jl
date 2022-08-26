@@ -19,7 +19,7 @@ open(vis)
 gen_airplane_data(num_train=50, num_test=50, dt=0.04, dp_window=fill(0.5, 3))
 
 ## Test the model with an increasing number of training samples
-num_train = [2; 5:5:50]
+num_train = [2; 5:5:100]
 prog = Progress(length(num_train))
 results = map(num_train) do N
     res = test_airplane(train_airplane(N)...)
@@ -126,26 +126,26 @@ p_err = @pgf Axis(
         # ymode="log",
         xlabel = "Number of Training Trajectories",
         ylabel = "Tracking Error",
-        legend_style = "{at={(0.97,0.5)},anchor=east}",
-        ymax = 0.11,
+        legend_style = "{at={(0.97,0.7)},anchor=east}",
+        # ymax = 0.11,
     },
 
     PlotInc({lineopts..., color=color_nominal, solid, thick}, Coordinates(num_train, err_nom)),
 
-    PlotInc({lineopts..., "name path=A", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_min_nom)),
-    PlotInc({lineopts..., "name_path=B", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_max_nom)),
-    PlotInc({lineopts..., "black!10", "forget plot"}, "fill between [of=A and B]"),
+    # PlotInc({lineopts..., "name path=A", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_min_nom)),
+    # PlotInc({lineopts..., "name_path=B", "black!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_max_nom)),
+    # PlotInc({lineopts..., "black!10", "forget plot"}, "fill between [of=A and B]"),
 
     PlotInc({lineopts..., color=color_eDMD, solid, thick}, Coordinates(num_train, err_eDMD)),
     
-    PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_min_eDMD)),
-    PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_max_eDMD)),
-    PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
+    # PlotInc({lineopts..., "name_path=C", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_min_eDMD)),
+    # PlotInc({lineopts..., "name_path=D", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_max_eDMD)),
+    # PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=C and D]"),
 
     PlotInc({lineopts..., color=color_jDMD, solid, thick}, Coordinates(num_train, err_jDMD)),
-    PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_min_jDMD)),
-    PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_max_jDMD)),
-    PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+    # PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_min_jDMD)),
+    # PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(num_train, quant_max_jDMD)),
+    # PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
 
     Legend(["Nominal MPC", "EDMD", "JDMD"])
 
