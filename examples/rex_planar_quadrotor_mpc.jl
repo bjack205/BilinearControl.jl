@@ -673,37 +673,41 @@ errors = map(percentages) do perc
     ])
 
     x0_test = [rand(x0_sampler) for i = 1:100]
-
+    
     error_eDMD_projected_unreg = test_initial_conditions(model_real, model_eDMD_projected_unreg, x0_test, tf, tf, dt)
     error_eDMD_projected_unreg_mean = mean(error_eDMD_projected_unreg)
+    error_eDMD_projected_unreg_median = median(sort(error_eDMD_projected_unreg))
     error_eDMD_projected_unreg_ci = 1.959964 .* (stdm(error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean) ./ sqrt(length(error_eDMD_projected_unreg)))
     error_eDMD_projected_unreg_quanti_min, error_eDMD_projected_unreg_quanti_max = get_error_quantile(error_eDMD_projected_unreg; p=0.05)
 
     error_eDMD_projected = test_initial_conditions(model_real, model_eDMD_projected, x0_test, tf, tf, dt)
     error_eDMD_projected_mean = mean(error_eDMD_projected)
+    error_eDMD_projected_median = median(sort(error_eDMD_projected))
     error_eDMD_projected_ci = 1.959964 .* (stdm(error_eDMD_projected, error_eDMD_projected_mean) ./ sqrt(length(error_eDMD_projected)))
     error_eDMD_projected_quanti_min, error_eDMD_projected_quanti_max = get_error_quantile(error_eDMD_projected; p=0.05)
 
     error_jDMD_projected = test_initial_conditions(model_real, model_jDMD_projected, x0_test, tf, tf, dt)
     error_jDMD_projected_mean = mean(error_jDMD_projected)
+    error_jDMD_projected_median = median(sort(error_jDMD_projected))
     error_jDMD_projected_ci = 1.959964 .* (stdm(error_jDMD_projected, error_jDMD_projected_mean) ./ sqrt(length(error_jDMD_projected)))
     error_jDMD_projected_quanti_min, error_jDMD_projected_quanti_max = get_error_quantile(error_jDMD_projected; p=0.05)
 
     error_jDMD_projected2 = test_initial_conditions(model_real, model_jDMD_projected2, x0_test, tf, tf, dt)
     error_jDMD_projected2_mean = mean(error_jDMD_projected2)
+    error_jDMD_projected2_median = median(sort(error_jDMD_projected2))
     error_jDMD_projected2_ci = 1.959964 .* (stdm(error_jDMD_projected2, error_jDMD_projected2_mean) ./ sqrt(length(error_jDMD_projected2)))
     error_jDMD_projected2_quanti_min, error_jDMD_projected2_quanti_max = get_error_quantile(error_jDMD_projected2; p=0.05)
 
-    (;error_eDMD_projected, error_eDMD_projected_mean, error_eDMD_projected_ci,
+    (;error_eDMD_projected, error_eDMD_projected_mean, error_eDMD_projected_median, error_eDMD_projected_ci,
         error_eDMD_projected_quanti_min, error_eDMD_projected_quanti_max,
-        error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean, error_eDMD_projected_unreg_ci,
+        error_eDMD_projected_unreg, error_eDMD_projected_unreg_mean, error_eDMD_projected_unreg_median, error_eDMD_projected_unreg_ci,
         error_eDMD_projected_unreg_quanti_min, error_eDMD_projected_unreg_quanti_max,
-        error_jDMD_projected, error_jDMD_projected_mean, error_jDMD_projected_ci,
+        error_jDMD_projected, error_jDMD_projected_mean, error_jDMD_projected_median, error_jDMD_projected_ci,
         error_jDMD_projected_quanti_min, error_jDMD_projected_quanti_max,
-        error_jDMD_projected2, error_jDMD_projected2_mean, error_jDMD_projected2_ci,
+        error_jDMD_projected2, error_jDMD_projected2_mean, error_jDMD_projected2_median, error_jDMD_projected2_ci,
         error_jDMD_projected2_quanti_min, error_jDMD_projected2_quanti_max
     )
-end
+end    
 
 fields = keys(errors[1])
 res_training_range = Dict(Pair.(fields, map(x->getfield.(errors, x), fields)))
@@ -750,13 +754,13 @@ p_tracking = @pgf Axis(
     PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
 
     PlotInc({lineopts..., "orange!50", line_width=1.5},
-        Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_mean])),
+        Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_median])),
     PlotInc({lineopts..., color=color_eDMD, dashed, line_width=2},
-        Coordinates(percentages, res_training_range[:error_eDMD_projected_mean])),
+        Coordinates(percentages, res_training_range[:error_eDMD_projected_median])),
     PlotInc({lineopts..., "cyan!50", line_width=1.5},
-        Coordinates(percentages, res_training_range[:error_jDMD_projected_mean])),
+        Coordinates(percentages, res_training_range[:error_jDMD_projected_median])),
     PlotInc({lineopts..., color=color_jDMD, dashed, line_width=2},
-        Coordinates(percentages, res_training_range[:error_jDMD_projected2_mean])),
+        Coordinates(percentages, res_training_range[:error_jDMD_projected2_median])),
     
     Legend(["EDMD" * L"(\lambda = 0.0)", "EDMD" * L"(\lambda = 0.1)", "JDMD" * L"(\lambda = 10^{-5})", "JDMD" * L"(\lambda = 0.1)"])
 
@@ -798,13 +802,13 @@ p_tracking = @pgf Axis(
     PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
 
     # PlotInc({lineopts..., color=color_eDMD, thick},
-    #     Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_mean])),
+    #     Coordinates(percentages, res_training_range[:error_eDMD_projected_unreg_median])),
     PlotInc({lineopts..., color=color_eDMD, thick},
-        Coordinates(percentages, res_training_range[:error_eDMD_projected_mean])),
+        Coordinates(percentages, res_training_range[:error_eDMD_projected_median])),
     PlotInc({lineopts..., color=color_jDMD, thick},
-        Coordinates(percentages, res_training_range[:error_jDMD_projected_mean])),
+        Coordinates(percentages, res_training_range[:error_jDMD_projected_median])),
     # PlotInc({lineopts..., color=color_jDMD, thick},
-    #     Coordinates(percentages, res_training_range[:error_jDMD_projected2_mean])),
+    #     Coordinates(percentages, res_training_range[:error_jDMD_projected2_median])),
     
     Legend(["EDMD", "JDMD"])
 
