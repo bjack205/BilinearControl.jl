@@ -6,6 +6,7 @@ using ForwardDiff
 using Distributions
 using BilinearControl
 using JLD2
+using Plots
 
 include("mlp.jl")
 include(joinpath(@__DIR__, "../../examples/cartpole/cartpole_utils.jl"))
@@ -27,6 +28,7 @@ function cartpole_gendata_mlp(;num_lqr=50, num_swingup=50)
     U_train = [U_train_lqr U_train_swingup]
 
     X_test = altro_lqr_traj["X_test_swingup"]
+    U_test = altro_lqr_traj["U_test_swingup"]
     X_ref = altro_lqr_traj["X_ref"]
     U_ref = altro_lqr_traj["U_ref"]
 
@@ -49,6 +51,10 @@ function cartpole_gendata_mlp(;num_lqr=50, num_swingup=50)
     inputs = reduce(hcat, U_train)
     nextstates = reduce(hcat, @view X_train[2:end,:])
 
+    states_test = reduce(hcat, @view X_test[1:end-1,:])
+    inputs_test = reduce(hcat, U_test)
+    nextstates_test = reduce(hcat, @view X_test[2:end,:])
+
     # Generate Jacobians
     J_train = map(CartesianIndices(U_train)) do cind
         k = cind[1]
@@ -62,10 +68,26 @@ function cartpole_gendata_mlp(;num_lqr=50, num_swingup=50)
         )
         J
     end
+    J_test = map(CartesianIndices(U_test)) do cind
+        k = cind[1]
+        x = X_test[cind]
+        u = U_test[cind]
+        xn = zero(x)
+        z = RD.KnotPoint{n,m}(x,u,T_train[k],h)
+        J = zeros(n,n+m)
+        RD.jacobian!(
+            RD.InPlace(), RD.ForwardAD(), model, J, xn, z 
+        )
+        J
+    end
 
     jacobians = zeros(n, n+m, length(J_train))
+    jacobians_test = zeros(n, n+m, length(J_test))
     for i in eachindex(J_train) 
         jacobians[:,:,i] = J_train[i]
+    end
+    for i in eachindex(J_test) 
+        jacobians_test[:,:,i] = J_test[i]
     end
 
     # Save to JSON
@@ -81,6 +103,10 @@ function cartpole_gendata_mlp(;num_lqr=50, num_swingup=50)
         "inputs"=>inputs,
         "nextstates"=>nextstates,
         "jacobians"=>jacobians,
+        "states_test"=>states_test,
+        "inputs_test"=>inputs_test,
+        "nextstates_test"=>nextstates_test,
+        "jacobians_test"=>jacobians_test,
         "state_reference"=>X_ref,
         "input_reference"=>U_ref,
     )
@@ -127,13 +153,16 @@ function test_mlp_models(mlp, mlp_jac, X_test, U_test, h, t_sim, alpha)
         jac0 = zeros(n,n+m)
         xn = zeros(n)
         loss = mapreduce(+,1:N_ref-1) do k
-            dx = RD.discrete_dynamics(mlp, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1]
+            z = RD.KnotPoint{n,m}(X_ref[k], U_ref[k], T_ref[k], h)
+            xtrue = RD.discrete_dynamics(dmodel_real, z)
+            dx = RD.discrete_dynamics(mlp, z) - xtrue
             0.5 * (1-alpha) * dot(dx,dx)
         end
         loss_jac = mapreduce(+,1:N_ref-1) do k
-            dx = RD.discrete_dynamics(mlp_jac, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1]
-            L1 = 0.5 * (1-alpha) * dot(dx, dx) 
             z = RD.KnotPoint{n,m}(X_ref[k], U_ref[k], T_ref[k], h)
+            xtrue = RD.discrete_dynamics(dmodel_real, z)
+            dx = RD.discrete_dynamics(mlp_jac, z) - xtrue
+            L1 = 0.5 * (1-alpha) * dot(dx, dx) 
             RD.jacobian!(RD.StaticReturn(), RD.ForwardAD(), mlp_jac, jac, xn, z)
             RD.jacobian!(RD.InPlace(), RD.ForwardAD(), dmodel_nom, jac0, xn, z)
             djac = vec(jac - jac0)
@@ -164,7 +193,22 @@ function gen_mpc_controller(model, Xref, Uref, Tref)
     TrackingMPC(model, Xref, Uref, collect(Tref), Qmpc, Rmpc, Qfmpc; Nt=Nt)
 end
 
-function run_sample_efficiency_analysis()
+function getstats(res, field) 
+    vals = getfield.(res, field)
+    vals_valid = filter(isfinite, vals)
+    if isempty(vals_valid)
+        (median=NaN, up=NaN, lo=NaN, cnt=0)
+    else
+        (
+            median=median(vals_valid), 
+            up=quantile(vals_valid,0.95), 
+            lo=quantile(vals_valid,0.05),
+            cnt=length(vals_valid),
+        )
+    end
+end
+
+function run_sample_efficiency_analysis(;alpha=0.9, epochs=300, sample_sizes=25:25:400)
     num_test = 10
     data = load(CARTPOLE_DATAFILE)
     X_ref = data["X_ref"][:,end-num_test+1:end]
@@ -172,9 +216,6 @@ function run_sample_efficiency_analysis()
     h = data["dt"]
     t_sim = data["t_sim"]
 
-    # sample_sizes = [25, 50, 75, 100, 125, 150, 175, 200]
-    # sample_sizes = [25, 50, 75, 100, 125, 150, 175, 200] .+ 200
-    sample_sizes = 25:25:400
     map(sample_sizes) do sample_size
         println("\n#############################################")
         println("## SAMPLE SIZE = ", sample_size)
@@ -186,8 +227,8 @@ function run_sample_efficiency_analysis()
         train_model(
             joinpath(@__DIR__,"cartpole_data.json"), 
             joinpath(@__DIR__,"cartpole_model.json"), 
-            epochs=100,
-            alpha=0.9
+            epochs=epochs,
+            alpha=alpha,
         )
 
         # build the models
@@ -196,88 +237,100 @@ function run_sample_efficiency_analysis()
         modeldata = JSON.parsefile(modelfile)
         modeldata_jac = JSON.parsefile(modelfile_jac)
         alpha = modeldata_jac["alpha"]
-        loss_train = Float64(modeldata["loss"])
-        loss_train_jac = Float64(modeldata_jac["loss"])
-        loss_valid = Float64(modeldata["vloss"])
-        loss_valid_jac = Float64(modeldata_jac["vloss"])
+        loss_train = Float64.(modeldata["loss"])
+        loss_train_jac = Float64.(modeldata_jac["loss"])
+        loss_valid = Float64.(modeldata["vloss"])
+        loss_valid_jac = Float64.(modeldata_jac["vloss"])
+        loss_test = Float64.(modeldata["tloss"])
+        loss_test_jac = Float64.(modeldata_jac["tloss"])
+        
+        p = plot(loss_train, lw=2, label="train-std", xlabel="epochs", ylabel="loss")
+        plot!(p, loss_train_jac, lw=2, label="train-jac")
+        plot!(p, loss_valid, lw=2, c=1, s=:dash, label="valid-std")
+        plot!(p, loss_valid_jac, lw=2, c=2, s=:dash, label="valid-jac")
+        plot!(p, loss_test, lw=2, c=1, s=:dot, label="test-std")
+        plot!(p, loss_test_jac, lw=2, c=2, s=:dot, label="test-jac")
+        display(p)
 
         mlp = MLP(modelfile)
         mlp_jac = MLP(modelfile_jac)
 
         # run the analysis
         res = test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim, alpha)
-        (;test=res, loss_train, loss_train_jac, loss_valid, loss_valid_jac)
+
+        stats_mlp = getstats(res, :err_mlp)
+        stats_mlp_jac = getstats(res, :err_mlp_jac)
+        println("###############")
+        println("## Results ")
+        println("###############")
+        println("err mlp = $(stats_mlp.median) ($(stats_mlp.cnt))")
+        println("err jac = $(stats_mlp_jac.median) ($(stats_mlp_jac.cnt))")
+
+        if stats_mlp_jac.cnt < 9
+            error("JMLP didn't work")
+        end
+
+        (;test=res, loss_train, loss_train_jac, loss_valid, 
+            loss_valid_jac, loss_test, loss_test_jac,
+            stats_mlp, stats_mlp_jac
+        )
     end
 end
 
 ##
-cartpole_res2 = run_sample_efficiency_analysis()
-loss_train = map(cartpole_res2) do res
-    res.loss_train
-end
-loss_train_jac = getfield.(cartpole_res2, :loss_train_jac)
-loss_test = map(cartpole_res2) do res
-    mean(map(res.test) do test_res
-        test_res.loss
-    end)
-end
-loss_test_jac = map(cartpole_res2) do res
-    mean(map(res.test) do test_res
-        test_res.loss_jac
-    end)
-end
-loss_history = cartpole_res2[end]
-sample_sizes = 25:25:400
-plot(sample_sizes, loss_train, label="dyn")
-plot!(sample_sizes, loss_train_jac, label="jac")
-plot!(sample_sizes, loss_test, label="dyn")
-plot!(sample_sizes, loss_test_jac, label="jac")
 
-# cartpole_res_combined = [cartpole_res; cartpole_res2]
-# sample_sizes_combined = [sample_sizes; sample_sizes .+ sample_sizes[end]]
+cartpole_alpha9 = run_sample_efficiency_analysis(alpha=0.9, sample_sizes=25:25:150)
+cartpole_alpha8 = run_sample_efficiency_analysis(alpha=0.8, sample_sizes=175:25:225)
+cartpole_alpha5 = run_sample_efficiency_analysis(alpha=0.5, sample_sizes=250:25:275)
+cartpole_alpha4 = run_sample_efficiency_analysis(alpha=0.4, sample_sizes=300:25:350)
+cartpole_alpha2 = run_sample_efficiency_analysis(alpha=0.2, sample_sizes=375:25:400)
 
 jldsave(joinpath(@__DIR__, "cartpole_sample_efficiency.jld2"); 
-    sample_sizes=sample_sizes_combined, alpha5=cartpole_res_combined, alpha9=cartpole_res2
+    sample_sizes9= 25:25:150, alpha9=cartpole_alpha9, 
+    sample_sizes8=175:25:225, alpha8=cartpole_alpha8, 
+    sample_sizes5=250:25:275, alpha5=cartpole_alpha5, 
+    sample_sizes4=300:25:350, alpha4=cartpole_alpha4, 
+    sample_sizes2=375:25:400, alpha2=cartpole_alpha2, 
 )
 ##
 resfile = jldopen(joinpath(@__DIR__, "cartpole_sample_efficiency.jld2"))
-sample_sizes_combined = resfile["sample_sizes"]
-cartpole_res_combined = [resfile["alpha9"][1:7]; resfile["alpha5"][8:end]]
+sample_sizes = vcat([resfile["sample_sizes" * string(i)] for i in [9,8,5,4,2]]...)
+cartpole_res = vcat([resfile["alpha" * string(i)] for i in [9,8,5,4,2]]...)
+alphas = vcat([fill(i / 10, length(resfile["sample_sizes" * string(i)])) for i in [9,8,5,4,2]]...)
+close(resfile)
 
-function getstats(results, field) 
-    med = map(results) do res
-        vals = filter(isfinite, getfield.(res, field))
-        if isempty(vals)
-             NaN
-        else
-            median(vals)
-        end
-    end
-    up = map(results) do res 
-        vals = filter(isfinite, getfield.(res, field))
-        if isempty(vals)
-            NaN
-        else
-            quantile(vals, 0.95)
-        end
-    end
-    lo = map(results) do res 
-        vals = filter(isfinite, getfield.(res, field))
-        if isempty(vals) 
-            NaN
-        else
-            quantile(vals, 0.05)
-        end
-    end
-    cnt = map(results) do res 
-        vals = getfield.(res, field)
-        count(isfinite, vals)
-    end
-    (;median=med,up,lo,cnt)
+loss_train = map(cartpole_res) do res
+    res.loss_train[end]
 end
-nom = getstats(cartpole_res_combined, :err_nom)
-mlp = getstats(cartpole_res_combined, :err_mlp)
-mlp_jac = getstats(cartpole_res_combined, :err_mlp_jac)
+loss_train_jac = map(cartpole_res) do res
+    res.loss_train_jac[end]
+end
+loss_test = map(cartpole_res) do res
+    res.loss_test[end]
+end
+loss_test_jac = map(cartpole_res) do res
+    res.loss_test_jac[end]
+end
+
+##
+mlp = (
+    median=map(res->res.stats_mlp.median, cartpole_res),
+    up=map(res->res.stats_mlp.up, cartpole_res),
+    lo=map(res->res.stats_mlp.lo, cartpole_res),
+    cnt=map(res->res.stats_mlp.cnt, cartpole_res),
+) 
+mlp_jac = (
+    median=map(res->res.stats_mlp_jac.median, cartpole_res),
+    up=map(res->res.stats_mlp_jac.up, cartpole_res),
+    lo=map(res->res.stats_mlp_jac.lo, cartpole_res),
+    cnt=map(res->res.stats_mlp_jac.cnt, cartpole_res),
+) 
+nom = (
+    median=map(res->median(getfield.(res.test, :err_nom)), cartpole_res),
+    up=map(res->quantile(getfield.(res.test, :err_nom),0.95), cartpole_res),
+    lo=map(res->quantile(getfield.(res.test, :err_nom),0.05), cartpole_res),
+    cnt=10,
+)
 
 mlp_inds = mlp.cnt .< 9
 jac_inds = mlp_jac.cnt .< 9
@@ -294,22 +347,25 @@ function setnan(x,i)
 end
 
 using Plots
-plot(sample_sizes_combined, nom.median, label="MPC", lw=2, c=:black, yscale=:log10, 
+plot(sample_sizes, nom.median, label="MPC", lw=2, c=:black, yscale=:log10, 
     xlabel="training trajectories", ylabel="tracking error", ylim=(0.03,1.2)
 )
-plot!(sample_sizes_combined, nom.up, label="", s=:dash, c=:black, yscale=:log10)
-plot!(sample_sizes_combined, nom.lo, label="", s=:dash, c=:black, yscale=:log10)
-plot!(sample_sizes_combined, setnan(mlp.median, mlp_inds), lw=2, label="MLP", c=1)
-plot!(sample_sizes_combined, setnan(mlp.up, mlp_inds), s=:dash, label="", c=1)
-plot!(sample_sizes_combined, setnan(mlp.lo, mlp_inds), s=:dash, label="", c=1)
-plot!(sample_sizes_combined, setnan(mlp_jac.median, jac_inds), lw=2, label="JMLP", c=2)
-plot!(sample_sizes_combined, setnan(mlp_jac.up, jac_inds), s=:dash, label="", c= 2)
-plot!(sample_sizes_combined, setnan(mlp_jac.lo, jac_inds), s=:dash, label="", c= 2)
+plot!(sample_sizes, nom.up, label="", s=:dash, c=:black, yscale=:log10)
+plot!(sample_sizes, nom.lo, label="", s=:dash, c=:black, yscale=:log10)
+plot!(sample_sizes, setnan(mlp.median, mlp_inds), lw=2, label="MLP", c=1)
+plot!(sample_sizes, setnan(mlp.up, mlp_inds), s=:dash, label="", c=1)
+plot!(sample_sizes, setnan(mlp.lo, mlp_inds), s=:dash, label="", c=1)
+plot!(sample_sizes, setnan(mlp_jac.median, jac_inds), lw=2, label="JMLP", c=2)
+plot!(sample_sizes, setnan(mlp_jac.up, jac_inds), s=:dash, label="", c= 2)
+plot!(sample_sizes, setnan(mlp_jac.lo, jac_inds), s=:dash, label="", c= 2)
+plot!(sample_sizes, alphas, label="alpha", s=:dash, c=:gray)
 
 using PGFPlotsX
 using LaTeXStrings
 include(joinpath(@__DIR__, "../../examples/plotting_constants.jl"))
-p_err = @pgf Axis(
+p_err = 
+@pgf TikzPicture(
+Axis(
     {
         xmajorgrids,
         ymajorgrids,
@@ -319,31 +375,60 @@ p_err = @pgf Axis(
         legend_pos = "north west",
     },
     PlotInc({lineopts..., color=color_nominal, solid, thick}, 
-        Coordinates(sample_sizes_combined, nom.median)),
+        Coordinates(sample_sizes, nom.median)),
     PlotInc({lineopts..., "name_path=E", "black!20", "forget plot", solid, line_width=0.1}, 
-        Coordinates(sample_sizes_combined, nom.up)),
+        Coordinates(sample_sizes, nom.up)),
     PlotInc({lineopts..., "name_path=F","black!20", "forget plot", solid, line_width=0.1}, 
-        Coordinates(sample_sizes_combined, nom.lo)),
+        Coordinates(sample_sizes, nom.lo)),
     PlotInc({lineopts..., color=color_eDMD, solid, thick}, 
-        Coordinates(sample_sizes_combined, setnan(mlp.median, mlp_inds))),
+        Coordinates(sample_sizes, setnan(mlp.median, mlp_inds))),
     PlotInc({lineopts..., "name_path=G", color="$(color_eDMD)!10", "forget plot", solid, line_width=0.1}, 
-        Coordinates(sample_sizes_combined, setnan(mlp.up, mlp_inds))),
+        Coordinates(sample_sizes, setnan(mlp.up, mlp_inds))),
     PlotInc({lineopts..., "name_path=H", color="$(color_eDMD)!10", "forget plot", solid, line_width=0.1}, 
-        Coordinates(sample_sizes_combined, setnan(mlp.lo, mlp_inds))),
+        Coordinates(sample_sizes, setnan(mlp.lo, mlp_inds))),
     PlotInc({lineopts..., color=color_jDMD, solid, thick}, 
-        Coordinates(sample_sizes_combined, setnan(mlp_jac.median, jac_inds))),
+        Coordinates(sample_sizes, setnan(mlp_jac.median, jac_inds))),
     PlotInc({lineopts..., "name_path=I", color="$(color_jDMD)!10", "forget plot", solid, line_width=0.1}, 
-        Coordinates(sample_sizes_combined, setnan(mlp_jac.up, jac_inds))),
+        Coordinates(sample_sizes, setnan(mlp_jac.up, jac_inds))),
     PlotInc({lineopts..., "name_path=J",color="$(color_jDMD)!10", "forget plot", solid, line_width=0.1}, 
-        Coordinates(sample_sizes_combined, setnan(mlp_jac.lo, jac_inds))),
-    # PlotInc({lineopts..., "cyan!20", "forget plot"}, "fill between [of=E and F]"),
-    # PlotInc({lineopts..., "cyan!50", dashed, thick}, Coordinates(alpha, jdmd_err_ol)),
-    # PlotInc({lineopts..., "name_path=E", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_min_ol)),
-    # PlotInc({lineopts..., "name_path=F","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_max_ol)),
-    # PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=E and F]"),
+        Coordinates(sample_sizes, setnan(mlp_jac.lo, jac_inds))),
     Legend(["Nominal", "MLP", "JMLP"])
+),
+Axis(
+    {
+        "axis y line*"="right",
+        "axis x line"="none",
+        "ymax"=1.3,
+        "ylabel"=L"\alpha"
+    },
+    PlotInc({"gray", "no_marks", "thick"}, Coordinates(sample_sizes, alphas))
+)
 );
 pgfsave(joinpath(BilinearControl.FIGDIR, "cartpole_mlp.tikz"), p_err, include_preamble=false)
+
+plot(sample_sizes, loss_train, lw=2, label="dyn-train",
+    xlabel="training trajectories",
+    ylabel="loss",
+)
+plot!(sample_sizes, loss_train_jac, lw=2, label="jac-train")
+plot!(sample_sizes, loss_test, lw=2, s=:dash, c=1, label="dyn-test")
+plot!(sample_sizes, loss_test_jac, lw=2, s=:dash, c=2, label="jac-test")
+p_train = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        xlabel="Number of Training Trajectories",
+        ylabel="Loss",
+        legend_columns=2,
+    },
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(sample_sizes, loss_train)),
+    PlotInc({lineopts..., color=color_eDMD, "dashed"}, Coordinates(sample_sizes, loss_test)),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(sample_sizes, loss_train_jac)),
+    PlotInc({lineopts..., color=color_jDMD, "dashed"}, Coordinates(sample_sizes, loss_test_jac)),
+    Legend("MLP-train", "MLP-test", "JMLP-train", "JMLP-test")
+)
+pgfsave(joinpath(BilinearControl.FIGDIR, "cartpole_train.tikz"), p_train, include_preamble=false)
+
 nom = getstats(cartpole_res2, :err_nom)
 mlp = getstats(cartpole_res2, :err_mlp)
 mlp_jac2 = getstats(res["alpha9"], :err_mlp_jac)
@@ -355,7 +440,7 @@ mlp_jac.median[end]
 mlp
 
 ##
-res = let sample_size = 200, use_relu = false, alpha=0.9
+res = let sample_size = 300, use_relu = false, alpha=0.6
     num_test = 10
     data = load(CARTPOLE_DATAFILE)
     X_ref = data["X_ref"][:,end-num_test+1:end]
@@ -370,9 +455,9 @@ res = let sample_size = 200, use_relu = false, alpha=0.9
     train_model(
         joinpath(@__DIR__,"cartpole_data.json"), 
         joinpath(@__DIR__,"cartpole_model.json"), 
-        epochs=100,
+        epochs=300,
         hidden=32,
-        alpha=0.9,
+        alpha=alpha,
         verbose=true;
         use_relu,
     )
@@ -387,11 +472,11 @@ res = let sample_size = 200, use_relu = false, alpha=0.9
     # run the analysis
     test_mlp_models(mlp, mlp_jac, X_ref, U_ref, h, t_sim, alpha)
 end
+getfield.(res,:err_mlp_jac)
 modelfile = joinpath(@__DIR__, "cartpole_model.json")
 modelfile_jac = joinpath(@__DIR__, "cartpole_model_jacobian.json")
 modeldata = JSON.parsefile(modelfile)
 modeldata_jac = JSON.parsefile(modelfile_jac)
-modeldata["loss"]
 using Plots
 plot(modeldata["loss"], label="train")
 plot!(modeldata["vloss"], label="validation")

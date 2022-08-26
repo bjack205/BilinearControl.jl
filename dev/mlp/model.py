@@ -43,6 +43,7 @@ class DeterministicNetwork(nn.Module):
 
         self.loss_history = []
         self.vloss_history = []
+        self.tloss_history = []
         # action rescaling
         # ipdb.set_trace()
         if out_space is None:
@@ -90,6 +91,7 @@ class DeterministicNetwork(nn.Module):
             "b3": b3.tolist(),
             "loss": self.loss_history,
             "vloss": self.vloss_history,
+            "tloss": self.tloss_history,
             "alpha": alpha,
         }
         f = open(outfile, "w")
