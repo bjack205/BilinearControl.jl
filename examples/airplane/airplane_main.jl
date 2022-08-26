@@ -21,15 +21,17 @@ gen_airplane_data(num_train=50, num_test=50, dt=0.04, dp_window=fill(0.5, 3))
 num_train = [2; 5:5:50]
 prog = Progress(length(num_train))
 results = map(num_train) do N
-    test_airplane(train_airplane(N)...)
+    res = test_airplane(train_airplane(N)...)
     next!(prog)
+    res
 end
+jldsave(AIRPLANE_RESULTS; results)
 
 ## Plot the Results
 results = load(AIRPLANE_RESULTS)["results"]
 airplane_data = load(AIRPLANE_DATAFILE)
 num_test =  size(airplane_data["X_test"],2)
-num_train = load(AIRPLANE_RESULTS)["num_train"] 
+# num_train = load(AIRPLANE_RESULTS)["num_train"] 
 
 did_track(x) = x<1e1
 function get_average_error(results, method)
@@ -50,6 +52,10 @@ results[1]
 err_nom  = get_average_error(results, :nominal) 
 err_eDMD = get_average_error(results, :eDMD) 
 err_jDMD = get_average_error(results, :jDMD) 
+
+jerr_nom  = get_average_error(results, :jerr_nominal) 
+jerr_eDMD = get_average_error(results, :jerr_eDMD) 
+jerr_jDMD = get_average_error(results, :jerr_jDMD) 
 
 sr_nom  = get_success_rate(results, :nominal) 
 sr_eDMD = get_success_rate(results, :eDMD) 
@@ -73,7 +79,23 @@ p_err = @pgf Axis(
     PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, err_jDMD)),
     Legend(["Nominal MPC", "EDMD", "JDMD"])
 )
-pgfsave(joinpath(Problems.FIGDIR, "airplane_error_by_num_train.tikz"), p_err, 
+pgfsave(joinpath(BlinearControl.FIGDIR, "airplane_error_by_num_train.tikz"), p_err, 
     include_preamble=false)
 
+p_jerr = @pgf Axis(
+    {
+        xmajorgrids,
+        ymajorgrids,
+        # ymode="log",
+        xlabel = "Number of training trajectories",
+        ylabel = "Jacobian Error",
+        legend_style="{at={(0.97,0.65)},anchor=east}"
+    },
+    PlotInc({lineopts..., color=color_nominal}, Coordinates(num_train, jerr_nom)),
+    PlotInc({lineopts..., color=color_eDMD}, Coordinates(num_train, jerr_eDMD)),
+    PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, jerr_jDMD)),
+    Legend(["Nominal MPC", "EDMD", "JDMD"])
+)
+pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_jacobian_error.tikz"), p_err, 
+    include_preamble=false)
 ## TODO: Add waypoints plot
