@@ -126,6 +126,7 @@ ProjectedEDMDModel(model::RD.DiscreteDynamics) = model
 
 RD.state_dim(model::ProjectedEDMDModel) = originalstatedim(model.edmd_model)
 RD.control_dim(model::ProjectedEDMDModel) = RD.control_dim(model.edmd_model)
+RD.default_diffmethod(model::ProjectedEDMDModel) = RD.ForwardAD() 
 
 function RD.discrete_dynamics(model::ProjectedEDMDModel, x, u, t, h)
     y = expandstate(model.edmd_model, x) 
@@ -156,7 +157,7 @@ RD.@autodiff struct EDMDErrorModel{L<:RD.DiscreteDynamics} <: RD.DiscreteDynamic
 end
 RD.state_dim(model::EDMDErrorModel) = RD.state_dim(model.nominal)
 RD.control_dim(model::EDMDErrorModel) = RD.control_dim(model.nominal)
-RD.default_diffmethod(model::EDMDErrorModel) = RD.default_diffmethod(model.nominal)
+RD.default_diffmethod(model::EDMDErrorModel) = RD.ForwardAD() 
 RD.default_signature(model::EDMDErrorModel) = RD.default_signature(model.nominal)
 
 function RD.discrete_dynamics(model::EDMDErrorModel, x, u, t, dt)

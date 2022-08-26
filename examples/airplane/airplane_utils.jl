@@ -8,6 +8,7 @@ using Distributions
 using StaticArrays
 using Rotations
 using JLD2
+using ProgressMeter
 import RobotDynamics as RD
 const TO = TrajectoryOptimization
 
@@ -98,8 +99,9 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
     Random.seed!(2)
     dp_sampler = Product(collect(Uniform(-x,+x) for x in dp_window))
     max_attempts = 5
+    prog = Progress(num_train + num_test, desc="Airplane Trajectory", showspeed=true, dt=0.01)
     plane_data = ThreadsX.map(1:num_train+num_test) do i
-        println("Generating trajectory $i / $(num_train + num_test)")
+        # println("Generating trajectory $i / $(num_train + num_test)")
         Xref = Vector{Float64}[]
         Uref = Vector{Float64}[]
         Tref = Vector{Float64}()
@@ -131,6 +133,7 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
             end
         end
 
+        next!(prog)
         Vector.(Xsim), Vector.(Usim), Vector.(Xref), Vector.(Uref), Vector(Tref)
     end
     T_ref = range(0,tf,step=dt)
@@ -175,6 +178,30 @@ function train_airplane(num_train)
     model_eDMD, model_jDMD
 end
 
+function jacobian_error(model, X, U, T)
+    model_real = BilinearControl.SimulatedAirplane()
+    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
+    h = T[2] - T[1]
+
+    n = length(X[1])
+    m = length(U[1])
+
+    jerr = map(zip(X,U,T)) do (x,u,t)
+        xn = zero(x)
+        z = RD.KnotPoint{n,m}(x,u,t,h)
+        Jreal = zeros(n,n+m)
+        Jnom = zeros(n,n+m)
+        RD.jacobian!(
+            RD.InPlace(), RD.ForwardAD(), model, Jnom, xn, z 
+        )
+        RD.jacobian!(
+            RD.InPlace(), RD.ForwardAD(), dmodel_real, Jreal, xn, z 
+        )
+        Jnom - Jreal
+    end
+    norm(jerr) / length(jerr)
+end
+
 function test_airplane(model_eDMD, model_jDMD)
     # Models
     model_nom = BilinearControl.NominalAirplane()
@@ -210,6 +237,9 @@ function test_airplane(model_eDMD, model_jDMD)
     err_nom = zeros(num_test) 
     err_eDMD = zeros(num_test) 
     err_jDMD = zeros(num_test) 
+    jerr_nom = zeros(num_test) 
+    jerr_eDMD = zeros(num_test) 
+    jerr_jDMD = zeros(num_test) 
     model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
     model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
 
@@ -229,12 +259,22 @@ function test_airplane(model_eDMD, model_jDMD)
             xmin,xmax,umin,umax
         )
 
+        # Tracking error
         X_nom,  = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_ref, dt)
         X_eDMD, = simulatewithcontroller(dmodel_real, mpc_eDMD, X_ref[1], t_ref, dt)
         X_jDMD, = simulatewithcontroller(dmodel_real, mpc_jDMD, X_ref[1], t_ref, dt)
+
         err_nom[i] = norm(X_nom - X_ref) / N
         err_eDMD[i] = norm(X_eDMD - X_ref) / N
         err_jDMD[i] = norm(X_jDMD - X_ref) / N
+
+        # Evaluate Jacobian error
+        jerr_nom[i] = jacobian_error(dmodel_nom, X, U, T)
+        jerr_eDMD[i] = jacobian_error(model_eDMD_projected, X, U, T)
+        jerr_jDMD[i] = jacobian_error(model_jDMD_projected, X, U, T)
     end
-    Dict(:nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD)
+    Dict(
+        :nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD,
+        :jerr_nominal=>jerr_nom, :jerr_eDMD=>jerr_eDMD, :jerr_jDMD=>jerr_jDMD,
+    )
 end
