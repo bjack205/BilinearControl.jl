@@ -19,11 +19,18 @@ function airplane_gendata_mlp(;num_train=30)
     num_train0 = size(airplane_data["X_train"], 2)
     X_train = airplane_data["X_train"][:,good_cols[1:num_train]]
     U_train = airplane_data["U_train"][:,good_cols[1:num_train]]
+    X_test = airplane_data["X_test"]
+    U_test = airplane_data["U_test"]
+    num_test = size(U_test,2)
     X_ref = airplane_data["X_ref"][:,num_train0:end]
     U_ref = airplane_data["U_ref"][:,num_train0:end]
     T_ref = airplane_data["T_ref"]
     h = T_ref[2]
     t_sim = size(U_train, 1) * h
+
+    states_test = reduce(hcat, @view X_test[1:end-1,:])
+    inputs_test = reduce(hcat, U_test)
+    nextstates_test = reduce(hcat, @view X_test[2:end,:])
 
     # Generate Jacobians
     T_train = range(0,length=size(X_train,1), step=h)
@@ -41,6 +48,18 @@ function airplane_gendata_mlp(;num_train=30)
         )
         J
     end
+    J_test = map(CartesianIndices(U_test)) do cind
+        k = cind[1]
+        x = X_test[cind]
+        u = U_test[cind]
+        xn = zero(x)
+        z = RD.KnotPoint{n,m}(x,u,T_train[k],h)
+        J = zeros(n,n+m)
+        RD.jacobian!(
+            RD.InPlace(), RD.ForwardAD(), dmodel_nom, J, xn, z 
+        )
+        J
+    end
 
     # Flatten arrays
     states = reduce(hcat, @view X_train[1:end-1,:])
@@ -48,8 +67,12 @@ function airplane_gendata_mlp(;num_train=30)
     nextstates = reduce(hcat, @view X_train[2:end,:])
 
     jacobians = zeros(n, n+m, length(J_train))
+    jacobians_test = zeros(n, n+m, length(J_test))
     for i in eachindex(J_train) 
         jacobians[:,:,i] = J_train[i]
+    end
+    for i in eachindex(J_test) 
+        jacobians_test[:,:,i] = J_test[i]
     end
 
     # Save to JSON
@@ -65,6 +88,10 @@ function airplane_gendata_mlp(;num_train=30)
         "inputs"=>inputs,
         "nextstates"=>nextstates,
         "jacobians"=>jacobians,
+        "states_test"=>states_test,
+        "inputs_test"=>inputs_test,
+        "nextstates_test"=>nextstates_test,
+        "jacobians_test"=>jacobians_test,
         "state_reference"=>X_ref,
         "input_reference"=>U_ref,
     )
@@ -205,3 +232,31 @@ Xmpc[end]
 ##
 res = test_mlp_models(mlp, mlp_jac)
 res
+
+## Train DMD models
+num_train_dmd = 20
+model_edmd, model_jdmd = train_airplane(num_train_dmd)
+model_edmd_projected = BilinearControl.ProjectedEDMDModel(model_edmd)
+model_jdmd_projected = BilinearControl.ProjectedEDMDModel(model_jdmd)
+
+
+## Open-loop prediction errors
+res_ol_dmd = test_airplane_open_loop(model_edmd_projected, model_jdmd_projected)
+# res_ol_mlp = test_airplane_open_loop(mlp, mlp_jac)
+mean(res_ol_dmd[:eDMD])
+mean(res_ol_dmd[:jDMD])
+
+## Closed-loop prediction errors
+res_cl_dmd = test_airplane(model_edmd, model_jdmd)
+mean(res_cl_dmd[:eDMD])
+mean(res_cl_dmd[:jDMD])
+res_cl_dmd[:eDMD]
+
+## Visualize the trajectories
+model = BilinearControl.NominalAirplane()
+vis = Visualizer()
+delete!(vis)
+set_airplane!(vis, model)
+open(vis)
+
+visualize!(vis, model, t_sim, res_cl_dmd[:X_nom][1])
