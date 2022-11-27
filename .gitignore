@@ -3,3 +3,4 @@
 statprof/
 *_checkpoint.ipynb
 .DS_Store
+*.mp4

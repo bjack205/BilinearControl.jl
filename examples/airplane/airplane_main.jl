@@ -5,6 +5,7 @@ using ProgressMeter
 using PGFPlotsX
 using Statistics
 using LaTeXStrings
+using MeshCat
 
 include("airplane_utils.jl")
 include("../plotting_constants.jl")
@@ -69,7 +70,7 @@ model = BilinearControl.NominalAirplane()
 vis = Visualizer()
 delete!(vis)
 set_airplane!(vis, model)
-open(vis)
+render(vis)
 
 #############################################
 ## Generate training data
@@ -87,10 +88,11 @@ results = map(num_train) do N
     test_airplane(train_airplane(N)...)
     next!(prog)
 end
-jldsave(AIRPLANE_RESULTS; results)
+jldsave(AIRPLANE_RESULTS; results, num_train)
 
 ## Plot the Results
 results = load(AIRPLANE_RESULTS)["results"]
+num_train = load(AIRPLANE_RESULTS)["num_train"]
 airplane_data = load(AIRPLANE_DATAFILE)
 num_test =  size(airplane_data["X_test"],2)
 # num_train = load(AIRPLANE_RESULTS)["num_train"] 
@@ -217,6 +219,176 @@ p_jerr = @pgf Axis(
 );
 pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_jacobian_error.tikz"), p_jerr, 
     include_preamble=false)
+
+#############################################
+## Visualize trajectories 
+#############################################
+num_test = 100 
+airplane_data = load(AIRPLANE_DATAFILE)
+T_ref = airplane_data["T_ref"]
+num_samples = size(airplane_data["X_ref"],2)
+test_inds = num_samjles - num_test + 1:num_samples
+X_ref = airplane_data["X_ref"][:,test_inds]
+U_ref = airplane_data["U_ref"][:,test_inds]
+
+num_train_edmd = 24
+num_train_jdmd = 12 
+model_edmd, _ = train_airplane(num_train_edmd)
+_, model_jdmd = train_airplane(num_train_jdmd, α=0.9)
+model_edmd_projected = BilinearControl.ProjectedEDMDModel(model_edmd)
+model_jdmd_projected = BilinearControl.ProjectedEDMDModel(model_jdmd)
+
+## Closed-loop prediction errors
+res_cl_dmd = test_airplane(model_edmd, model_jdmd; num_test)
+res_cl_dmd[:eDMD]
+res_cl_dmd[:jDMD]
+mean(filter(isfinite,res_cl_dmd[:eDMD]))
+mean(filter(isfinite,res_cl_dmd[:jDMD]))
+count(isfinite,res_cl_dmd[:eDMD]) / num_test
+count(isfinite,res_cl_dmd[:jDMD]) / num_test
+
+## Open-loop prediction errors
+res_ol_dmd = test_airplane_open_loop(model_edmd_projected, model_jdmd_projected; num_test)
+mean(filter(x->abs(x) < 10,res_ol_dmd[:nominal]))
+mean(filter(x->abs(x) < 10,res_ol_dmd[:eDMD]))
+mean(filter(x->abs(x) < 10,res_ol_dmd[:jDMD]))
+count(x->abs(x) < 10,res_ol_dmd[:eDMD]) / num_test
+count(x->abs(x) < 10,res_ol_dmd[:jDMD]) / num_test
+
+## Dynamics prediction
+res_dp_dmd = airplane_dynamics_prediction_error(model_edmd_projected, model_jdmd_projected; num_test)
+mean(filter(x->abs(x) < 10,res_dp_dmd[:eDMD]))
+mean(filter(x->abs(x) < 10,res_dp_dmd[:jDMD]))
+res_dp_dmd
+
+## Jacobian errors
+dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model)
+jac_err_nom = map(i->jacobian_error(dmodel_nom, X_ref[:,i], U_ref[:,i], T_ref), 1:num_test)
+jac_err_eDMD = map(i->jacobian_error(model_edmd_projected, X_ref[:,i], U_ref[:,i], T_ref), 1:num_test)
+jac_err_jDMD = map(i->jacobian_error(model_jdmd_projected, X_ref[:,i], U_ref[:,i], T_ref), 1:num_test)
+
+
+## Visualize trajectories
+using Plots
+i = 8 
+clamphi(x, hi) = isfinite(x) ? min(x, hi) : hi
+bins = range(0,1.6,length=50)
+p = histogram(res_ol_dmd[:nominal], label="nominal", c="red", lc="red", bins=bins, xlabel="open loop error", ylabel="number of samples", background_color=:transparent, legend=:topleft, alpha=0.5)
+histogram!(clamphi.(res_ol_dmd[:eDMD], 1.5), label="model A", c="orange", lc="orange", bins=bins, alpha=0.5)
+histogram!(clamphi.(res_ol_dmd[:jDMD], 1.5), label="model B", c="cyan", lc="cyan", bins=bins, alpha=0.5)
+savefig(p, "open_loop_errors.png")
+
+bins = range(0,1.6,length=50)
+p = histogram(res_cl_dmd[:nominal], label="nominal", c="red", lc="red", bins=bins, xlabel="open loop error", ylabel="number of samples", background_color=:transparent, alpha=0.5)
+histogram!(clamphi.(res_cl_dmd[:eDMD], 1.5), label="model A", c="orange", lc="orange", bins=bins, alpha=0.5)
+histogram!(clamphi.(res_cl_dmd[:jDMD], 1.5), label="model B", c="cyan", lc="cyan", bins=bins, alpha=0.5)
+savefig(p, "closed_loop_errors.png")
+
+bins = range(0.4,1.6,length=50)
+p = histogram(jac_err_nom, label="nominal", c="red", lc="red", bins=bins, xlabel="Jacobian error", ylabel="number of samples", background_color=:transparent, alpha=0.5)
+histogram!(clamphi.(jac_err_eDMD, 1.5), label="model A", c="orange", lc="orange", bins=bins, alpha=0.5)
+histogram!(clamphi.(jac_err_jDMD, 1.5), label="model B", c="cyan", lc="cyan", bins=bins, alpha=0.5)
+savefig(p, "jacobian_errors.png")
+
+X_nom_ol = res_ol_dmd[:X_nom][i]
+X_eDMD_ol = res_ol_dmd[:X_eDMD][i]
+X_jDMD_ol = res_ol_dmd[:X_jDMD][i]
+X_nom = res_cl_dmd[:X_nom][i]
+X_eDMD = res_cl_dmd[:X_eDMD][i]
+X_jDMD = res_cl_dmd[:X_jDMD][i]
+
+res_ol_dmd[:nominal][i]
+res_ol_dmd[:eDMD][i]
+res_ol_dmd[:jDMD][i]
+
+res_cl_dmd[:nominal][i]
+res_cl_dmd[:eDMD][i]
+res_cl_dmd[:jDMD][i]
+
+res_dp_dmd[:nominal][i]
+res_dp_dmd[:eDMD][i]
+res_dp_dmd[:jDMD][i]
+
+X_jDMD_ol = map(X_jDMD_ol) do x
+    norm(x) < 100 ? x : x * NaN
+end
+
+# render(vis)
+delete!(vis["ref"])
+delete!(vis["nom_ol"])
+delete!(vis["eDMD_ol"])
+delete!(vis["jDMD_ol"])
+delete!(vis["nom"])
+delete!(vis["eDMD"])
+delete!(vis["jDMD"])
+BilinearControl.traj3!(vis["ref"], X_ref[:,i], linewidth=4)
+visualize!(vis, model, T_ref[end], X_ref[:,i]) 
+BilinearControl.traj3!(vis["nom_ol"], X_nom_ol, color=colorant"red", linewidth=4)
+visualize!(vis, model, T_ref[end], X_nom_ol) 
+BilinearControl.traj3!(vis["eDMD_ol"], X_eDMD_ol, color=colorant"orange", linewidth=4)
+visualize!(vis, model, T_ref[end], X_eDMD_ol) 
+BilinearControl.traj3!(vis["jDMD_ol"], X_jDMD_ol, color=colorant"cyan", linewidth=4)
+visualize!(vis, model, T_ref[end], X_jDMD_ol) 
+
+BilinearControl.traj3!(vis["nom"], X_nom, color=colorant"red", linewidth=4)
+visualize!(vis, model, T_ref[end], X_nom) 
+BilinearControl.traj3!(vis["eDMD"], X_eDMD, color=colorant"orange", linewidth=4)
+visualize!(vis, model, T_ref[end], X_eDMD) 
+BilinearControl.traj3!(vis["jDMD"], X_jDMD, color=colorant"cyan", linewidth=4)
+visualize!(vis, model, T_ref[end], X_jDMD) 
+
+delete!(vis["jDMD"])
+for i = 1:num_test
+    X_jDMD = res_cl_dmd[:X_jDMD][i]
+    if norm(X_jDMD[end]) < 10
+        BilinearControl.traj3!(vis["jDMD"]["$i"], res_cl_dmd[:X_jDMD][i], color=colorant"cyan", linewidth=1)
+    end
+end
+res_cl_dmd
+
+
+## Convert to videos
+for filename in ["ref", "nominal_ol", "edmd_ol", "jdmd_ol", "nominal", "edmd", "jdmd"]
+    MeshCat.convert_frames_to_video("/home/brian/Downloads/meshcat_" * filename * ".tar", filename * ".mp4", overwrite=true)
+end
+
+
+plotstates(T_ref, X_ref[:,i], inds=1:3, lw=1, label=["ref" ""], c=:black, s=:dash, legend=:bottomright)
+plotstates!(T_ref, X_nom, inds=1:3, lw=1, label=["test" ""], c=:red, s=:solid, legend=:bottomright)
+plotstates!(T_ref, X_eDMD, inds=1:3, lw=1, label=["eDMD" ""], c=:green, s=:solid, legend=:bottomright)
+plotstates!(T_ref, X_jDMD, inds=1:3, lw=1, label=["jDMD" ""], c=:blue, s=:solid, legend=:bottomright)
+
+visualize!(vis, model, T_ref[end], X_eDMD_ol) 
+visualize!(vis, model, T_ref[end], X_jDMD_ol) 
+
+plotstates(T_ref, X_ref[:,i], inds=1:3, lw=1, label=["ref" ""], c=:black, s=:dash, legend=:bottomright)
+plotstates!(T_ref, X_nom, inds=1:3, lw=1, label=["test" ""], c=:red, s=:solid, legend=:bottomright)
+plotstates!(T_ref, X_eDMD_ol, inds=1:3, lw=1, label=["eDMD" ""], c=:green, s=:solid, legend=:bottomright)
+plotstates!(T_ref, X_jDMD_ol, inds=1:3, lw=1, label=["jDMD" ""], c=:blue, s=:solid, legend=:bottomright)
+
+visualize!(vis, model, T_ref[end], res_cl_dmd[:X_nom][1])
+
+using ForwardDiff, FiniteDiff, JSON
+mlp_dir =  joinpath(@__DIR__,"..","..","dev/mlp")
+include(joinpath(mlp_dir,"mlp.jl"))
+modelfile = joinpath(mlp_dir, "airplane_model.json")
+modelfile_jac = joinpath(mlp_dir, "airplane_model_jacobian.json")
+mlp = MLP(modelfile)
+mlp_jac = MLP(modelfile_jac)
+
+res_ol_mlp = test_airplane_open_loop(mlp, mlp_jac)
+i = 1
+X_mlp_ol = res_ol_mlp[:X_eDMD][i]
+X_jmlp_ol = res_ol_mlp[:X_jDMD][i]
+
+plotstates(T_ref, X_ref[:,i], inds=1:3, lw=1, label=["ref" ""], c=:black, s=:dash, legend=:bottomright)
+# plotstates!(T_ref, X_nom, inds=1:3, lw=1, label=["test" ""], c=:red, s=:solid, legend=:bottomright)
+plotstates!(T_ref, X_mlp_ol, inds=1:3, lw=1, label=["eDMD" ""], c=:green, s=:solid, legend=:bottomright)
+plotstates!(T_ref, X_jmlp_ol, inds=1:3, lw=1, label=["jDMD" ""], c=:blue, s=:solid, legend=:bottomright)
+
+res_cl_mlp = test_mlp_models(mlp, mlp_jac)
+res_ol_mlp
+
 #############################################
 ## Model Prediction Error 
 #############################################

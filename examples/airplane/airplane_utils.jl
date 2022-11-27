@@ -145,8 +145,8 @@ function gen_airplane_data(;num_train=30, num_test=10, dt=0.05, dp_window=[1.0,3
     U_ref = mapreduce(x->getindex(x,4), hcat, plane_data)
     X_train = X_mpc[:,1:num_train]
     U_train = U_mpc[:,1:num_train]
-    X_test = X_mpc[:,num_test .+ (1:num_test)]
-    U_test = U_mpc[:,num_test .+ (1:num_test)]
+    X_test = X_mpc[:,num_train .+ (1:num_test)]
+    U_test = U_mpc[:,num_train .+ (1:num_test)]
 
     if save_to_file
         jldsave(AIRPLANE_DATAFILE; 
@@ -203,7 +203,7 @@ function jacobian_error(model, X, U, T)
     norm(jerr) / length(jerr)
 end
 
-function test_airplane(model_eDMD, model_jDMD)
+function test_airplane(model_eDMD, model_jDMD; num_test=10)
     # Models
     model_nom = BilinearControl.NominalAirplane()
     model_real = BilinearControl.SimulatedAirplane()
@@ -223,13 +223,11 @@ function test_airplane(model_eDMD, model_jDMD)
 
     # Get test data
     airplane_data = load(AIRPLANE_DATAFILE)
-    X_test = airplane_data["X_test"]
-    X_train = airplane_data["X_train"]
-    num_train = size(X_train,2)
-    num_test =  size(X_test,2)
+    num_samples = size(airplane_data["X_ref"], 2)
+    test_inds = num_samples - num_test + 1:num_samples
+    X_ref0 = airplane_data["X_ref"][:,test_inds]
+    U_ref0 = airplane_data["U_ref"][:,test_inds]
 
-    X_ref0 = airplane_data["X_ref"][:,num_train+1:end]
-    U_ref0 = airplane_data["U_ref"][:,num_train+1:end]
     T_ref = airplane_data["T_ref"]
     dt = T_ref[2]
     t_ref = T_ref[end]
@@ -243,6 +241,9 @@ function test_airplane(model_eDMD, model_jDMD)
     jerr_jDMD = zeros(num_test) 
     model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
     model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
+    X_nom = [zero.(col) for col in eachcol(X_ref0)] 
+    X_eDMD = deepcopy(X_nom) 
+    X_jDMD = deepcopy(X_nom) 
 
     # Run MPC on each trajectory
     for i = 1:num_test
@@ -261,13 +262,13 @@ function test_airplane(model_eDMD, model_jDMD)
         )
 
         # Tracking error
-        X_nom,  = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_ref, dt)
-        X_eDMD, = simulatewithcontroller(dmodel_real, mpc_eDMD, X_ref[1], t_ref, dt)
-        X_jDMD, = simulatewithcontroller(dmodel_real, mpc_jDMD, X_ref[1], t_ref, dt)
+        X_nom[i],  = simulatewithcontroller(dmodel_real, mpc_nom,  X_ref[1], t_ref, dt)
+        X_eDMD[i], = simulatewithcontroller(dmodel_real, mpc_eDMD, X_ref[1], t_ref, dt)
+        X_jDMD[i], = simulatewithcontroller(dmodel_real, mpc_jDMD, X_ref[1], t_ref, dt)
 
-        err_nom[i] = norm(X_nom - X_ref) / N
-        err_eDMD[i] = norm(X_eDMD - X_ref) / N
-        err_jDMD[i] = norm(X_jDMD - X_ref) / N
+        err_nom[i] = norm(X_nom[i] - X_ref) / N
+        err_eDMD[i] = norm(X_eDMD[i] - X_ref) / N
+        err_jDMD[i] = norm(X_jDMD[i] - X_ref) / N
 
         # Evaluate Jacobian error
         jerr_nom[i] = jacobian_error(dmodel_nom, X_ref, U_ref, T_ref)
@@ -277,46 +278,39 @@ function test_airplane(model_eDMD, model_jDMD)
     Dict(
         :nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD,
         :jerr_nominal=>jerr_nom, :jerr_eDMD=>jerr_eDMD, :jerr_jDMD=>jerr_jDMD,
+        :X_nom=>X_nom, :X_eDMD=>X_eDMD, :X_jDMD=>X_jDMD
     )
 end
 
-function test_airplane_open_loop(model_eDMD, model_jDMD)
+function test_airplane_open_loop(model_eDMD, model_jDMD; num_test=10)
     # Models
     model_nom = BilinearControl.NominalAirplane()
     model_real = BilinearControl.SimulatedAirplane()
     dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
     dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
 
-    # MPC parameters
-    Nt = 21
-    Qk = Diagonal([fill(1e0, 3); fill(1e1, 3); fill(1e-1, 3); fill(2e-1, 3)])
-    Rk = Diagonal(fill(1e-3,4))
-    Qf = Diagonal([fill(1e-2, 3); fill(1e0, 3); fill(1e1, 3); fill(1e1, 3)]) * 10
-    u_trim = [41.66667789082778, 105.99999999471807, 74.65179381344494, 106.00000124622453]
-    xmax = [fill(0.5,3); fill(1.0, 3); fill(0.5, 3); fill(10.0, 3)]
-    xmin = -xmax
-    umin = fill(0.0, 4) - u_trim
-    umax = fill(255.0, 4) - u_trim
-
     # Get test data
     airplane_data = load(AIRPLANE_DATAFILE)
-    X_test = airplane_data["X_test"]
-    X_train = airplane_data["X_train"]
-    num_train = size(X_train,2)
-    num_test =  size(X_test,2)
+    num_samples = size(airplane_data["X_ref"], 2)
+    test_inds = num_samples - num_test + 1:num_samples
+    X_ref0 = airplane_data["X_ref"][:,test_inds]
+    U_ref0 = airplane_data["U_ref"][:,test_inds]
 
-    X_ref0 = airplane_data["X_ref"][:,num_train+1:end]
-    U_ref0 = airplane_data["U_ref"][:,num_train+1:end]
     T_ref = airplane_data["T_ref"]
     dt = T_ref[2]
     t_ref = T_ref[end]
 
     # Allocate result vectors
     err_nom = zeros(num_test) 
+    err_real = zeros(num_test) 
     err_eDMD = zeros(num_test) 
     err_jDMD = zeros(num_test) 
-    model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
-    model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
+    X_nom = [zero.(col) for col in eachcol(X_ref0)] 
+    X_real = deepcopy(X_nom) 
+    X_eDMD = deepcopy(X_nom) 
+    X_jDMD = deepcopy(X_nom) 
+    # model_eDMD_projected = BilinearControl.ProjectedEDMDModel(model_eDMD)
+    # model_jDMD_projected = BilinearControl.ProjectedEDMDModel(model_jDMD)
 
     # Run MPC on each trajectory
     for i = 1:num_test
@@ -324,11 +318,66 @@ function test_airplane_open_loop(model_eDMD, model_jDMD)
         U_ref = U_ref0[:,i]
         N = length(X_ref)
 
-        X_eDMD, = simulate(model_eDMD_projected, U_ref, X_ref[1], t_ref, dt)
-        X_jDMD, = simulate(model_jDMD_projected, U_ref, X_ref[1], t_ref, dt)
+        X_nom[i], = simulate(dmodel_nom, U_ref, X_ref[1], t_ref, dt)
+        X_real[i], = simulate(dmodel_real, U_ref, X_ref[1], t_ref, dt)
+        X_eDMD[i], = simulate(model_eDMD, U_ref, X_ref[1], t_ref, dt)
+        X_jDMD[i], = simulate(model_jDMD, U_ref, X_ref[1], t_ref, dt)
 
-        err_eDMD[i] = norm(X_eDMD - X_ref) / N
-        err_jDMD[i] = norm(X_jDMD - X_ref) / N
+        err_nom[i] = norm(X_nom[i] - X_ref) / N
+        err_real[i] = norm(X_real[i] - X_ref) / N
+        err_eDMD[i] = norm(X_eDMD[i] - X_ref) / N
+        err_jDMD[i] = norm(X_jDMD[i] - X_ref) / N
     end
-    Dict(:nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD)
+    Dict(:nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD, :real=>err_real,
+        :X_nom=>X_nom, :X_eDMD=>X_eDMD, :X_jDMD=>X_jDMD
+    )
+end
+
+function airplane_dynamics_prediction_error(model, model_jac; num_test=10)
+    # Models
+    model_nom = BilinearControl.NominalAirplane()
+    model_real = BilinearControl.SimulatedAirplane()
+    dmodel_nom = RD.DiscretizedDynamics{RD.RK4}(model_nom)
+    dmodel_real = RD.DiscretizedDynamics{RD.RK4}(model_real)
+
+    # Load data
+    airplane_data = load(AIRPLANE_DATAFILE)
+    num_samples = size(airplane_data["X_ref"], 2)
+    test_inds = num_samples - num_test + 1:num_samples
+    X_ref0 = airplane_data["X_ref"][:,test_inds]
+    U_ref0 = airplane_data["U_ref"][:,test_inds]
+
+    T_ref = airplane_data["T_ref"]
+    dt = T_ref[2]
+    t_ref = T_ref[end]
+
+    err_nom = zeros(num_test) 
+    err_real = zeros(num_test) 
+    err_eDMD = zeros(num_test) 
+    err_jDMD = zeros(num_test) 
+    for i = 1:num_test
+        X_ref = X_ref0[:,i]
+        U_ref = U_ref0[:,i]
+        N = length(X_ref)
+        err_real[i] = norm(map(1:N-1) do k
+            h = T_ref[k+1] - T_ref[k]
+            norm(RD.discrete_dynamics(dmodel_real, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1])
+        end) / (N-1)
+
+        err_nom[i] = norm(map(1:N-1) do k
+            h = T_ref[k+1] - T_ref[k]
+            norm(RD.discrete_dynamics(dmodel_real, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1] - X_ref[k+1])
+        end) / (N-1)
+
+        err_eDMD[i] = norm(map(1:N-1) do k
+            h = T_ref[k+1] - T_ref[k]
+            norm(RD.discrete_dynamics(model, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1])
+        end) / (N-1)
+
+        err_jDMD[i] = norm(map(1:N-1) do k
+            h = T_ref[k+1] - T_ref[k]
+            norm(RD.discrete_dynamics(model_jac, X_ref[k], U_ref[k], T_ref[k], h) - X_ref[k+1])
+        end) / (N-1)
+    end
+    Dict(:nominal=>err_nom, :eDMD=>err_eDMD, :jDMD=>err_jDMD, :real=>err_real)
 end

@@ -183,3 +183,8 @@ orientation(model, x) = UnitQuaternion(x[4], x[5], x[6], x[7])
 translation(model::RD.DiscretizedDynamics, x) = translation(model.continuous_dynamics, x)
 orientation(model::RD.DiscretizedDynamics, x) = orientation(model.continuous_dynamics, x)
 
+
+function traj3!(vis, X::AbstractVector{<:AbstractVector}; inds=SA[1,2,3], kwargs...)
+    pts = [Point{3,Float32}(x[inds]) for x in X] 
+    setobject!(vis["traj"], MeshCat.Line(pts, LineBasicMaterial(;kwargs...)))
+end
