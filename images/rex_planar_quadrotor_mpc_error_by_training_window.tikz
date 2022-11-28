@@ -361,6 +361,6 @@
             (2.5,0.2482245610735594)
         }
         ;
-    \legend{{EDMD$(\lambda = 0.0)$},{EDMD$(\lambda = 0.1)$},{JDMD$(\lambda = 10^{-5})$},{JDMD$(\lambda = 0.1)$}}
+    \legend{{eDMD$(\lambda = 0.0)$},{eDMD$(\lambda = 0.1)$},{jDMD$(\lambda = 10^{-5})$},{jDMD$(\lambda = 0.1)$}}
 \end{axis}
 \end{tikzpicture}

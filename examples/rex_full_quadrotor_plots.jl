@@ -31,13 +31,13 @@ const QUADROTOR_MODELS_FILE = joinpath(BilinearControl.DATADIR, "rex_full_quadro
 
 function set_quadrotor!(vis, model::L;
     scaling=1.0, color=colorant"black"
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.Quadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
      
     # urdf_folder = @__DIR__
     # if scaling != 1.0
     #     quad_scaling = 0.085 * scaling
     # obj = joinpath(urdf_folder, "quadrotor_scaled.obj")
-    obj = joinpath("/home/jeonghun/Scratch/Research/Robot_Meshes/quadrotor/", "drone.obj")
+    obj = joinpath("/Users/jeonghun/Scratch/Research/Robot_Meshes/quadrotor/", "drone.obj")
     if scaling != 1.0
         error("Scaling not implemented after switching to MeshCat 0.12")
     end
@@ -47,7 +47,7 @@ function set_quadrotor!(vis, model::L;
     settransform!(vis["robot"]["geom"], LinearMap(RotXYZ(pi/2, 0, 0)))
 end
 
-function visualize!(vis, model::L, x::AbstractVector) where {L <: Union{BilinearControl.Quadrotor, BilinearControl.RexQuadrotor}}
+function visualize!(vis, model::L, x::AbstractVector) where {L <: BilinearControl.RexQuadrotor}
     px, py,pz = x[1], x[2], x[3]
     rx, ry, rz = x[4], x[5], x[6]
     settransform!(vis, compose(Translation(px,py,pz), LinearMap(MRP(rx, ry, rz))))
@@ -67,7 +67,7 @@ end
 
 function waypoints!(vis, model::L, Z::AbstractVector;
     interval=20, color=nothing
-    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.Quadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
+    ) where {L <: Union{RobotZoo.Quadrotor, RobotZoo.PlanarQuadrotor, BilinearControl.RexQuadrotor, BilinearControl.RexPlanarQuadrotor}}
     
     # N = size(Z,1)
     # if length > 0 && isempty(inds)
@@ -103,6 +103,20 @@ end
 function traj3!(vis, X::AbstractVector{<:AbstractVector}; inds=SA[1,2,3], kwargs...)
     pts = [Point{3,Float32}(x[inds]) for x in X] 
     setobject!(vis[:traj], MeshCat.Line(pts, LineBasicMaterial(; linewidth=3.0, kwargs...)))
+end
+
+function visualize_multiple(vis1, vis2, vis3, model, tf, X1, X2, X3)
+    N = length(X1)
+    fps = Int(floor((N-1)/tf))
+    anim = MeshCat.Animation(fps)
+    for k = 1:N
+        atframe(anim, k) do 
+            visualize!(vis1, model, X1[k])
+            visualize!(vis2, model, X2[k])
+            visualize!(vis3, model, X3[k])
+        end
+    end
+    setanimation!(vis, anim)
 end
 
 #############################################
@@ -144,6 +158,7 @@ eDMD_MPC = eDMD_MPC_trajectories[i]
 jDMD_MPC = jDMD_MPC_trajectories[i]
 T_mpc = T_mpc_vecs[i]
 set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
+
 visualize!(vis, model, T_mpc[end], jDMD_MPC)
 
 println("")
@@ -164,17 +179,25 @@ vis = Visualizer()
 delete!(vis)
 render(vis)
 
-setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
-setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+# setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+# setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
 
-set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
+setprop!(vis["/Background"], "top_color", colorant"#262626")
+setprop!(vis["/Background"], "bottom_color", colorant"#262626")
+
+ref_color = colorant"rgb(204,0,43)";
+nominal_color = colorant"rgb(255,255,255)";
+edmd_color = colorant"rgb(255,173,0)";
+jdmd_color = colorant"rgb(0,193,208)";
+
+set_quadrotor!(vis, model, color=ref_color)
 
 i = 1
 for ref in ref_trajectories
-    set_quadrotor!(vis["ref_start"]["$i"], model, color=colorant"rgb(70,70,70)")
+    set_quadrotor!(vis["ref_start"]["$i"], model, color=nominal_color)
     # set_quadrotor!(vis["ref_start"]["$i"], model)
     visualize!(vis["ref_start"]["$i"], model, ref[1])
-    traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(23,75,63)")
+    traj3!(vis["ref_traj"]["$i"], ref; color=ref_color)
     i+=1
 end
 
@@ -187,10 +210,18 @@ vis = Visualizer()
 delete!(vis)
 render(vis)
 
-setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
-setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+# setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+# setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+
+setprop!(vis["/Background"], "top_color", colorant"#262626")
+setprop!(vis["/Background"], "bottom_color", colorant"#262626")
 
 set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
+
+ref_color = colorant"rgb(204,0,43)";
+nominal_color = colorant"rgb(255,255,255)";
+edmd_color = colorant"rgb(255,173,0)";
+jdmd_color = colorant"rgb(0,193,208)";
 
 i = 46
 ref = ref_trajectories[i]
@@ -199,10 +230,10 @@ eDMD_MPC = eDMD_MPC_trajectories[i]
 jDMD_MPC = jDMD_MPC_trajectories[i]
 T_mpc = T_mpc_vecs[i]
 
-traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(204,0,43)")
-traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"black")
-traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=colorant"rgb(255,173,0)")
-traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(0,193,208)")
+traj3!(vis["ref_traj"]["$i"], ref; color=ref_color)
+traj3!(vis["nom_traj"]["$i"], nom_MPC; color=nominal_color)
+traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=edmd_color)
+traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=jdmd_color)
 
 waypoints!(vis, model, jDMD_MPC; color=colorant"rgb(70,70,70)", interval=15)
 
@@ -215,113 +246,139 @@ vis = Visualizer()
 delete!(vis)
 render(vis)
 
-setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
-setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+setprop!(vis["/Background"], "top_color", colorant"#262626")
+setprop!(vis["/Background"], "bottom_color", colorant"#262626")
 
+# setprop!(vis["/Background"], "top_color", colorant"rgb(255,255,255)")
+# setprop!(vis["/Background"], "bottom_color", colorant"rgb(255,255,255)")
+
+##
 set_quadrotor!(vis, model, color=colorant"rgb(204,0,43)")
 
-i = 3
+i = 46
 ref = ref_trajectories[i]
 nom_MPC = nom_MPC_trajectories[i]
 eDMD_MPC = eDMD_MPC_trajectories[i]
 jDMD_MPC = jDMD_MPC_trajectories[i]
 T_mpc = T_mpc_vecs[i]
 
-traj3!(vis["ref_traj"]["$i"], ref; color=colorant"rgb(23,75,63)")
-traj3!(vis["nom_traj"]["$i"], nom_MPC; color=colorant"rgb(0,193,208)")
-traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC; color=colorant"rgb(255,75,63)")
-traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=colorant"rgb(255,173,0)")
+ref_color = colorant"rgb(204,0,43)";
+nominal_color = colorant"rgb(255,255,255)";
+edmd_color = colorant"rgb(255,173,0)";
+jdmd_color = colorant"rgb(0,193,208)";
 
-set_quadrotor!(vis["jDMD_quad"]["$i"], model, color=colorant"rgb(70,70,70)")
-visualize!(vis["jDMD_quad"]["$i"], model, T_mpc[end], jDMD_MPC)
+traj3!(vis["ref_traj"]["$i"], ref; color=ref_color)
+set_quadrotor!(vis["ref_quad"]["$i"], model, color=ref_color)
+visualize!(vis["ref_quad"]["$i"], model, ref[end])
+# visualize!(vis["ref_quad"]["$i"], model, 5.0, ref)
+
+traj3!(vis["nom_traj"]["$i"], nom_MPC; color=nominal_color)
+set_quadrotor!(vis["nominal_quad"]["$i"], model, color=nominal_color)
+visualize!(vis["nominal_quad"]["$i"], model, nom_MPC[1])
+# visualize!(vis["nominal_quad"]["$i"], model, T_mpc[end], nom_MPC)
+
+traj3!(vis["eDMD_traj"]["$i"], eDMD_MPC[1:24]; color=edmd_color)
+set_quadrotor!(vis["eDMD_quad"]["$i"], model, color=edmd_color)
+visualize!(vis["eDMD_quad"]["$i"], model, eDMD_MPC[1])
+# visualize!(vis["eDMD_quad"]["$i"], model, T_mpc[end], eDMD_MPC)
+
+traj3!(vis["jDMD_traj"]["$i"], jDMD_MPC; color=jdmd_color)
+set_quadrotor!(vis["jDMD_quad"]["$i"], model, color=jdmd_color)
+visualize!(vis["jDMD_quad"]["$i"], model, jDMD_MPC[1])
+# visualize!(vis["jDMD_quad"]["$i"], model, T_mpc[end], jDMD_MPC)
+
+## multiple trajectories
+
+visualize_multiple(vis["eDMD_quad"]["$i"], vis["jDMD_quad"]["$i"], vis["nominal_quad"]["$i"],
+            model, T_mpc[end], eDMD_MPC, jDMD_MPC, nom_MPC)
 
 #############################################
 ## Plot tracking performance vs equilibrium change
 #############################################
 
-equilibrium_results = load(QUADROTOR_RESULTS_FILE)["equilibrium_results"]
-distances = 0:0.1:2.0
+# equilibrium_results = load(QUADROTOR_RESULTS_FILE)["equilibrium_results"]
+# distances = 0:0.1:2.0
 
-fields = keys(equilibrium_results[1])
-res_equilibrium = Dict(Pair.(fields, map(x->getfield.(equilibrium_results, x), fields)))
+# fields = keys(equilibrium_results[1])
+# res_equilibrium = Dict(Pair.(fields, map(x->getfield.(equilibrium_results, x), fields)))
 
-p_equilibrium_err = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Equilibirum offset",
-        ylabel = "Tracking error",
-        legend_pos = "north west",
-        ymax = 3,
+# p_equilibrium_err = @pgf Axis(
+#     {
+#         xmajorgrids,
+#         ymajorgrids,
+#         xlabel = "Equilibirum offset",
+#         ylabel = "Tracking error",
+#         legend_pos = "north west",
+#         ymax = 3,
         
-    },
-    PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:err_nom_MPC])),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
+#     },
+#     PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:err_nom_MPC])),
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:error_eDMD_projected])),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:error_jDMD_projected])),
 
-    Legend(["nominal MPC", "eDMD", "jDMD"])
-)
-pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_mpc_error_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
+#     Legend(["nominal MPC", "eDMD", "jDMD"])
+# )
+# pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_error_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
 
-p_equilibrium_err = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Equilibirum offset",
-        ylabel = "Success rate",
-        legend_pos = "north west",
-        ymax = 1.2,
+# p_equilibrium_err = @pgf Axis(
+#     {
+#         xmajorgrids,
+#         ymajorgrids,
+#         xlabel = "Equilibirum offset",
+#         ylabel = "Success rate",
+#         legend_pos = "north west",
+#         ymax = 1.2,
         
-    },
-    PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:nom_success][2:end] ./ 10.0)),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:eDMD_success][2:end] ./ 10.0)),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:jDMD_success][2:end] ./ 10.0)),
+#     },
+#     PlotInc({lineopts..., color="black"}, Coordinates(distances, res_equilibrium[:nom_success][2:end] ./ 10.0)),
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(distances, res_equilibrium[:eDMD_success][2:end] ./ 10.0)),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(distances, res_equilibrium[:jDMD_success][2:end] ./ 10.0)),
 
-    Legend(["nominal MPC", "eDMD", "jDMD"])
-)
-pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_mpc_success_rate_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
+#     Legend(["nominal MPC", "eDMD", "jDMD"])
+# )
+# pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_success_rate_by_equilibrium_change.tikz"), p_equilibrium_err, include_preamble=false)
 
-#############################################
-## Plot tracking performance vs test window
-#############################################
+# #############################################
+# ## Plot tracking performance vs test window
+# #############################################
 
-window_results = load(QUADROTOR_RESULTS_FILE)["window_results"]
-percentages = 0.1:0.1:2
+# window_results = load(QUADROTOR_RESULTS_FILE)["window_results"]
+# percentages = 0.1:0.1:2
 
-fields = keys(window_results[1])
-window_results = Dict(Pair.(fields, map(x->getfield.(window_results, x), fields)))
+# fields = keys(window_results[1])
+# window_results = Dict(Pair.(fields, map(x->getfield.(window_results, x), fields)))
 
-p_window_error = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Training range",
-        ylabel = "Tracking error",
-        legend_pos = "north west",
+# p_window_error = @pgf Axis(
+#     {
+#         xmajorgrids,
+#         ymajorgrids,
+#         xlabel = "Training range",
+#         ylabel = "Tracking error",
+#         legend_pos = "north west",
         
-    },
-    PlotInc({lineopts..., color="black"}, Coordinates(percentages, window_results[:error_nom])),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, window_results[:error_eDMD])),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, window_results[:error_jDMD])),
+#     },
+#     PlotInc({lineopts..., color="black"}, Coordinates(percentages, window_results[:error_nom])),
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, window_results[:error_eDMD])),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, window_results[:error_jDMD])),
 
-    Legend(["nominal MPC", "eDMD", "jDMD"])
-)
-pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_mpc_error_by_training_range.tikz"), p_window_error, include_preamble=false)
+#     Legend(["nominal MPC", "eDMD", "jDMD"])
+# )
+# pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_mpc_error_by_training_range.tikz"), p_window_error, include_preamble=false)
 
-p_window_success = @pgf Axis(
-    {
-        xmajorgrids,
-        ymajorgrids,
-        xlabel = "Training range",
-        ylabel = "Success rate",
-        legend_pos = "north east",
-        ymax = 1.2,
+# p_window_success = @pgf Axis(
+#     {
+#         xmajorgrids,
+#         ymajorgrids,
+#         xlabel = "Training range",
+#         ylabel = "Success rate",
+#         legend_pos = "north east",
+#         ymax = 1.2,
         
-    },
-    PlotInc({lineopts..., color="black"}, Coordinates(percentages, window_results[:num_success_nom] ./ 50)),
-    PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, window_results[:num_success_eDMD]./ 50)),
-    PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, window_results[:num_success_jDMD]./ 50)),
+#     },
+#     PlotInc({lineopts..., color="black"}, Coordinates(percentages, window_results[:num_success_nom] ./ 50)),
+#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(percentages, window_results[:num_success_eDMD]./ 50)),
+#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(percentages, window_results[:num_success_jDMD]./ 50)),
 
-    Legend(["nominal MPC", "eDMD", "jDMD"])
-)
-pgfsave(joinpath(BilinearControl.FIGDIR, "rex_full_quadrotor_success_rate_by_training_range.tikz"), p_window_success, include_preamble=false)
+#     Legend(["nominal MPC", "eDMD", "jDMD"])
+# )
+# pgfsave(joinpath(Problems.FIGDIR, "rex_full_quadrotor_success_rate_by_training_range.tikz"), p_window_success, include_preamble=false)

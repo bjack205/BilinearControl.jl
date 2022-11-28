@@ -126,10 +126,10 @@ end
 # Airplane
 #############################################
 function set_airplane!(vis, ::BilinearControl.YakPlane; color=nothing, scale=0.15)
-    meshfile = joinpath(DATADIR,"piper","piper_pa18.obj")
+    meshfile = joinpath(BilinearControl.DATADIR,"piper","piper_pa18.obj")
     # meshfile = joinpath(@__DIR__,"..","data","meshes","cirrus","Cirrus.obj")
     # meshfile = joinpath(@__DIR__,"..","data","meshes","piper","piper_scaled.obj")
-    jpg = joinpath(DATADIR,"piper","piper_diffuse.jpg")
+    jpg = joinpath(BilinearControl.DATADIR,"piper","piper_diffuse.jpg")
     if isnothing(color)
         img = PngImage(jpg)
         texture = Texture(image=img)
