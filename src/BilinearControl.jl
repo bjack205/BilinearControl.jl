@@ -32,7 +32,6 @@ include("gen_controllable.jl")
 
 include("controllers.jl")
 include("edmd/edmd.jl")
-# include(joinpath(EXAMPLES_DIR,"problems.jl"))
 include("problems.jl")
 include("visualization/visualization.jl")
 
