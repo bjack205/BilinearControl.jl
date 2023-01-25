@@ -13,7 +13,7 @@ using ProgressMeter
 const CARTPOLE_DATAFILE = joinpath(BilinearControl.DATADIR, "cartpole_swingup_data.jld2")
 const CARTPOLE_LQR_RESULTS_FILE = joinpath(BilinearControl.DATADIR, "cartpole_lqr_results.jld2")
 const CARTPOLE_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_results.jld2")
-const CARTPOLE_MISMATCH_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mistmatch_results.jld2")
+const CARTPOLE_MISMATCH_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mismatch_results.jld2")
 const CARTPOLE_MPC_RESULTS = joinpath(BilinearControl.DATADIR, "cartpole_mpc_results.jld2")
 
 function gencartpoleproblem(x0=zeros(4), Qv=1e-2, Rv=1e-1, Qfv=1e2, u_bnd=3.0, tf=5.0; 

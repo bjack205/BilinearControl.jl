@@ -144,7 +144,3 @@ p = @pgf Axis(
     # Legend(["Nominal", "eDMD", "jDMD"])
 )
 pgfsave(joinpath(BilinearControl.FIGDIR, "cartpole_mpc_test_error.tikz"), p, include_preamble=false)
-
-#############################################
-## Open Loop comparison 
-#############################################

@@ -64,19 +64,10 @@ function invalidate_by_success_rate!(err,sr; thresh=0.95)
 end
 
 #############################################
-## Visualizer
-#############################################
-model = BilinearControl.NominalAirplane()
-vis = Visualizer()
-delete!(vis)
-set_airplane!(vis, model)
-render(vis)
-
-#############################################
 ## Generate training data
 #############################################
 
-gen_airplane_data(num_train=50, num_test=50, dt=0.04, dp_window=fill(0.5, 3))
+gen_airplane_data(num_train=100, num_test=100, dt=0.04, dp_window=fill(0.5, 3))
 
 #############################################
 ## Sample study
@@ -103,25 +94,13 @@ err_nom  = get_median_error(results, :nominal)
 err_eDMD = get_median_error(results, :eDMD) 
 err_jDMD = get_median_error(results, :jDMD) 
 
-# min_err_nom  = get_min_error(results, :nominal) 
-# min_err_eDMD = get_min_error(results, :eDMD) 
-# min_err_jDMD = get_min_error(results, :jDMD) 
-
-# max_err_nom  = get_max_error(results, :nominal) 
-# max_err_eDMD = get_max_error(results, :eDMD) 
-# max_err_jDMD = get_max_error(results, :jDMD)
-
-# ci_err_nom  = get_error_ci(results, :nominal) 
-# ci_err_eDMD = get_error_ci(results, :eDMD) 
-# ci_err_jDMD = get_error_ci(results, :jDMD) 
-
 quant_min_nom, quant_max_nom  = get_error_quantile(results, :nominal) 
 quant_min_eDMD, quant_max_eDMD = get_error_quantile(results, :eDMD) 
 quant_min_jDMD, quant_max_jDMD = get_error_quantile(results, :jDMD) 
 
-jerr_nom  = get_average_error(results, :jerr_nominal) 
-jerr_eDMD = get_average_error(results, :jerr_eDMD) 
-jerr_jDMD = get_average_error(results, :jerr_jDMD) 
+jerr_nom  = get_median_error(results, :jerr_nominal) 
+jerr_eDMD = get_median_error(results, :jerr_eDMD) 
+jerr_jDMD = get_median_error(results, :jerr_jDMD) 
 jerr_nom_lo, jerr_nom_up = get_error_quantile(results, :jerr_nominal) 
 jerr_eDMD_lo, jerr_eDMD_up = get_error_quantile(results, :jerr_eDMD) 
 jerr_jDMD_lo, jerr_jDMD_up = get_error_quantile(results, :jerr_jDMD) 
@@ -227,7 +206,7 @@ num_test = 100
 airplane_data = load(AIRPLANE_DATAFILE)
 T_ref = airplane_data["T_ref"]
 num_samples = size(airplane_data["X_ref"],2)
-test_inds = num_samjles - num_test + 1:num_samples
+test_inds = num_samples - num_test + 1:num_samples
 X_ref = airplane_data["X_ref"][:,test_inds]
 U_ref = airplane_data["U_ref"][:,test_inds]
 
@@ -313,82 +292,6 @@ X_jDMD_ol = map(X_jDMD_ol) do x
     norm(x) < 100 ? x : x * NaN
 end
 
-# render(vis)
-delete!(vis["ref"])
-delete!(vis["nom_ol"])
-delete!(vis["eDMD_ol"])
-delete!(vis["jDMD_ol"])
-delete!(vis["nom"])
-delete!(vis["eDMD"])
-delete!(vis["jDMD"])
-BilinearControl.traj3!(vis["ref"], X_ref[:,i], linewidth=4)
-visualize!(vis, model, T_ref[end], X_ref[:,i]) 
-BilinearControl.traj3!(vis["nom_ol"], X_nom_ol, color=colorant"red", linewidth=4)
-visualize!(vis, model, T_ref[end], X_nom_ol) 
-BilinearControl.traj3!(vis["eDMD_ol"], X_eDMD_ol, color=colorant"orange", linewidth=4)
-visualize!(vis, model, T_ref[end], X_eDMD_ol) 
-BilinearControl.traj3!(vis["jDMD_ol"], X_jDMD_ol, color=colorant"cyan", linewidth=4)
-visualize!(vis, model, T_ref[end], X_jDMD_ol) 
-
-BilinearControl.traj3!(vis["nom"], X_nom, color=colorant"red", linewidth=4)
-visualize!(vis, model, T_ref[end], X_nom) 
-BilinearControl.traj3!(vis["eDMD"], X_eDMD, color=colorant"orange", linewidth=4)
-visualize!(vis, model, T_ref[end], X_eDMD) 
-BilinearControl.traj3!(vis["jDMD"], X_jDMD, color=colorant"cyan", linewidth=4)
-visualize!(vis, model, T_ref[end], X_jDMD) 
-
-delete!(vis["jDMD"])
-for i = 1:num_test
-    X_jDMD = res_cl_dmd[:X_jDMD][i]
-    if norm(X_jDMD[end]) < 10
-        BilinearControl.traj3!(vis["jDMD"]["$i"], res_cl_dmd[:X_jDMD][i], color=colorant"cyan", linewidth=1)
-    end
-end
-res_cl_dmd
-
-
-## Convert to videos
-for filename in ["ref", "nominal_ol", "edmd_ol", "jdmd_ol", "nominal", "edmd", "jdmd"]
-    MeshCat.convert_frames_to_video("/home/brian/Downloads/meshcat_" * filename * ".tar", filename * ".mp4", overwrite=true)
-end
-
-
-plotstates(T_ref, X_ref[:,i], inds=1:3, lw=1, label=["ref" ""], c=:black, s=:dash, legend=:bottomright)
-plotstates!(T_ref, X_nom, inds=1:3, lw=1, label=["test" ""], c=:red, s=:solid, legend=:bottomright)
-plotstates!(T_ref, X_eDMD, inds=1:3, lw=1, label=["eDMD" ""], c=:green, s=:solid, legend=:bottomright)
-plotstates!(T_ref, X_jDMD, inds=1:3, lw=1, label=["jDMD" ""], c=:blue, s=:solid, legend=:bottomright)
-
-visualize!(vis, model, T_ref[end], X_eDMD_ol) 
-visualize!(vis, model, T_ref[end], X_jDMD_ol) 
-
-plotstates(T_ref, X_ref[:,i], inds=1:3, lw=1, label=["ref" ""], c=:black, s=:dash, legend=:bottomright)
-plotstates!(T_ref, X_nom, inds=1:3, lw=1, label=["test" ""], c=:red, s=:solid, legend=:bottomright)
-plotstates!(T_ref, X_eDMD_ol, inds=1:3, lw=1, label=["eDMD" ""], c=:green, s=:solid, legend=:bottomright)
-plotstates!(T_ref, X_jDMD_ol, inds=1:3, lw=1, label=["jDMD" ""], c=:blue, s=:solid, legend=:bottomright)
-
-visualize!(vis, model, T_ref[end], res_cl_dmd[:X_nom][1])
-
-using ForwardDiff, FiniteDiff, JSON
-mlp_dir =  joinpath(@__DIR__,"..","..","dev/mlp")
-include(joinpath(mlp_dir,"mlp.jl"))
-modelfile = joinpath(mlp_dir, "airplane_model.json")
-modelfile_jac = joinpath(mlp_dir, "airplane_model_jacobian.json")
-mlp = MLP(modelfile)
-mlp_jac = MLP(modelfile_jac)
-
-res_ol_mlp = test_airplane_open_loop(mlp, mlp_jac)
-i = 1
-X_mlp_ol = res_ol_mlp[:X_eDMD][i]
-X_jmlp_ol = res_ol_mlp[:X_jDMD][i]
-
-plotstates(T_ref, X_ref[:,i], inds=1:3, lw=1, label=["ref" ""], c=:black, s=:dash, legend=:bottomright)
-# plotstates!(T_ref, X_nom, inds=1:3, lw=1, label=["test" ""], c=:red, s=:solid, legend=:bottomright)
-plotstates!(T_ref, X_mlp_ol, inds=1:3, lw=1, label=["eDMD" ""], c=:green, s=:solid, legend=:bottomright)
-plotstates!(T_ref, X_jmlp_ol, inds=1:3, lw=1, label=["jDMD" ""], c=:blue, s=:solid, legend=:bottomright)
-
-res_cl_mlp = test_mlp_models(mlp, mlp_jac)
-res_ol_mlp
-
 #############################################
 ## Model Prediction Error 
 #############################################
@@ -442,47 +345,6 @@ jdmd_sr_ol = get_success_rate(open_loop_res, :jDMD)
 jdmd_err_ol_filtered = invalidate_by_success_rate!(copy(jdmd_err_ol), jdmd_sr_ol, thresh=0.9)
 jdmd_err_cl_filtered = invalidate_by_success_rate!(copy(jdmd_err_cl), jdmd_sr_cl, thresh=0.9)
 
-# prediction error
-# p_err = @pgf Axis(
-#     {
-#         xmajorgrids,
-#         ymajorgrids,
-#         ymode="log",
-#         xlabel = L"\alpha",
-#         ylabel = "Error",
-#         legend_pos = "north west",
-#     },
-
-#     PlotInc({lineopts..., "name_path=E", "orange!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, edmd_quant_min_ol)),
-#     PlotInc({lineopts..., "name_path=F","orange!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, edmd_quant_max_ol)),
-#     PlotInc({lineopts..., "orange!10", "forget plot"}, "fill between [of=E and F]"),
-
-#     PlotInc({lineopts..., "name_path=G", "cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_min_ol)),
-#     PlotInc({lineopts..., "name_path=H","cyan!10", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_max_ol)),
-#     PlotInc({lineopts..., "cyan!10", "forget plot"}, "fill between [of=G and H]"),
-
-#     PlotInc({lineopts..., "name_path=A", "orange!20", "forget plot", solid, line_width=0.1}, Coordinates(alpha, edmd_quant_min_cl)),
-#     PlotInc({lineopts..., "name_path=B","orange!20", "forget plot", solid, line_width=0.1}, Coordinates(alpha, edmd_quant_max_cl)),
-#     PlotInc({lineopts..., "orange!20", "forget plot"}, "fill between [of=A and B]"),
-
-#     PlotInc({lineopts..., "name_path=C", "cyan!20", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_min_cl)),
-#     PlotInc({lineopts..., "name_path=D","cyan!20", "forget plot", solid, line_width=0.1}, Coordinates(alpha, jdmd_quant_max_cl)),
-#     PlotInc({lineopts..., "cyan!20", "forget plot"}, "fill between [of=C and D]"),
-
-#     PlotInc({lineopts..., color=color_eDMD, solid, thick}, Coordinates(alpha, edmd_err_cl)),
-#     PlotInc({lineopts..., "orange!50", dashed, thick}, Coordinates(alpha, edmd_err_ol)),
-#     PlotInc({lineopts..., color=color_jDMD, solid, thick}, Coordinates(alpha, jdmd_err_cl)),
-#     PlotInc({lineopts..., "cyan!50", dashed, thick}, Coordinates(alpha, jdmd_err_ol)),
-
-#     # Legend(["Closed-loop", "Open-loop"])
-
-# )
-
-# pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_model_error_by_alpha.tikz"), p_err, 
-#     include_preamble=false)
-
-# prediction error just jdmd
-
 p_err = @pgf Axis(
     {
         xmajorgrids,
@@ -509,60 +371,3 @@ p_err = @pgf Axis(
 
 pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_model_error_by_alpha_just_jdmd.tikz"), p_err, 
     include_preamble=false)
-
-# # success rate
-# p_err = @pgf Axis(
-#     {
-#         xmajorgrids,
-#         ymajorgrids,
-#         xlabel = L"\alpha",
-#         ylabel = "Success Rate",
-#         legend_pos = "south west",
-#     },
-
-#     PlotInc({lineopts..., color=color_eDMD, solid, thick}, Coordinates(alpha, edmd_sr_cl)),
-#     PlotInc({lineopts..., "orange!50", dashed, thick}, Coordinates(alpha, edmd_sr_ol)),
-
-#     PlotInc({lineopts..., color=color_jDMD, solid, thick}, Coordinates(alpha, jdmd_sr_cl)),
-#     PlotInc({lineopts..., "cyan!50", dashed, thick}, Coordinates(alpha, jdmd_sr_ol)),
-#     Legend(["Closed-loop (EDMD)", "Open-loop (EDMD)", "Closed-loop (JDMD)", "Open-loop (JDMD)"])
-
-# )
-# pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_success_rate_by_alpha.tikz"), p_err, 
-#     include_preamble=false)
-
-# # success rate just jdmd
-# p_err = @pgf Axis(
-#     {
-#         xmajorgrids,
-#         ymajorgrids,
-#         xlabel = L"\alpha",
-#         ylabel = "Success Rate",
-#         legend_pos = "south west",
-#     },
-
-#     PlotInc({lineopts..., color=color_jDMD, solid, thick}, Coordinates(alpha, jdmd_sr_cl)),
-#     PlotInc({lineopts..., "cyan!50", dashed, thick}, Coordinates(alpha, jdmd_sr_ol)),
-#     Legend(["Closed-loop (JDMD)", "Open-loop (JDMD)"])
-
-# )
-# pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_success_rate_by_alpha_just_jdmd.tikz"), p_err, 
-#     include_preamble=false)
-
-# p_jerr = @pgf Axis(
-#     {
-#         xmajorgrids,
-#         ymajorgrids,
-#         # ymode="log",
-#         xlabel = "Number of training trajectories",
-#         ylabel = "Jacobian Error",
-#         legend_style="{at={(0.97,0.65)},anchor=east}"
-#     },
-#     PlotInc({lineopts..., color=color_nominal}, Coordinates(num_train, jerr_nom)),
-#     PlotInc({lineopts..., color=color_eDMD}, Coordinates(num_train, jerr_eDMD)),
-#     PlotInc({lineopts..., color=color_jDMD}, Coordinates(num_train, jerr_jDMD)),
-#     Legend(["Nominal MPC", "EDMD", "JDMD"])
-# )
-# pgfsave(joinpath(BilinearControl.FIGDIR, "airplane_jacobian_error.tikz"), p_err, 
-#     include_preamble=false)
-## TODO: Add waypoints plot
