@@ -1,7 +1,7 @@
 # Data-Efficient Model Learning for Control with Jacobian-Regularized Dynamic Mode Decomposition
 
 This contains the code used to generate the figures and examples in the CORL 2022 
-submission.
+paper.
 
 ## Running the Examples
 To run the examples, run the `<xxx>_main.jl` files in the `examples/` folder, which are 
